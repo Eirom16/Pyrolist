@@ -59,6 +59,11 @@ def main() -> None:
 
     AppDirs.setup()
     
+    from PySide6.QtGui import QIcon
+    icon_path = AppDirs.root / "assets" / "icon.png"
+    if icon_path.exists():
+        app.setWindowIcon(QIcon(str(icon_path)))
+    
     from pyrolist.ui.design.fonts import load_fonts, AppFont
     load_fonts()
     app.setFont(AppFont.body())

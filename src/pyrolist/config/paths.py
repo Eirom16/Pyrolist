@@ -6,6 +6,11 @@ class _AppDirs:
     _name = "pyrolist"
 
     @property
+    def root(self) -> Path:
+        """Project root directory."""
+        return Path(__file__).parent.parent.parent.parent
+
+    @property
     def config(self) -> Path:
         base = os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))
         return Path(base) / self._name

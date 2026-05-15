@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
+from PySide6.QtCore import Qt
 
 from pyrolist.ui.design.fonts import AppFont
 from pyrolist.ui.screens.settings.components import page_title
@@ -17,6 +18,17 @@ class AboutScreen(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(14)
         layout.addWidget(page_title("Acerca de"))
+
+        from PySide6.QtGui import QPixmap
+        from pyrolist.config.paths import AppDirs
+        logo_path = AppDirs.root / "assets" / "logo.png"
+        if logo_path.exists():
+            logo = QLabel()
+            pixmap = QPixmap(str(logo_path))
+            logo.setPixmap(pixmap.scaledToWidth(200, Qt.TransformationMode.SmoothTransformation))
+            logo.setAlignment(Qt.AlignmentFlag.AlignLeft)
+            logo.setStyleSheet("background: transparent; margin-bottom: 10px;")
+            layout.addWidget(logo)
 
         name = QLabel("Pyrolist")
         name.setFont(AppFont.display(32))

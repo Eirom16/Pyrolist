@@ -118,7 +118,15 @@ class NavSidebar(QWidget):
         logo_layout = QHBoxLayout(self._logo_row)
         logo_layout.setContentsMargins(8, 0, 8, 12)
         logo_layout.setSpacing(10)
-        self._app_icon = Icon.label("music_note", 26, "#A78BFA")
+        from pyrolist.config.paths import AppDirs
+        icon_path = AppDirs.root / "assets" / "icon.png"
+        if icon_path.exists():
+            self._app_icon = QLabel()
+            pixmap = QPixmap(str(icon_path))
+            self._app_icon.setPixmap(pixmap.scaled(28, 28, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        else:
+            self._app_icon = Icon.label("music_note", 26, "#A78BFA")
+            
         self._app_title = QLabel("Pyrolist")
         self._app_title.setFont(AppFont.heading(18))
         self._app_title.setStyleSheet("color: #A78BFA; background: transparent;")
