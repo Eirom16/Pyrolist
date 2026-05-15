@@ -1,0 +1,231 @@
+import vlc
+import asyncio
+from enum import Enum
+from dataclasses import dataclass
+from typing import Callable
+from loguru import logger
+
+
+class PlayerState(Enum):
+    IDLE = "idle"
+    LOADING = "loading"
+    PLAYING = "playing"
+    PAUSED = "paused"
+    ERROR = "error"
+
+
+@dataclass
+class PlayerStatus:
+    state: PlayerState = PlayerState.IDLE
+    position_ms: int = 0
+    duration_ms: int = 0
+    volume: int = 80
+    speed: float = 1.0
+    current_video_id: str | None = None
+    error_msg: str | None = None
+
+
+class MusicPlayer:
+
+    def __init__(self):
+        self._instance = vlc.Instance(
+            "--no-video",
+            "--quiet",
+            "--audio-resampler=soxr",
+            "--network-caching=3000",
+            "--live-caching=3000",
+        )
+        self._player: vlc.MediaPlayer = self._instance.media_player_new()
+        self._eq = None
+        self.status = PlayerStatus()
+        self._callbacks: dict[str, list[Callable]] = {
+            "state_changed": [],
+            "position_changed": [],
+            "track_ended": [],
+            "error": [],
+            "buffering": [],
+        }
+        self._poll_task: asyncio.Task | None = None
+
+        em = self._player.event_manager()
+        em.event_attach(vlc.EventType.MediaPlayerEndReached, self._on_ended)
+        em.event_attach(vlc.EventType.MediaPlayerEncounteredError, self._on_error)
+        em.event_attach(vlc.EventType.MediaPlayerPlaying, self._on_playing)
+        em.event_attach(vlc.EventType.MediaPlayerPaused, self._on_paused)
+        em.event_attach(vlc.EventType.MediaPlayerBuffering, self._on_buffering)
+
+    # ─── REPRODUCCIÓN ─────────────────────────────────────────────────
+
+    async def play_url(self, stream_url: str, video_id: str) -> bool:
+        try:
+            self.status.state = PlayerState.LOADING
+            self.status.current_video_id = video_id
+            self.status.position_ms = 0
+            self._notify("state_changed", self.status)
+
+            self._player.stop()
+            
+            media = self._instance.media_new(stream_url)
+            media.add_option(
+                ":http-user-agent=Mozilla/5.0 (X11; Linux x86_64) "
+                "AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
+            )
+            self._player.set_media(media)
+            self._player.play()
+            
+            await asyncio.sleep(0.5)
+            
+            state = self._player.get_state()
+            if state == vlc.State.Error:
+                logger.error(f"VLC error playing {video_id}")
+                return False
+            
+            if self._poll_task and not self._poll_task.done():
+                self._poll_task.cancel()
+            self._poll_task = asyncio.create_task(self._poll_position())
+            
+            return True
+        except Exception as e:
+            logger.error(f"play_url error: {e}")
+            return False
+
+    async def pause(self) -> None:
+        logger.debug(f"pause() called, vlc_state={self._player.get_state()}, is_playing={self._player.is_playing()}")
+        self._player.set_pause(1)
+        # Immediately update state - don't wait for VLC event thread
+        self.status.state = PlayerState.PAUSED
+        self._notify("state_changed", self.status)
+        logger.debug("pause() completed, state set to PAUSED")
+
+    async def resume(self) -> None:
+        state = self._player.get_state()
+        logger.debug(f"resume() called, vlc_state={state}")
+        if state == vlc.State.Paused:
+            self._player.set_pause(0)
+        elif state == vlc.State.Ended or state == vlc.State.Stopped:
+            self._player.play()
+        else:
+            # Try unpause regardless
+            self._player.set_pause(0)
+        # Immediately update state
+        self.status.state = PlayerState.PLAYING
+        self._notify("state_changed", self.status)
+        logger.debug("resume() completed, state set to PLAYING")
+
+    async def stop(self) -> None:
+        self._player.stop()
+        self.status.state = PlayerState.IDLE
+        self.status.position_ms = 0
+        if self._poll_task:
+            self._poll_task.cancel()
+        self._notify("state_changed", self.status)
+
+    async def seek(self, position_ms: int) -> None:
+        if self._player.get_length() > 0:
+            self._player.set_time(max(0, position_ms))
+
+    # ─── CONTROLES ────────────────────────────────────────────────────
+
+    def set_volume(self, volume: int) -> None:
+        clamped = max(0, min(200, volume))
+        self._player.audio_set_volume(clamped)
+        self.status.volume = clamped
+
+    def set_muted(self, muted: bool) -> None:
+        self._player.audio_set_mute(muted)
+
+    def set_speed(self, speed: float) -> None:
+        self._player.set_rate(max(0.25, min(4.0, speed)))
+        self.status.speed = speed
+
+    def apply_equalizer(self, preamp: float, bands: list[float]) -> None:
+        try:
+            eq = vlc.libvlc_audio_equalizer_new()
+            vlc.libvlc_audio_equalizer_set_preamp(eq, preamp)
+            for i, gain in enumerate(bands[:10]):
+                vlc.libvlc_audio_equalizer_set_amp_at_index(eq, gain, i)
+            self._player.audio_set_equalizer(eq)
+            logger.debug(f"EQ applied: preamp={preamp}, bands={bands}")
+        except Exception as e:
+            logger.warning(f"Equalizer not available: {e}")
+
+    def reset_equalizer(self) -> None:
+        try:
+            eq = vlc.libvlc_audio_equalizer_new()
+            self._player.audio_set_equalizer(eq)
+        except Exception:
+            pass
+
+    # ─── CALLBACKS ────────────────────────────────────────────────────
+
+    def on(self, event: str, callback: Callable) -> None:
+        if event in self._callbacks:
+            self._callbacks[event].append(callback)
+
+    def off(self, event: str, callback: Callable) -> None:
+        if event in self._callbacks:
+            try:
+                self._callbacks[event].remove(callback)
+            except ValueError:
+                pass
+
+    def _notify(self, event: str, data=None) -> None:
+        for cb in self._callbacks.get(event, []):
+            try:
+                cb(data)
+            except Exception as e:
+                logger.error(f"Player callback error [{event}]: {e}")
+
+    async def _poll_position(self) -> None:
+        while True:
+            await asyncio.sleep(0.5)
+            if self._player.is_playing():
+                pos = self._player.get_time()
+                dur = self._player.get_length()
+                if pos >= 0:
+                    self.status.position_ms = pos
+                    self.status.duration_ms = dur
+                    self._notify("position_changed", self.status)
+
+    def _schedule(self, func, *args):
+        try:
+            loop = asyncio.get_event_loop()
+            loop.call_soon_threadsafe(func, *args)
+        except RuntimeError:
+            pass
+
+    def _on_ended(self, event):
+        def _handle():
+            self.status.state = PlayerState.IDLE
+            self._notify("track_ended", self.status)
+        self._schedule(_handle)
+
+    def _on_error(self, event):
+        def _handle():
+            self.status.state = PlayerState.ERROR
+            self.status.error_msg = "Error de reproducción"
+            self._notify("error", self.status)
+        self._schedule(_handle)
+
+    def _on_playing(self, event):
+        def _handle():
+            self.status.state = PlayerState.PLAYING
+            self._notify("state_changed", self.status)
+        self._schedule(_handle)
+
+    def _on_paused(self, event):
+        def _handle():
+            self.status.state = PlayerState.PAUSED
+            self._notify("state_changed", self.status)
+        self._schedule(_handle)
+
+    def _on_buffering(self, event):
+        def _handle():
+            self._notify("buffering", event.u.new_cache)
+        self._schedule(_handle)
+
+    def release(self) -> None:
+        if self._poll_task:
+            self._poll_task.cancel()
+        self._player.release()
+        self._instance.release()
