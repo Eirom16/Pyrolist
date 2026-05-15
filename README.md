@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <b>Experimenta YouTube Music como nunca antes en tu escritorio Linux.</b>
+  <b>Experimenta la música como nunca antes en tu escritorio Linux.</b>
 </p>
 
 <p align="center">
@@ -18,17 +18,18 @@
 
 ## 🌟 ¿Qué es Pyrolist?
 
-**Pyrolist** no es solo un reproductor de música; es tu portal personal a todo el universo de **YouTube Music**. Olvídate de las pestañas pesadas del navegador y disfruta de una aplicación dedicada, rápida y diseñada específicamente para integrarse con tu sistema Linux. 🐧✨
+**Pyrolist** no es solo un reproductor de música; es tu portal personal a todo el universo de
+**La música en general**. Olvídate de las pestañas pesadas del navegador y disfruta de una aplicación dedicada, rápida y diseñada específicamente para integrarse con tu sistema Linux. 🐧✨
 
 ### ✨ Lo que te encantará:
 
-*   🎧 **Streaming sin interrupciones**: Disfruta de toda tu biblioteca de YouTube Music con la mejor calidad de audio posible.
-*   🎤 **Canta con nosotros**: Letras que se sincronizan con la música para que no pierdas ni una palabra.
-*   🔥 **Sonido Perfecto**: Ajusta cada frecuencia con nuestro ecualizador de 10 bandas incorporado.
-*   💾 **Tu música, siempre contigo**: Descarga tus canciones y álbumes favoritos para escucharlos incluso cuando no tengas internet.
-*   🎮 **Presume tu gusto musical**: Integración automática con Discord para que todos vean qué joya estás escuchando.
-*   📊 **Estadísticas Reales**: Conexión con Last.fm para que nunca pierdas el rastro de tus reproducciones.
-*   🖱️ **Control Total**: Maneja todo desde la bandeja del sistema o con las teclas multimedia de tu teclado.
+- 🎧 **Streaming sin interrupciones**: Disfruta de toda tu biblioteca de YouTube Music con la mejor calidad de audio posible.
+- 🎤 **Canta con nosotros**: Letras que se sincronizan con la música para que no pierdas ni una palabra.
+- 🔥 **Sonido Perfecto**: Ajusta cada frecuencia con nuestro ecualizador de 10 bandas incorporado.
+- 💾 **Tu música, siempre contigo**: Descarga tus canciones y álbumes favoritos para escucharlos incluso cuando no tengas internet.
+- 🎮 **Presume tu gusto musical**: Integración automática con Discord para que todos vean qué joya estás escuchando.
+- 📊 **Estadísticas Reales**: Conexión con Last.fm para que nunca pierdas el rastro de tus reproducciones.
+- 🖱️ **Control Total**: Maneja todo desde la bandeja del sistema o con las teclas multimedia de tu teclado.
 
 ---
 
@@ -44,7 +45,7 @@
 
 ## 🎨 Diseñado para la Elegancia
 
-Pyrolist ha sido creado con una estética **Premium**, combinando colores vibrantes con una interfaz minimalista que hace que navegar por tu música sea un placer visual. 🌈
+Pyrolist ha sido creado con una estética **Premium**, combinando colores vibrantes con una interfaz minimalista que hace que navegar por tu música sea un placer visual.
 
 ---
 
