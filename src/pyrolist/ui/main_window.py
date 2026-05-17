@@ -147,13 +147,13 @@ class MainWindow(QMainWindow):
         self.home_screen = HomeScreen(self.yt, self._play_song_sync, self._navigate_to)
         self.library_screen = LibraryScreen(self.yt, self._play_song_sync, self._navigate_to)
         self.history_screen = HistoryScreen(self.yt, self._play_song_sync)
-        self.downloads_screen = DownloadsScreen(self.extractor, self._play_local, self._play_local_playlist)
+        self.downloads_screen = DownloadsScreen(self.extractor, self._play_local, self._play_local_playlist, self._navigate_to)
         self.settings_screen = SettingsScreen(
             self.yt,
             self.settings,
             on_settings_changed=self._on_settings_changed
         )
-        self.playlist_screen = PlaylistScreen(self.yt, self._play_song_sync)
+        self.playlist_screen = PlaylistScreen(self.yt, self._play_song_sync, self._play_local_playlist)
         self.album_screen = AlbumScreen(self.yt, self._play_song_sync)
         self.artist_screen = ArtistScreen(self.yt, self._play_song_sync, self._navigate_to)
         self.now_playing_screen = NowPlayingScreen(self.player, self.queue, self.yt, self._play_queue_item)

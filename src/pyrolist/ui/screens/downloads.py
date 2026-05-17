@@ -1,7 +1,7 @@
 import asyncio
 from pathlib import Path
 from loguru import logger
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea, QFrame, QPushButton, QProgressBar
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea, QFrame, QPushButton, QProgressBar, QGridLayout
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QFont, QPixmap
 
@@ -328,11 +328,12 @@ class DownloadPlaylistItemWidget(QFrame):
                 self.thumb.setStyleSheet("background: transparent; border-radius: 8px;")
 
 class DownloadsScreen(QWidget):
-    def __init__(self, extractor, on_play_local, on_play_local_playlist=None):
+    def __init__(self, extractor, on_play_local, on_play_local_playlist=None, on_navigate=None):
         super().__init__()
         self.extractor = extractor
         self.on_play_local = on_play_local
         self.on_play_local_playlist = on_play_local_playlist
+        self.on_navigate = on_navigate
         self._current_tab = "songs"
         self._items = {} # video_id -> DownloadItemWidget
         self._repo = DownloadRepository()
@@ -482,16 +483,32 @@ class DownloadsScreen(QWidget):
                 msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.content_layout.insertWidget(0, msg)
             else:
-                for pid, info in playlist_groups.items():
-                    widget = DownloadPlaylistItemWidget(
-                        playlist_id=pid,
+                from pyrolist.ui.widgets.playlist_card import PlaylistCard
+                grid_widget = QWidget()
+                grid_layout = QGridLayout(grid_widget)
+                grid_layout.setSpacing(24)
+                grid_layout.setContentsMargins(0, 0, 0, 0)
+                grid_layout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+                
+                columns = 4
+                for index, (pid, info) in enumerate(playlist_groups.items()):
+                    row = index // columns
+                    col = index % columns
+                    
+                    tracks = info["tracks"]
+                    first_thumb = tracks[0].thumbnail_url if tracks else ""
+                    
+                    card = PlaylistCard(
                         title=info["title"],
-                        tracks=info["tracks"],
-                        on_play_local=self.on_play_local,
-                        on_play_local_playlist=self.on_play_local_playlist
+                        description=f"{len(tracks)} canciones",
+                        thumbnail_url=first_thumb
                     )
-                    self.content_layout.insertWidget(0, widget)
-                    self._items[f"pl_{pid}"] = widget
+                    if self.on_navigate:
+                        card.clicked.connect(lambda p=pid: self.on_navigate(f"playlist?id=local_{p}"))
+                        
+                    grid_layout.addWidget(card, row, col)
+                
+                self.content_layout.insertWidget(0, grid_widget)
         else:
             # "songs" tab: Show all downloads individually (both completed and active)
             if not downloads:

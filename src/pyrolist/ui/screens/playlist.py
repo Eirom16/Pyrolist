@@ -14,10 +14,11 @@ _image_cache = ImageCache()
 class PlaylistScreen(QWidget):
     download_playlist_requested = Signal(str, str, str) # playlist_id, title, thumbnail_url
     
-    def __init__(self, yt_client, on_play_song):
+    def __init__(self, yt_client, on_play_song, on_play_local_playlist=None):
         super().__init__()
         self.yt = yt_client
         self.on_play_song = on_play_song
+        self.on_play_local_playlist = on_play_local_playlist
         self._playlist_id = None
         self._build_ui()
 
@@ -51,6 +52,10 @@ class PlaylistScreen(QWidget):
         self._playlist_id = playlist_id
         self._clear_content()
         
+        if playlist_id.startswith("local_"):
+            await self._load_local_playlist(playlist_id)
+            return
+            
         from pyrolist.ui.widgets.skeleton_loader import SkeletonListLoader
         skeleton = SkeletonListLoader(row_count=8)
         self.content_layout.addWidget(skeleton)
@@ -62,6 +67,53 @@ class PlaylistScreen(QWidget):
             logger.error(f"Error loading playlist: {e}")
             self._clear_content()
             self.content_layout.addWidget(QLabel("Error cargando playlist"))
+
+    async def _load_local_playlist(self, playlist_id: str):
+        actual_pid = playlist_id.replace("local_", "")
+        from pyrolist.db.repository import DownloadRepository
+        repo = DownloadRepository()
+        downloads = await repo.get_downloads()
+        
+        playlist_tracks = [d for d in downloads if d.parent_playlist_id == actual_pid]
+        if not playlist_tracks:
+            msg = QLabel("Esta playlist no contiene canciones descargadas.")
+            msg.setStyleSheet("color: #888899; font-size: 16px; padding: 40px;")
+            msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.content_layout.addWidget(msg)
+            return
+            
+        playlist_title = playlist_tracks[0].parent_playlist_title or "Playlist Local"
+        first_thumb = playlist_tracks[0].thumbnail_url
+        
+        simulated_data = {
+            "title": playlist_title,
+            "author": "Biblioteca Local",
+            "trackCount": len(playlist_tracks),
+            "thumbnails": [{"url": first_thumb}] if first_thumb else [],
+            "is_local_playlist": True,
+            "tracks": []
+        }
+        
+        self._local_tracks_meta = []
+        for t in playlist_tracks:
+            track_meta = {
+                "title": t.title,
+                "artist": t.artist,
+                "thumbnail_url": t.thumbnail_url,
+                "file_path": t.file_path,
+                "duration_ms": t.duration_ms
+            }
+            self._local_tracks_meta.append(track_meta)
+            
+            simulated_data["tracks"].append({
+                "title": t.title,
+                "videoId": "local",
+                "artists": [{"name": t.artist}],
+                "duration": "",
+                "thumbnails": [{"url": t.thumbnail_url}] if t.thumbnail_url else []
+            })
+            
+        self._display_playlist(simulated_data)
 
     def _display_playlist(self, data: dict):
         self._clear_content()
@@ -110,26 +162,31 @@ class PlaylistScreen(QWidget):
         meta_lbl.setStyleSheet("color: #888899;")
         info_layout.addWidget(meta_lbl)
         
-        btn_dl = QPushButton(" Descargar Playlist")
-        btn_dl.setIcon(Icon.icon("download", color="#0A0A14"))
-        btn_dl.setStyleSheet("""
-            QPushButton {
-                background-color: #A78BFA;
-                color: #0A0A14;
-                border: none;
-                border-radius: 16px;
-                padding: 8px 16px;
-                font-weight: bold;
-                margin-top: 12px;
-            }
-            QPushButton:hover { background-color: #BBA4FC; }
-        """)
-        btn_dl.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_dl.clicked.connect(lambda: self.download_playlist_requested.emit(
-            self._playlist_id, 
-            data.get('title', 'Unknown'),
-            thumbnail_url
-        ))
+        if data.get('is_local_playlist', False):
+            btn_dl = QLabel("📥 Disponible sin conexión")
+            btn_dl.setFont(QFont("Inter", 11, QFont.Weight.Bold))
+            btn_dl.setStyleSheet("color: #BB86FC; margin-top: 12px;")
+        else:
+            btn_dl = QPushButton(" Descargar Playlist")
+            btn_dl.setIcon(Icon.icon("download", color="#0A0A14"))
+            btn_dl.setStyleSheet("""
+                QPushButton {
+                    background-color: #A78BFA;
+                    color: #0A0A14;
+                    border: none;
+                    border-radius: 16px;
+                    padding: 8px 16px;
+                    font-weight: bold;
+                    margin-top: 12px;
+                }
+                QPushButton:hover { background-color: #BBA4FC; }
+            """)
+            btn_dl.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn_dl.clicked.connect(lambda: self.download_playlist_requested.emit(
+                self._playlist_id, 
+                data.get('title', 'Unknown'),
+                thumbnail_url
+            ))
         
         info_layout.addWidget(btn_dl)
         info_layout.addStretch()
@@ -160,7 +217,7 @@ class PlaylistScreen(QWidget):
                     artist=artist_names,
                     duration=duration,
                     thumbnail_url=track_thumbnail_url,
-                    on_play=partial(self._handle_play, video_id, title, artist_names),
+                    on_play=partial(self._handle_play, video_id, title, artist_names, i),
                     video_id=video_id
                 )
                 self.content_layout.addWidget(card)
@@ -176,6 +233,10 @@ class PlaylistScreen(QWidget):
                 self.cover.setPixmap(pixmap)
                 self.cover.setStyleSheet("background: transparent; border-radius: 8px;")
 
-    def _handle_play(self, video_id, title, artists):
+    def _handle_play(self, video_id, title, artists, index=0):
+        if video_id == "local" or (hasattr(self, "_local_tracks_meta") and self._local_tracks_meta):
+            if self.on_play_local_playlist:
+                self.on_play_local_playlist(self._local_tracks_meta, index)
+                return
         if self.on_play_song:
             self.on_play_song(video_id, title, artists, "", 0, "")
