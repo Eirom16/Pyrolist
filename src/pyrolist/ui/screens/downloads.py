@@ -23,6 +23,8 @@ class DownloadItemWidget(QFrame):
         self.on_play_local = on_play_local
         self.file_path = None
         self._build_ui()
+        if self.thumbnail_url:
+            asyncio.create_task(self._load_thumbnail(self.thumbnail_url))
 
     def _build_ui(self):
         self.setObjectName("downloadCard")
@@ -117,11 +119,220 @@ class DownloadItemWidget(QFrame):
             }
             self.on_play_local(self.file_path, metadata)
 
+    async def _load_thumbnail(self, url: str):
+        from pyrolist.utils.image_cache import ImageCache
+        cache = ImageCache()
+        path = await cache.download(url)
+        if path:
+            pixmap = QPixmap(str(path))
+            if not pixmap.isNull():
+                pixmap = pixmap.scaled(48, 48, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
+                self.thumb.setPixmap(pixmap)
+                self.thumb.setStyleSheet("background: transparent; border-radius: 6px;")
+
+class DownloadPlaylistItemWidget(QFrame):
+    def __init__(self, playlist_id, title, tracks, on_play_local=None, on_play_local_playlist=None):
+        super().__init__()
+        self.playlist_id = playlist_id
+        self.title = title
+        self.tracks = tracks
+        self.on_play_local = on_play_local
+        self.on_play_local_playlist = on_play_local_playlist
+        self.is_expanded = False
+        self._build_ui()
+
+    def _build_ui(self):
+        self.setObjectName("playlistCard")
+        self.setStyleSheet("""
+            QFrame#playlistCard {
+                background-color: #1E1E2E;
+                border-radius: 12px;
+            }
+        """)
+        
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+        
+        # Header Widget (contains thumbnail, title, stats, play and expand buttons)
+        self.header = QFrame()
+        self.header.setObjectName("playlistHeader")
+        self.header.setStyleSheet("""
+            QFrame#playlistHeader {
+                background-color: transparent;
+                border-radius: 12px;
+            }
+            QFrame#playlistHeader:hover {
+                background-color: #2A2A3E;
+            }
+        """)
+        self.header.setCursor(Qt.CursorShape.PointingHandCursor)
+        
+        header_layout = QHBoxLayout(self.header)
+        header_layout.setContentsMargins(12, 12, 12, 12)
+        
+        # Thumbnail
+        self.thumb = QLabel()
+        self.thumb.setFixedSize(64, 64)
+        self.thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.thumb.setText(Icon.get("library_music"))
+        self.thumb.setFont(Icon.font(32))
+        self.thumb.setStyleSheet("background-color: #1E1E38; color: #BB86FC; border-radius: 8px;")
+        header_layout.addWidget(self.thumb)
+        
+        # Metadata Info
+        info_layout = QVBoxLayout()
+        title_lbl = QLabel(self.title)
+        title_lbl.setStyleSheet("color: #FFFFFF; font-weight: 600; font-size: 16px;")
+        
+        count = len(self.tracks)
+        tracks_text = f"1 canción" if count == 1 else f"{count} canciones"
+        self.stats_lbl = QLabel(f"Playlist Offline • {tracks_text}")
+        self.stats_lbl.setStyleSheet("color: #888899; font-size: 12px;")
+        
+        info_layout.addWidget(title_lbl)
+        info_layout.addWidget(self.stats_lbl)
+        header_layout.addLayout(info_layout)
+        header_layout.addStretch()
+        
+        # Play Playlist Button
+        self.play_btn = IconButton(size=40)
+        self.play_btn.setText(Icon.get("play_arrow"))
+        self.play_btn.setFont(Icon.font(24))
+        self.play_btn.setFixedSize(40, 40)
+        self.play_btn.setStyleSheet("""
+            QPushButton {
+                background: #2D1B69; 
+                color: #BB86FC; 
+                border: none;
+                border-radius: 20px;
+            }
+            QPushButton:hover {
+                background: #BB86FC;
+                color: #0A0A14;
+            }
+        """)
+        self.play_btn.clicked.connect(self._on_play_all)
+        header_layout.addWidget(self.play_btn)
+        
+        # Expand/Collapse Arrow
+        self.expand_btn = IconButton(size=40)
+        self.expand_btn.setText(Icon.get("chevron_right"))
+        self.expand_btn.setFont(Icon.font(24))
+        self.expand_btn.setFixedSize(40, 40)
+        self.expand_btn.setStyleSheet("background: transparent; color: #888899; border: none;")
+        self.expand_btn.clicked.connect(self.toggle_expand)
+        header_layout.addWidget(self.expand_btn)
+        
+        main_layout.addWidget(self.header)
+        
+        # Contenedor para las canciones (colapsable)
+        self.tracks_container = QFrame()
+        self.tracks_container.setObjectName("tracksContainer")
+        self.tracks_container.setStyleSheet("""
+            QFrame#tracksContainer {
+                background-color: #161622;
+                border-bottom-left-radius: 12px;
+                border-bottom-right-radius: 12px;
+                border-top: 1px solid #2A2A3E;
+            }
+        """)
+        
+        container_layout = QVBoxLayout(self.tracks_container)
+        container_layout.setContentsMargins(12, 8, 12, 12)
+        container_layout.setSpacing(6)
+        
+        # Agregar los widgets de canciones individuales dentro de la playlist agrupada
+        for t in self.tracks:
+            widget = DownloadItemWidget(
+                video_id=t.video_id,
+                title=t.title,
+                artist=t.artist,
+                thumbnail_url=t.thumbnail_url,
+                parent_playlist_title=None,
+                on_play_local=self.on_play_local
+            )
+            widget.set_completed(t.file_path)
+            # Make the card style slightly more compact inside the group
+            widget.setStyleSheet("QFrame#downloadCard { background-color: #1E1E2E; border-radius: 8px; } QFrame#downloadCard:hover { background-color: #252538; }")
+            container_layout.addWidget(widget)
+            
+        self.tracks_container.hide()
+        main_layout.addWidget(self.tracks_container)
+        
+        # Permitir expandir haciendo clic en toda la cabecera (excepto si pulsas el botón play)
+        self.header.mousePressEvent = self._on_header_clicked
+        
+        # Cargar miniatura de la primera canción si está disponible
+        if self.tracks and self.tracks[0].thumbnail_url:
+            import asyncio
+            asyncio.create_task(self._load_thumbnail(self.tracks[0].thumbnail_url))
+
+    def _on_header_clicked(self, event):
+        pos = event.position().toPoint()
+        child = self.header.childAt(pos)
+        if child in [self.play_btn, self.expand_btn] or (child and child.parent() in [self.play_btn, self.expand_btn]):
+            return
+        self.toggle_expand()
+
+    def toggle_expand(self):
+        self.is_expanded = not self.is_expanded
+        if self.is_expanded:
+            self.tracks_container.show()
+            self.expand_btn.setText(Icon.get("expand_more"))
+            self.header.setStyleSheet("""
+                QFrame#playlistHeader {
+                    background-color: transparent;
+                    border-bottom-left-radius: 0px;
+                    border-bottom-right-radius: 0px;
+                }
+                QFrame#playlistHeader:hover {
+                    background-color: #2A2A3E;
+                }
+            """)
+        else:
+            self.tracks_container.hide()
+            self.expand_btn.setText(Icon.get("chevron_right"))
+            self.header.setStyleSheet("""
+                QFrame#playlistHeader {
+                    background-color: transparent;
+                    border-radius: 12px;
+                }
+                QFrame#playlistHeader:hover {
+                    background-color: #2A2A3E;
+                }
+            """)
+
+    def _on_play_all(self):
+        if self.tracks and self.on_play_local_playlist:
+            tracks_meta = []
+            for t in self.tracks:
+                tracks_meta.append({
+                    "title": t.title,
+                    "artist": t.artist,
+                    "thumbnail_url": t.thumbnail_url,
+                    "file_path": t.file_path,
+                    "duration_ms": t.duration_ms
+                })
+            self.on_play_local_playlist(tracks_meta, 0)
+
+    async def _load_thumbnail(self, url: str):
+        from pyrolist.utils.image_cache import ImageCache
+        cache = ImageCache()
+        path = await cache.download(url)
+        if path:
+            pixmap = QPixmap(str(path))
+            if not pixmap.isNull():
+                pixmap = pixmap.scaled(64, 64, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
+                self.thumb.setPixmap(pixmap)
+                self.thumb.setStyleSheet("background: transparent; border-radius: 8px;")
+
 class DownloadsScreen(QWidget):
-    def __init__(self, extractor, on_play_local):
+    def __init__(self, extractor, on_play_local, on_play_local_playlist=None):
         super().__init__()
         self.extractor = extractor
         self.on_play_local = on_play_local
+        self.on_play_local_playlist = on_play_local_playlist
         self._current_tab = "songs"
         self._items = {} # video_id -> DownloadItemWidget
         self._repo = DownloadRepository()
@@ -252,30 +463,51 @@ class DownloadsScreen(QWidget):
 
         downloads = await self._repo.get_downloads()
         
-        # Filter based on tab
-        filtered = []
-        for d in downloads:
-            is_playlist = d.parent_playlist_id is not None
-            if self._current_tab == "playlists" and is_playlist:
-                filtered.append(d)
-            elif self._current_tab == "songs" and not is_playlist:
-                filtered.append(d)
-
-        if not filtered:
-            msg = QLabel("No hay descargas aquí.")
-            msg.setStyleSheet("color: #888899; font-size: 16px; padding: 40px;")
-            msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.content_layout.insertWidget(0, msg)
+        if self._current_tab == "playlists":
+            # Group downloaded items by parent_playlist_id
+            playlist_groups = {}
+            for d in downloads:
+                if d.parent_playlist_id:
+                    pid = d.parent_playlist_id
+                    if pid not in playlist_groups:
+                        playlist_groups[pid] = {
+                            "title": d.parent_playlist_title or "Playlist Local",
+                            "tracks": []
+                        }
+                    playlist_groups[pid]["tracks"].append(d)
             
-        for d in reversed(filtered):
-            self._add_item_to_ui(d.video_id, d.title, d.artist, d.thumbnail_url, d.parent_playlist_title)
-            self._items[d.video_id].set_completed(d.file_path)
+            if not playlist_groups:
+                msg = QLabel("No hay playlists descargadas.")
+                msg.setStyleSheet("color: #888899; font-size: 16px; padding: 40px;")
+                msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.content_layout.insertWidget(0, msg)
+            else:
+                for pid, info in playlist_groups.items():
+                    widget = DownloadPlaylistItemWidget(
+                        playlist_id=pid,
+                        title=info["title"],
+                        tracks=info["tracks"],
+                        on_play_local=self.on_play_local,
+                        on_play_local_playlist=self.on_play_local_playlist
+                    )
+                    self.content_layout.insertWidget(0, widget)
+                    self._items[f"pl_{pid}"] = widget
+        else:
+            # "songs" tab: Show all downloads individually (both completed and active)
+            if not downloads:
+                msg = QLabel("No hay descargas aquí.")
+                msg.setStyleSheet("color: #888899; font-size: 16px; padding: 40px;")
+                msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.content_layout.insertWidget(0, msg)
             
-        # Add active downloads from manager
-        mgr = DownloadManager.get_instance()
-        for vid, task in mgr._tasks.items():
-            is_playlist = task.parent_playlist_id is not None
-            if (self._current_tab == "playlists" and is_playlist) or (self._current_tab == "songs" and not is_playlist):
+            for d in reversed(downloads):
+                self._add_item_to_ui(d.video_id, d.title, d.artist, d.thumbnail_url, d.parent_playlist_title)
+                if d.video_id in self._items:
+                    self._items[d.video_id].set_completed(d.file_path)
+                
+            # Add active downloads from manager
+            mgr = DownloadManager.get_instance()
+            for vid, task in mgr._tasks.items():
                 if vid not in self._items:
                     self._add_item_to_ui(task.video_id, task.title, task.artist, task.thumbnail_url, task.parent_playlist_title)
                     if task.status == "downloading":

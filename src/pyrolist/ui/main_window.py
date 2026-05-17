@@ -147,7 +147,7 @@ class MainWindow(QMainWindow):
         self.home_screen = HomeScreen(self.yt, self._play_song_sync, self._navigate_to)
         self.library_screen = LibraryScreen(self.yt, self._play_song_sync, self._navigate_to)
         self.history_screen = HistoryScreen(self.yt, self._play_song_sync)
-        self.downloads_screen = DownloadsScreen(self.extractor, self._play_local)
+        self.downloads_screen = DownloadsScreen(self.extractor, self._play_local, self._play_local_playlist)
         self.settings_screen = SettingsScreen(
             self.yt,
             self.settings,
@@ -617,6 +617,13 @@ class MainWindow(QMainWindow):
             item.title, item.artist, item.thumbnail_url
         )
 
+        if item.is_local:
+            logger.info(f"Playing local track: {item.title}")
+            success = await self.player.play_url(item.local_path, "local")
+            if success:
+                self._run_async(self._save_play_history(item))
+            return
+
         try:
             logger.info(f"Getting fresh stream for: {item.title}")
             stream_info = await self.extractor.get_stream_info(item.video_id)
@@ -775,10 +782,6 @@ class MainWindow(QMainWindow):
         artist = metadata.get("artist", "Unknown")
         thumbnail_url = metadata.get("thumbnail_url", "")
         
-        # Update player UI track info
-        self.mini_player.update_track_info(title, artist, thumbnail_url)
-        self.now_playing_screen.update_track_info(title, artist, thumbnail_url)
-        
         # Set queue to a single local item so queue controls and state work properly
         item = QueueItem(
             video_id="local",
@@ -786,12 +789,34 @@ class MainWindow(QMainWindow):
             artist=artist,
             album="Local",
             duration_ms=0,
-            thumbnail_url=thumbnail_url
+            thumbnail_url=thumbnail_url,
+            is_local=True,
+            local_path=path
         )
         self.queue.set_queue([item], 0)
         self._update_queue_panel()
         
-        self._run_async(self.player.play_url(path, "local"))
+        self._run_async(self._play_current())
+
+    def _play_local_playlist(self, tracks_metadata: list[dict], start_index: int = 0) -> None:
+        queue_items = []
+        for m in tracks_metadata:
+            item = QueueItem(
+                video_id="local",
+                title=m.get("title", "Unknown"),
+                artist=m.get("artist", "Unknown"),
+                album=m.get("album", "Local"),
+                duration_ms=m.get("duration_ms", 0),
+                thumbnail_url=m.get("thumbnail_url", ""),
+                is_local=True,
+                local_path=m.get("file_path", "")
+            )
+            queue_items.append(item)
+            
+        if queue_items:
+            self.queue.set_queue(queue_items, start_index)
+            self._update_queue_panel()
+            self._run_async(self._play_current())
 
     def _on_play_pause(self) -> None:
         self._run_async(self._toggle_play_pause())
