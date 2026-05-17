@@ -97,8 +97,9 @@ class EqualizerSettingsScreen(QWidget):
         layout.addWidget(preamp_section)
 
         card = QFrame()
+        card.setObjectName("eqCard")
         card.setStyleSheet("""
-            QFrame {
+            QFrame#eqCard {
                 background: #16162A;
                 border-radius: 18px;
                 border: 1px solid rgba(167,139,250,0.08);

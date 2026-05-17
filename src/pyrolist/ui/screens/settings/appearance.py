@@ -33,6 +33,33 @@ class AppearanceSettingsScreen(QWidget):
         mode.addItems(["dark", "light", "system"])
         mode.setCurrentText(self.settings.appearance.theme_mode)
         mode.currentTextChanged.connect(lambda value: self._set_appearance("theme_mode", value))
+        mode.setStyleSheet("""
+            QComboBox {
+                background-color: #1E1E38;
+                color: #F1F0FF;
+                border: 1px solid #2A2A4E;
+                border-radius: 8px;
+                padding: 6px 12px;
+                font-family: Inter;
+                font-size: 13px;
+                min-width: 120px;
+            }
+            QComboBox:focus {
+                border: 1px solid #A78BFA;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 20px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #1A1A2E;
+                color: #F1F0FF;
+                border: 1px solid #2A2A4E;
+                border-radius: 8px;
+                selection-background-color: #A78BFA;
+                selection-color: #10101E;
+            }
+        """)
         theme.add_row(SettingsRow("Tema", "Modo visual preferido", mode))
         layout.addWidget(theme)
 

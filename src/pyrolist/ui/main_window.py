@@ -101,7 +101,20 @@ class MainWindow(QMainWindow):
         self.sidebar.auth_changed.connect(self._on_auth_changed)
         
         if self.yt.is_authenticated:
-            self.sidebar.update_auth_state(True, "YouTube")
+            from pyrolist.config.paths import AppDirs
+            import json
+            name = "YouTube Music"
+            avatar = ""
+            profile_file = AppDirs.config / "user_profile.json"
+            if profile_file.exists():
+                try:
+                    with open(profile_file, "r") as f:
+                        data = json.load(f)
+                        name = data.get("name", "YouTube Music") or "YouTube Music"
+                        avatar = data.get("avatar_url", "")
+                except Exception:
+                    pass
+            self.sidebar.update_auth_state(True, name, avatar)
         h_layout.addWidget(self.sidebar)
 
         right_panel = QWidget()
@@ -172,6 +185,9 @@ class MainWindow(QMainWindow):
                 screen.download_playlist_requested.connect(self._on_download_playlist_requested)
             if hasattr(screen, 'like_requested'):
                 screen.like_requested.connect(self._on_like_requested)
+
+        if hasattr(self.now_playing_screen, 'queue_tab'):
+            self.now_playing_screen.queue_tab.like_requested.connect(self._on_like_requested)
 
         right_layout.addWidget(self.stack)
 
@@ -429,6 +445,8 @@ class MainWindow(QMainWindow):
             btn_like.setFont(Icon.font(20, filled=False))
             btn_like.set_active(False)
             self.statusBar().showMessage("Eliminado de Favoritas", 2000)
+        
+        self._update_queue_panel()
 
     def _cleanup_on_close(self) -> None:
         for task in list(self._pending_tasks):
@@ -494,8 +512,19 @@ class MainWindow(QMainWindow):
         self.yt = YouTubeMusicClient(self.settings)
         self._update_screens_yt_client()
         if self.yt.is_authenticated:
-            self.sidebar.update_auth_state(True, "YouTube Music", avatar_url)
-            logger.info(f"Post-login: yt client propagated, avatar={avatar_url}")
+            from pyrolist.config.paths import AppDirs
+            import json
+            name = "YouTube Music"
+            profile_file = AppDirs.config / "user_profile.json"
+            if profile_file.exists():
+                try:
+                    with open(profile_file, "r") as f:
+                        data = json.load(f)
+                        name = data.get("name", "YouTube Music") or "YouTube Music"
+                except Exception:
+                    pass
+            self.sidebar.update_auth_state(True, name, avatar_url)
+            logger.info(f"Post-login: yt client propagated, name={name}, avatar={avatar_url}")
         self._run_async(self._navigate("home"))
 
     def _on_auth_changed(self, is_authenticated: bool) -> None:
@@ -506,7 +535,16 @@ class MainWindow(QMainWindow):
             logger.info("Auth changed: yt client propagated to all screens")
             
             # Auto-refresh home and library if we just logged in
-            self._run_async(self.home_screen.load())
+            self.home_screen.force_reload()
+            self._run_async(self.library_screen.load())
+        else:
+            self.yt = YouTubeMusicClient(self.settings)
+            self._update_screens_yt_client()
+            self.sidebar.update_auth_state(False, "", "")
+            logger.info("Auth changed (logout): yt client reset and sidebar updated")
+            
+            # Auto-refresh home and library for unauthenticated session
+            self.home_screen.force_reload()
             self._run_async(self.library_screen.load())
 
     def _update_screens_yt_client(self) -> None:
@@ -763,8 +801,14 @@ class MainWindow(QMainWindow):
 
     def _update_queue_panel(self) -> None:
         """Update the queue tab in the NowPlayingScreen."""
+        self._run_async(self._update_queue_panel_async())
+
+    async def _update_queue_panel_async(self) -> None:
         if hasattr(self, 'now_playing_screen') and hasattr(self.now_playing_screen, 'queue_tab'):
-            self.now_playing_screen.queue_tab.set_queue(self.queue.items)
+            from pyrolist.db.repository import SongRepository
+            repo = SongRepository()
+            liked_ids = await repo.get_liked_video_ids()
+            self.now_playing_screen.queue_tab.set_queue(self.queue.items, liked_ids)
 
     def _play_queue_item(self, index: int) -> None:
         if 0 <= index < len(self.queue.items):
@@ -807,31 +851,46 @@ class MainWindow(QMainWindow):
         
         from pyrolist.ui.stylesheet import PYROLIST_QSS
         
-        # Replace the default accent (#A78BFA) and its variants in the QSS
         new_qss = PYROLIST_QSS
-        # Only replace if it's not the default
-        if accent.upper() != '#A78BFA':
-            new_qss = new_qss.replace('#A78BFA', accent)
-            # Also update the brighter variant used for hover
-            try:
-                from PySide6.QtGui import QColor
-                c = QColor(accent)
-                # Create a brighter variant for hover states
+        
+        # Calculate variants and RGB components
+        try:
+            from PySide6.QtGui import QColor
+            c = QColor(accent)
+            if c.isValid():
+                # Primary color hex replacement
+                new_qss = new_qss.replace('#A78BFA', accent)
+                new_qss = new_qss.replace('#a78bfa', accent.lower())
+                
+                # Brighter hover variant
                 bright = c.lighter(125)
                 bright_hex = bright.name()
                 new_qss = new_qss.replace('#BBA4FC', bright_hex)
-                # Create a darker variant for pressed states  
+                new_qss = new_qss.replace('#bba4fc', bright_hex.lower())
+                
+                # Darker pressed variant
                 dark = c.darker(120)
                 dark_hex = dark.name()
                 new_qss = new_qss.replace('#8B5CF6', dark_hex)
-            except Exception:
-                pass
+                new_qss = new_qss.replace('#8b5cf6', dark_hex.lower())
+                
+                # RGB component replacement for rgba scrollbars/borders
+                r, g, b, _ = c.getRgb()
+                new_qss = new_qss.replace('167,139,250', f"{r},{g},{b}")
+                new_qss = new_qss.replace('167, 139, 250', f"{r}, {g}, {b}")
+                
+                # Also replace the darker rgb if it is used in scrollbar or anywhere
+                dark_r, dark_g, dark_b, _ = dark.getRgb()
+                new_qss = new_qss.replace('139,92,246', f"{dark_r},{dark_g},{dark_b}")
+                new_qss = new_qss.replace('139, 92, 246', f"{dark_r}, {dark_g}, {dark_b}")
+        except Exception as e:
+            logger.error(f"Error calculating accent color variants: {e}")
         
         from PySide6.QtWidgets import QApplication
         app = QApplication.instance()
         if app:
             app.setStyleSheet(new_qss)
-            logger.info(f"Accent color applied: {accent}")
+            logger.info(f"Accent color applied successfully: {accent}")
 
     def closeEvent(self, event) -> None:
         if self.settings.player.stop_on_close:

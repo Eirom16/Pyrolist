@@ -124,25 +124,41 @@ class DownloadManager(QObject):
         
         out_tmpl = str(out_dir / f"{task.artist} - {task.title}.%(ext)s")
         
+        import shutil
+        has_ffmpeg = shutil.which('ffmpeg') is not None
+        
         ydl_opts = {
             'format': 'bestaudio/best',
             'outtmpl': out_tmpl,
             'progress_hooks': [progress_hook],
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',
-            }],
             'quiet': True,
             'no_warnings': True,
         }
+        
+        if has_ffmpeg:
+            ydl_opts['postprocessors'] = [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }]
+            ext = 'mp3'
+        else:
+            # No ffmpeg — download audio directly without conversion
+            ydl_opts['format'] = 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio'
+            ext = None  # Will be determined by yt-dlp
         
         try:
             def _download():
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     info = ydl.extract_info(url, download=True)
-                    # Get actual filepath
-                    return ydl.prepare_filename(info).rsplit('.', 1)[0] + '.mp3'
+                    # Get actual filepath — use the real extension
+                    base = ydl.prepare_filename(info).rsplit('.', 1)[0]
+                    if has_ffmpeg:
+                        return base + '.mp3'
+                    # Without ffmpeg, find whatever file was downloaded
+                    import glob
+                    matches = glob.glob(base + '.*')
+                    return matches[0] if matches else base
             
             filepath = await loop.run_in_executor(None, _download)
             

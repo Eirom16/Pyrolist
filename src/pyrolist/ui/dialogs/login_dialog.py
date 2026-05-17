@@ -75,18 +75,50 @@ class WebLoginDialog(QDialog):
 
     def _check_login_status(self, ok):
         if not ok: return
-        js = "document.querySelector('ytmusic-settings-button img') ? document.querySelector('ytmusic-settings-button img').src : ''"
+        js = """
+        new Promise((resolve) => {
+            let img = document.querySelector('ytmusic-settings-button img');
+            if (!img) {
+                resolve(JSON.stringify({avatar: '', name: ''}));
+                return;
+            }
+            let avatar = img.src;
+            let btn = document.querySelector('ytmusic-settings-button');
+            if (btn) {
+                btn.click();
+                setTimeout(() => {
+                    let nameEl = document.querySelector('ytmusic-active-account-header-renderer #name') || 
+                                 document.querySelector('ytd-active-account-header-renderer #name') ||
+                                 document.querySelector('#account-name');
+                    let name = nameEl ? nameEl.textContent.trim() : '';
+                    // Close menu
+                    btn.click();
+                    resolve(JSON.stringify({avatar: avatar, name: name}));
+                }, 300);
+            } else {
+                resolve(JSON.stringify({avatar: avatar, name: ''}));
+            }
+        });
+        """
         self.view.page().runJavaScript(js, self._on_js_result)
         
-    def _on_js_result(self, result):
-        if result and "SAPISID" in self.cookies:
-            self._save_cookies_and_close(avatar_url=result)
+    def _on_js_result(self, result_str):
+        try:
+            res = json.loads(result_str)
+            avatar_url = res.get("avatar", "")
+            name = res.get("name", "")
+        except Exception:
+            avatar_url = result_str if isinstance(result_str, str) else ""
+            name = ""
 
-    def _save_cookies_and_close(self, avatar_url=""):
+        if avatar_url and "SAPISID" in self.cookies:
+            self._save_cookies_and_close(avatar_url=avatar_url, name=name)
+
+    def _save_cookies_and_close(self, avatar_url="", name=""):
         # Build cookie string
         cookie_parts = []
-        for name, value in self.cookies.items():
-            cookie_parts.append(f"{name}={value}")
+        for name_key, value in self.cookies.items():
+            cookie_parts.append(f"{name_key}={value}")
         
         cookie_str = "; ".join(cookie_parts)
         
@@ -104,7 +136,15 @@ class WebLoginDialog(QDialog):
         auth_file = AppDirs.config / "headers_auth.json"
         with open(auth_file, "w") as f:
             json.dump(headers, f, indent=4)
+
+        # Save user profile name and avatar
+        profile_file = AppDirs.config / "user_profile.json"
+        try:
+            with open(profile_file, "w") as f:
+                json.dump({"name": name, "avatar_url": avatar_url}, f, indent=4)
+        except Exception as e:
+            logger.error(f"Failed to save user profile: {e}")
             
-        logger.info(f"Browser cookies saved successfully. Avatar: {avatar_url}")
+        logger.info(f"Browser cookies saved successfully. Name: {name}, Avatar: {avatar_url}")
         self.login_successful.emit(avatar_url)
         self.accept()

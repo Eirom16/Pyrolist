@@ -57,8 +57,9 @@ class SettingsSection(QWidget):
         layout.addWidget(header)
 
         self.card = QFrame()
+        self.card.setObjectName("settingsCard")
         self.card.setStyleSheet("""
-            QFrame {
+            QFrame#settingsCard {
                 background-color: #16162A;
                 border-radius: 16px;
                 border: 1px solid rgba(167,139,250,0.08);

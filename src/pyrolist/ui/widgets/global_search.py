@@ -150,6 +150,7 @@ class _SearchDropdown(GlassPanel):
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         self.setAttribute(Qt.WidgetAttribute.WA_X11DoNotAcceptFocus) # Helpful on Linux
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.setMaximumHeight(400)
         self.setStyleSheet("""
             #searchDropdown {
                 background-color: #1A1A2E;
@@ -159,13 +160,29 @@ class _SearchDropdown(GlassPanel):
             }
         """)
 
-        self._layout = self.layout()
+        root_layout = self.layout()
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.setSpacing(0)
+
+        self._scroll = QScrollArea()
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+
+        self._inner = QWidget()
+        self._layout = QVBoxLayout(self._inner)
         self._layout.setContentsMargins(0, 8, 0, 8)
         self._layout.setSpacing(0)
+        self._layout.addStretch()
+
+        self._scroll.setWidget(self._inner)
+        root_layout.addWidget(self._scroll)
 
     # --- Public helpers ---
     def clear_rows(self):
-        while self._layout.count():
+        # Remove all except the trailing stretch
+        while self._layout.count() > 1:
             item = self._layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
@@ -183,7 +200,7 @@ class _SearchDropdown(GlassPanel):
 
     def add_row(self, row: _SuggestionRow):
         row.clicked.connect(self.suggestion_selected.emit)
-        self._layout.addWidget(row)
+        self._layout.insertWidget(self._layout.count() - 1, row)  # Before stretch
 
 
 # ---------------------------------------------------------------------------
@@ -292,7 +309,8 @@ class GlobalSearchBar(QWidget):
 
         # Position below the search bar, aligned to the input
         global_pos = self.input.mapToGlobal(QPoint(0, self.input.height()))
-        dd.setFixedWidth(self.input.width())
+        dd_width = min(self.input.width(), 600)
+        dd.setFixedWidth(dd_width)
         dd.move(global_pos)
         
         # On some platforms/WMs, show() might still steal focus despite flags.

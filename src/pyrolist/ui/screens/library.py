@@ -1,10 +1,14 @@
 from functools import partial
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QScrollArea, QHBoxLayout, QPushButton, QGridLayout, QGraphicsOpacityEffect
-from qasync import asyncSlot
-from PySide6.QtGui import QFont
-from PySide6.QtCore import Qt, Signal, QPropertyAnimation, QEasingCurve
 import asyncio
 from loguru import logger
+
+from PySide6.QtCore import Qt, Signal, QPropertyAnimation, QEasingCurve
+from PySide6.QtGui import QFont, QColor
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QLabel, QScrollArea, QHBoxLayout, 
+    QPushButton, QGridLayout, QGraphicsOpacityEffect, QGraphicsDropShadowEffect
+)
+
 from pyrolist.ui.design.fonts import AppFont
 from pyrolist.ui.widgets.song_card import SongCard
 from pyrolist.ui.widgets.album_card import AlbumCard
@@ -27,7 +31,7 @@ class LibraryScreen(QWidget):
         self.on_navigate = on_navigate
         self._current_tab = "songs"
         self._build_ui()
-    
+
     def _connect_card_signals(self, card):
         """Wire up all context-menu signals from a SongCard."""
         card.download_requested.connect(lambda *a: self.download_requested.emit(*a))
@@ -55,9 +59,11 @@ class LibraryScreen(QWidget):
         header.setStyleSheet("color: #F1F0FF;")
         layout.addWidget(header)
 
+        # Tab container
         self.tabs = QWidget()
         tabs_layout = QHBoxLayout(self.tabs)
-        tabs_layout.setSpacing(16)
+        tabs_layout.setContentsMargins(0, 8, 0, 8)
+        tabs_layout.setSpacing(12)
 
         tab_names = [
             ("songs", "Favoritas"),
@@ -69,31 +75,44 @@ class LibraryScreen(QWidget):
         for key, name in tab_names:
             btn = QPushButton(name)
             btn.setObjectName(f"tab_{key}")
-            btn.setStyleSheet("""
-                QPushButton {
-                    background: transparent;
-                    color: #888899;
-                    padding: 8px 16px;
-                    border: none;
-                    border-radius: 20px;
-                }
-                QPushButton:hover {
-                    background: #2A2A3E;
-                    color: #FFFFFF;
-                }
-            """)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            
+            # Apply styling
             if key == self._current_tab:
                 btn.setStyleSheet("""
                     QPushButton {
-                        background: #2D1B69;
-                        color: #BB86FC;
-                        padding: 8px 16px;
-                        border-radius: 20px;
+                        background: rgba(167, 139, 250, 0.15);
+                        color: #A78BFA;
+                        padding: 8px 18px;
+                        border: 1px solid rgba(167, 139, 250, 0.3);
+                        border-radius: 18px;
+                        font-family: 'Inter';
+                        font-weight: bold;
+                        font-size: 13px;
                     }
                 """)
+            else:
+                btn.setStyleSheet("""
+                    QPushButton {
+                        background: transparent;
+                        color: #9B9BC0;
+                        padding: 8px 18px;
+                        border: 1px solid transparent;
+                        border-radius: 18px;
+                        font-family: 'Inter';
+                        font-weight: 600;
+                        font-size: 13px;
+                    }
+                    QPushButton:hover {
+                        background: rgba(255, 255, 255, 0.05);
+                        color: #F1F0FF;
+                    }
+                """)
+            
             btn.clicked.connect(lambda _, k=key: self._switch_tab(k))
             tabs_layout.addWidget(btn)
 
+        tabs_layout.addStretch()
         layout.addWidget(self.tabs)
 
         self.content = QScrollArea()
@@ -102,38 +121,98 @@ class LibraryScreen(QWidget):
 
         self.content_widget = QWidget()
         self.content_layout = QVBoxLayout(self.content_widget)
+        self.content_layout.setContentsMargins(0, 8, 0, 8)
+        self.content_layout.setSpacing(16)
 
         self.content.setWidget(self.content_widget)
         layout.addWidget(self.content)
 
+        # Create Floating Action Button (FAB) for playlists
+        self.fab = QPushButton("+", self)
+        self.fab.setFixedSize(56, 56)
+        self.fab.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.fab.setToolTip("Crear Playlist")
+        self.fab.clicked.connect(self._on_create_playlist_clicked)
+        
+        # Style the FAB
+        self.fab.setStyleSheet("""
+            QPushButton {
+                background-color: #A78BFA;
+                color: #0A0A14;
+                border: none;
+                border-radius: 28px;
+                font-family: 'Inter';
+                font-size: 26px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #BBA4FC;
+            }
+            QPushButton:pressed {
+                background-color: #8B5CF6;
+            }
+        """)
+        
+        # Add elevation/shadow to FAB
+        shadow = QGraphicsDropShadowEffect(self.fab)
+        shadow.setBlurRadius(16)
+        shadow.setXOffset(0)
+        shadow.setYOffset(4)
+        shadow.setColor(QColor(0, 0, 0, 120))
+        self.fab.setGraphicsEffect(shadow)
+        
+        # Hidden by default, shown only when playlists tab is active
+        self.fab.hide()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, "fab"):
+            # Place at bottom right with 24px margin
+            self.fab.move(self.width() - self.fab.width() - 24, self.height() - self.fab.height() - 24)
+
     def _switch_tab(self, key):
         self._current_tab = key
 
+        # Update button styles
         for btn in self.tabs.findChildren(QPushButton):
-            btn.setStyleSheet("""
-                QPushButton {
-                    background: transparent;
-                    color: #888899;
-                    padding: 8px 16px;
-                    border: none;
-                    border-radius: 20px;
-                }
-                QPushButton:hover {
-                    background: #2A2A3E;
-                    color: #FFFFFF;
-                }
-            """)
+            k = btn.objectName().replace("tab_", "")
+            if k == key:
+                btn.setStyleSheet("""
+                    QPushButton {
+                        background: rgba(167, 139, 250, 0.15);
+                        color: #A78BFA;
+                        padding: 8px 18px;
+                        border: 1px solid rgba(167, 139, 250, 0.3);
+                        border-radius: 18px;
+                        font-family: 'Inter';
+                        font-weight: bold;
+                        font-size: 13px;
+                    }
+                """)
+            else:
+                btn.setStyleSheet("""
+                    QPushButton {
+                        background: transparent;
+                        color: #9B9BC0;
+                        padding: 8px 18px;
+                        border: 1px solid transparent;
+                        border-radius: 18px;
+                        font-family: 'Inter';
+                        font-weight: 600;
+                        font-size: 13px;
+                    }
+                    QPushButton:hover {
+                        background: rgba(255, 255, 255, 0.05);
+                        color: #F1F0FF;
+                    }
+                """)
 
-        clicked_btn = self.tabs.findChild(QPushButton, f"tab_{key}")
-        if clicked_btn:
-            clicked_btn.setStyleSheet("""
-                QPushButton {
-                    background: #2D1B69;
-                    color: #BB86FC;
-                    padding: 8px 16px;
-                    border-radius: 20px;
-                }
-            """)
+        # Toggle FAB visibility depending on selected tab
+        if key == "playlists":
+            self.fab.show()
+            self.fab.raise_()
+        else:
+            self.fab.hide()
 
         asyncio.ensure_future(self._load_tab(key))
 
@@ -141,39 +220,225 @@ class LibraryScreen(QWidget):
         await self._load_tab(self._current_tab)
 
     async def _load_tab(self, tab):
+        # 1. Clear content and show the skeleton loader
         self._clear_content()
         self.content_layout.addWidget(SkeletonListLoader(row_count=7))
 
         if not self.yt or not self.yt.is_authenticated:
             self._clear_content()
-            self.content_layout.addWidget(QLabel("Inicia sesión para ver tu biblioteca"))
+            msg = QLabel("Inicia sesión para ver tu biblioteca")
+            msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            msg.setStyleSheet("color: #888899; font-size: 14px; padding: 40px;")
+            self.content_layout.addWidget(msg)
             self.content_layout.addStretch()
             return
 
         try:
-            self._clear_content()
-            
+            # 2. Perform async fetch while skeleton is active
             if tab == "songs":
-                await self._load_liked_songs()
+                liked_songs_data = None
+                if self.yt and self.yt.is_authenticated:
+                    liked_songs_data = await self.yt.get_liked_songs(limit=50)
+                
+                from pyrolist.db.repository import SongRepository
+                repo = SongRepository()
+                db_songs = await repo.get_liked_songs()
+                
+                # 3. Fetch completed: clear loader and render real data
+                self._clear_content()
+                
+                tracks = liked_songs_data.get('tracks', []) if liked_songs_data else []
+                if tracks:
+                    header = QLabel("Canciones que te gustan")
+                    header.setFont(AppFont.heading(16))
+                    header.setStyleSheet("color: #F1F0FF;")
+                    self.content_layout.addWidget(header)
+                    
+                    for track in tracks:
+                        title = track.get('title', 'Unknown')
+                        artists = track.get('artists', [])
+                        artist_names = ", ".join([a.get('name', '') for a in artists]) if isinstance(artists, list) and artists else 'Unknown'
+                        video_id = track.get('videoId', '')
+                        duration_str = track.get('duration', '')
+                        thumbnails = track.get('thumbnails', [])
+                        thumbnail_url = thumbnails[-1].get('url', '') if thumbnails else ''
+                        
+                        if video_id:
+                            card = SongCard(
+                                title=title,
+                                artist=artist_names,
+                                duration=duration_str,
+                                thumbnail_url=thumbnail_url,
+                                on_play=partial(self._handle_play, video_id, title, artist_names),
+                                video_id=video_id,
+                                is_liked=True,
+                            )
+                            self._connect_card_signals(card)
+                            self.content_layout.addWidget(card)
+                elif db_songs:
+                    header = QLabel("Canciones que te gustan")
+                    header.setFont(QFont("Inter", 16, QFont.Weight.Bold))
+                    header.setStyleSheet("color: #FFFFFF;")
+                    self.content_layout.addWidget(header)
+
+                    for song in db_songs:
+                        card = SongCard(
+                            title=song.title,
+                            artist=song.artist,
+                            duration=self._format_duration(song.duration_ms),
+                            thumbnail_url=song.thumbnail_url or "",
+                            on_play=partial(self._handle_play, song.video_id, song.title, song.artist),
+                            video_id=song.video_id,
+                            is_liked=True
+                        )
+                        self._connect_card_signals(card)
+                        self.content_layout.addWidget(card)
+                else:
+                    msg = QLabel("No tienes canciones guardadas\n\nLas canciones que reproduzcas aparecerán aquí")
+                    msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                    msg.setStyleSheet("color: #888899; font-size: 14px; padding: 40px;")
+                    self.content_layout.addWidget(msg)
+
             elif tab == "albums":
-                await self._load_albums()
+                albums = await self.yt.get_library_albums()
+                self._clear_content()
+
+                if not albums:
+                    msg = QLabel("No tienes álbumes guardados")
+                    msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                    msg.setStyleSheet("color: #888899; font-size: 14px; padding: 40px;")
+                    self.content_layout.addWidget(msg)
+                else:
+                    header = QLabel("Tus Álbumes")
+                    header.setFont(QFont("Inter", 16, QFont.Weight.Bold))
+                    header.setStyleSheet("color: #FFFFFF;")
+                    self.content_layout.addWidget(header)
+
+                    grid = QGridLayout()
+                    grid.setSpacing(16)
+                    for col in range(4):
+                        grid.setColumnMinimumWidth(col, 178)
+                    
+                    for i, album in enumerate(albums):
+                        title = album.get("title", "Unknown")
+                        artists = album.get("artists", [])
+                        artist_names = ", ".join([a.get('name', '') for a in artists]) if isinstance(artists, list) else str(artists)
+                        year = album.get("year", "")
+                        thumbnails = album.get('thumbnails', [])
+                        thumbnail_url = thumbnails[-1].get('url', '') if thumbnails else ''
+                        browse_id = album.get('browseId', '')
+                        
+                        card = AlbumCard(title=title, artist=artist_names, year=year, thumbnail_url=thumbnail_url)
+                        if browse_id and self.on_navigate:
+                            card.clicked.connect(partial(self.on_navigate, f"album?id={browse_id}"))
+                        
+                        # Added alignment to prevent card expansion and overlaps
+                        grid.addWidget(card, i // 4, i % 4, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+                        grid.setRowMinimumHeight(i // 4, 228)
+
+                    self.content_layout.addLayout(grid)
+
             elif tab == "artists":
-                await self._load_artists()
+                artists = await self.yt.get_library_artists()
+                self._clear_content()
+
+                if not artists:
+                    msg = QLabel("No sigues a ningún artista")
+                    msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                    msg.setStyleSheet("color: #888899; font-size: 14px; padding: 40px;")
+                    self.content_layout.addWidget(msg)
+                else:
+                    header = QLabel("Tus Artistas")
+                    header.setFont(QFont("Inter", 16, QFont.Weight.Bold))
+                    header.setStyleSheet("color: #FFFFFF;")
+                    self.content_layout.addWidget(header)
+
+                    grid = QGridLayout()
+                    grid.setSpacing(16)
+                    for col in range(4):
+                        grid.setColumnMinimumWidth(col, 178)
+
+                    for i, artist in enumerate(artists):
+                        name = artist.get("artist", "Unknown")
+                        thumbnails = artist.get('thumbnails', [])
+                        thumbnail_url = thumbnails[-1].get('url', '') if thumbnails else ''
+                        browse_id = artist.get('browseId', '')
+                        
+                        card = ArtistCard(name=name, thumbnail_url=thumbnail_url)
+                        if browse_id and self.on_navigate:
+                            card.clicked.connect(partial(self.on_navigate, f"artist?id={browse_id}"))
+                        
+                        grid.addWidget(card, i // 4, i % 4, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+                        grid.setRowMinimumHeight(i // 4, 220)
+
+                    self.content_layout.addLayout(grid)
+
             elif tab == "playlists":
-                await self._load_playlists()
+                playlists = await self.yt.get_library_playlists()
+                self._clear_content()
+
+                header = QLabel("Tus Playlists")
+                header.setFont(QFont("Inter", 16, QFont.Weight.Bold))
+                header.setStyleSheet("color: #FFFFFF;")
+                self.content_layout.addWidget(header)
+
+                if not playlists:
+                    msg = QLabel("No tienes playlists")
+                    msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                    msg.setStyleSheet("color: #888899; font-size: 14px; padding: 40px;")
+                    self.content_layout.addWidget(msg)
+                else:
+                    grid = QGridLayout()
+                    grid.setSpacing(16)
+                    for col in range(4):
+                        grid.setColumnMinimumWidth(col, 178)
+
+                    for i, playlist in enumerate(playlists):
+                        title = playlist.get("title", "Unknown")
+                        count = playlist.get("count", "")
+                        desc = f"{count} canciones" if count else ""
+                        thumbnails = playlist.get('thumbnails', [])
+                        thumbnail_url = thumbnails[-1].get('url', '') if thumbnails else ''
+                        playlist_id = playlist.get('playlistId', '')
+                        
+                        card = PlaylistCard(title=title, description=desc, thumbnail_url=thumbnail_url)
+                        if playlist_id and self.on_navigate:
+                            card.clicked.connect(partial(self.on_navigate, f"playlist?id={playlist_id}"))
+                        
+                        grid.addWidget(card, i // 4, i % 4, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+                        grid.setRowMinimumHeight(i // 4, 228)
+
+                    self.content_layout.addLayout(grid)
+
         except Exception as e:
-            from loguru import logger
             logger.error(f"Error loading {tab}: {e}")
+            self._clear_content()
             self._show_no_auth_message()
 
         self.content_layout.addStretch()
         self._fade_in_content()
+
+        # Bring FAB to top after updating layout to prevent overlap issues
+        if hasattr(self, "fab") and self.fab.isVisible():
+            self.fab.raise_()
 
     def _clear_content(self):
         while self.content_layout.count():
             item = self.content_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
+            elif item.layout():
+                # Recursively delete layouts if present
+                self._clear_sub_layout(item.layout())
+
+    def _clear_sub_layout(self, layout):
+        if layout is not None:
+            while layout.count():
+                item = layout.takeAt(0)
+                if item.widget():
+                    item.widget().deleteLater()
+                elif item.layout():
+                    self._clear_sub_layout(item.layout())
 
     def _fade_in_content(self):
         """Smooth fade-in animation when content finishes loading."""
@@ -194,69 +459,6 @@ class LibraryScreen(QWidget):
         msg.setStyleSheet("color: #B0B0C0; font-size: 14px; padding: 40px;")
         self.content_layout.addWidget(msg)
 
-    async def _load_liked_songs(self):
-        if self.yt and self.yt.is_authenticated:
-            liked_result = await self.yt.get_liked_songs(limit=50)
-            tracks = liked_result.get('tracks', [])
-            
-            if tracks:
-                header = QLabel("Canciones que te gustan")
-                header.setFont(AppFont.heading(16))
-                header.setStyleSheet("color: #F1F0FF;")
-                self.content_layout.addWidget(header)
-                
-                for track in tracks:
-                    title = track.get('title', 'Unknown')
-                    artists = track.get('artists', [])
-                    artist_names = ", ".join([a.get('name', '') for a in artists]) if isinstance(artists, list) and artists else 'Unknown'
-                    video_id = track.get('videoId', '')
-                    duration_str = track.get('duration', '')  # ytmusicapi returns "3:45" string
-                    thumbnails = track.get('thumbnails', [])
-                    thumbnail_url = thumbnails[-1].get('url', '') if thumbnails else ''
-                    
-                    if video_id:
-                        card = SongCard(
-                            title=title,
-                            artist=artist_names,
-                            duration=duration_str,
-                            thumbnail_url=thumbnail_url,
-                            on_play=partial(self._handle_play, video_id, title, artist_names),
-                            video_id=video_id,
-                            is_liked=True,
-                        )
-                        self._connect_card_signals(card)
-                        self.content_layout.addWidget(card)
-                return
-
-        from pyrolist.db.repository import SongRepository
-        repo = SongRepository()
-        songs = await repo.get_liked_songs()
-
-        if not songs:
-            msg = QLabel("No tienes canciones guardadas\n\nLas canciones que reproduzcas apareceran aqui")
-            msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            msg.setStyleSheet("color: #888899; font-size: 14px; padding: 40px;")
-            self.content_layout.addWidget(msg)
-            return
-
-        header = QLabel("Canciones que te gustan")
-        header.setFont(QFont("Inter", 16, QFont.Weight.Bold))
-        header.setStyleSheet("color: #FFFFFF;")
-        self.content_layout.addWidget(header)
-
-        for song in songs:
-            card = SongCard(
-                title=song.title,
-                artist=song.artist,
-                duration=self._format_duration(song.duration_ms),
-                thumbnail_url=song.thumbnail_url or "",
-                on_play=partial(self._handle_play, song.video_id, song.title, song.artist),
-                video_id=song.video_id,
-                is_liked=True
-            )
-            self._connect_card_signals(card)
-            self.content_layout.addWidget(card)
-
     def _format_duration(self, ms):
         if not ms:
             return ""
@@ -264,122 +466,6 @@ class LibraryScreen(QWidget):
         mins = seconds // 60
         secs = seconds % 60
         return f"{mins}:{secs:02d}"
-
-    async def _load_albums(self):
-        albums = await self.yt.get_library_albums()
-        if not albums:
-            msg = QLabel("No tienes albumes guardados")
-            msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            msg.setStyleSheet("color: #888899; font-size: 14px; padding: 40px;")
-            self.content_layout.addWidget(msg)
-            return
-
-        header = QLabel("Tus Álbumes")
-        header.setFont(QFont("Inter", 16, QFont.Weight.Bold))
-        header.setStyleSheet("color: #FFFFFF;")
-        self.content_layout.addWidget(header)
-
-        grid = QGridLayout()
-        grid.setSpacing(16)
-        
-        for i, album in enumerate(albums):
-            title = album.get("title", "Unknown")
-            artists = album.get("artists", [])
-            artist_names = ", ".join([a.get('name', '') for a in artists]) if isinstance(artists, list) else str(artists)
-            year = album.get("year", "")
-            thumbnails = album.get('thumbnails', [])
-            thumbnail_url = thumbnails[-1].get('url', '') if thumbnails else ''
-            browse_id = album.get('browseId', '')
-            
-            card = AlbumCard(title=title, artist=artist_names, year=year, thumbnail_url=thumbnail_url)
-            if browse_id and self.on_navigate:
-                card.clicked.connect(partial(self.on_navigate, f"album?id={browse_id}"))
-            grid.addWidget(card, i // 4, i % 4)
-
-        self.content_layout.addLayout(grid)
-
-    async def _load_artists(self):
-        artists = await self.yt.get_library_artists()
-        if not artists:
-            msg = QLabel("No sigues a ningun artista")
-            msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            msg.setStyleSheet("color: #888899; font-size: 14px; padding: 40px;")
-            self.content_layout.addWidget(msg)
-            return
-
-        header = QLabel("Tus Artistas")
-        header.setFont(QFont("Inter", 16, QFont.Weight.Bold))
-        header.setStyleSheet("color: #FFFFFF;")
-        self.content_layout.addWidget(header)
-
-        grid = QGridLayout()
-        grid.setSpacing(16)
-        
-        for i, artist in enumerate(artists):
-            name = artist.get("artist", "Unknown")
-            thumbnails = artist.get('thumbnails', [])
-            thumbnail_url = thumbnails[-1].get('url', '') if thumbnails else ''
-            browse_id = artist.get('browseId', '')
-            
-            card = ArtistCard(name=name, thumbnail_url=thumbnail_url)
-            if browse_id and self.on_navigate:
-                card.clicked.connect(partial(self.on_navigate, f"artist?id={browse_id}"))
-            grid.addWidget(card, i // 4, i % 4)
-
-        self.content_layout.addLayout(grid)
-
-    async def _load_playlists(self):
-        playlists = await self.yt.get_library_playlists()
-        
-        header_layout = QHBoxLayout()
-        header = QLabel("Tus Playlists")
-        header.setFont(QFont("Inter", 16, QFont.Weight.Bold))
-        header.setStyleSheet("color: #FFFFFF;")
-        header_layout.addWidget(header)
-        
-        btn_create = QPushButton("➕ Crear Playlist")
-        btn_create.setStyleSheet("""
-            QPushButton {
-                background-color: #2D1B69;
-                color: #F1F0FF;
-                border: none;
-                border-radius: 16px;
-                padding: 8px 16px;
-                font-weight: bold;
-            }
-            QPushButton:hover { background-color: #3B2A85; }
-        """)
-        btn_create.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_create.clicked.connect(self._on_create_playlist_clicked)
-        header_layout.addWidget(btn_create)
-        header_layout.addStretch()
-        
-        self.content_layout.addLayout(header_layout)
-
-        if not playlists:
-            msg = QLabel("No tienes playlists")
-            msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            msg.setStyleSheet("color: #888899; font-size: 14px; padding: 40px;")
-            self.content_layout.addWidget(msg)
-            return
-
-        grid = QGridLayout()
-        grid.setSpacing(16)
-        
-        for i, playlist in enumerate(playlists):
-            title = playlist.get("title", "Unknown")
-            count = playlist.get("count", "")
-            desc = f"{count} canciones" if count else ""
-            thumbnails = playlist.get('thumbnails', [])
-            thumbnail_url = thumbnails[-1].get('url', '') if thumbnails else ''
-            playlist_id = playlist.get('playlistId', '')
-            
-            card = PlaylistCard(title=title, description=desc, thumbnail_url=thumbnail_url)
-            if playlist_id and self.on_navigate:
-                card.clicked.connect(partial(self.on_navigate, f"playlist?id={playlist_id}"))
-            grid.addWidget(card, i // 4, i % 4)
-
-        self.content_layout.addLayout(grid)
 
     def _on_create_playlist_clicked(self):
         from PySide6.QtWidgets import QDialog, QLineEdit, QDialogButtonBox, QVBoxLayout
@@ -438,5 +524,4 @@ class LibraryScreen(QWidget):
                 # Reload the playlists tab to show the new one
                 self._switch_tab("playlists")
         except Exception as e:
-            from loguru import logger
             logger.error(f"Error creating playlist: {e}")

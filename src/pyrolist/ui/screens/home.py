@@ -26,6 +26,7 @@ class HomeScreen(QWidget):
         self.on_play_song = on_play_song
         self.on_navigate = on_navigate
         self._sections = {}
+        self._loaded = False
         self._genres = [
             ("Rock", "rock"),
             ("Pop", "pop"),
@@ -129,6 +130,8 @@ class HomeScreen(QWidget):
         anim.start()
 
     async def load(self):
+        if self._loaded:
+            return
         self._clear_content()
         self._create_loading_state()
 
@@ -143,6 +146,14 @@ class HomeScreen(QWidget):
             logger.info("No yt client — loading genres view")
             self._clear_content()
             self._load_genres_view()
+        
+        self._loaded = True
+
+    def force_reload(self):
+        """Force a full reload of the home content (e.g. after login)."""
+        self._loaded = False
+        import asyncio
+        asyncio.ensure_future(self.load())
 
     async def _load_youtube_home(self):
         try:

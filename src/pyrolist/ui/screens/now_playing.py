@@ -146,7 +146,7 @@ class NowPlayingScreen(QWidget):
 
         # Right Side (Tabs: Queue, Lyrics, Related)
         right_panel = QWidget()
-        right_panel.setFixedWidth(400)
+        right_panel.setFixedWidth(460)
         right_layout = QVBoxLayout(right_panel)
         right_layout.setContentsMargins(0, 0, 0, 0)
 
@@ -178,6 +178,7 @@ class NowPlayingScreen(QWidget):
         # Tab: Lyrics (LETRA)
         self.lyrics_scroll = QScrollArea()
         self.lyrics_scroll.setWidgetResizable(True)
+        self.lyrics_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.lyrics_scroll.setStyleSheet("background: transparent; border: none;")
         
         self.lyrics_container = QWidget()
@@ -201,6 +202,7 @@ class NowPlayingScreen(QWidget):
         # Tab: Related (SIMILARES)
         self.related_scroll = QScrollArea()
         self.related_scroll.setWidgetResizable(True)
+        self.related_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.related_scroll.setStyleSheet("background: transparent; border: none;")
         self.related_container = QWidget()
         self.related_layout = QVBoxLayout(self.related_container)
