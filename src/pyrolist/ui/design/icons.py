@@ -141,6 +141,26 @@ class Icon:
         return name
 
     @staticmethod
+    def icon(name: str, color: str = "#F1F0FF", size: int = 24, filled: bool = True) -> QIcon:
+        from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor
+        from PySide6.QtCore import Qt
+        
+        pixmap = QPixmap(size, size)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+        
+        font = Icon.font(size, filled)
+        painter.setFont(font)
+        painter.setPen(QColor(color))
+        painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, Icon.get(name))
+        painter.end()
+        
+        return QIcon(pixmap)
+
+    @staticmethod
     def font(size: int = 20, filled: bool = True) -> QFont:
         font = QFont(MATERIAL_FONT)
         font.setPixelSize(size)
