@@ -110,7 +110,12 @@ class DownloadItemWidget(QFrame):
 
     def _on_play(self):
         if self.file_path and self.on_play_local:
-            self.on_play_local(self.file_path)
+            metadata = {
+                "title": self.title,
+                "artist": self.artist,
+                "thumbnail_url": self.thumbnail_url
+            }
+            self.on_play_local(self.file_path, metadata)
 
 class DownloadsScreen(QWidget):
     def __init__(self, extractor, on_play_local):

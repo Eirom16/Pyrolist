@@ -33,7 +33,7 @@ class ToastNotification(QWidget):
         parent_rect = parent.rect()
         self.move(max(20, parent_rect.width() - self.width() - 20), max(20, parent_rect.height() - self.height() - 96))
         self.setWindowOpacity(0.0)
-        self.show()
+        super().show()
         self.raise_()
 
         self._in_anim = QPropertyAnimation(self, b"windowOpacity", self)

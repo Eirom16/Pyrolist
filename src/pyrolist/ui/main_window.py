@@ -771,6 +771,26 @@ class MainWindow(QMainWindow):
                     logger.warning(f"Autoplay failed: {e}")
 
     def _play_local(self, path: str, metadata: dict) -> None:
+        title = metadata.get("title", "Unknown")
+        artist = metadata.get("artist", "Unknown")
+        thumbnail_url = metadata.get("thumbnail_url", "")
+        
+        # Update player UI track info
+        self.mini_player.update_track_info(title, artist, thumbnail_url)
+        self.now_playing_screen.update_track_info(title, artist, thumbnail_url)
+        
+        # Set queue to a single local item so queue controls and state work properly
+        item = QueueItem(
+            video_id="local",
+            title=title,
+            artist=artist,
+            album="Local",
+            duration_ms=0,
+            thumbnail_url=thumbnail_url
+        )
+        self.queue.set_queue([item], 0)
+        self._update_queue_panel()
+        
         self._run_async(self.player.play_url(path, "local"))
 
     def _on_play_pause(self) -> None:
