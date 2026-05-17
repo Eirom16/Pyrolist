@@ -2,7 +2,7 @@ import asyncio
 from pathlib import Path
 from loguru import logger
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea, QFrame, QPushButton, QProgressBar, QGridLayout
-from PySide6.QtCore import Qt, QSize
+from PySide6.QtCore import Qt, QSize, Signal
 from PySide6.QtGui import QFont, QPixmap
 
 from pyrolist.config.paths import AppDirs
@@ -13,6 +13,8 @@ from pyrolist.db.repository import DownloadRepository
 
 
 class DownloadItemWidget(QFrame):
+    like_requested = Signal(str, object)
+
     def __init__(self, video_id, title, artist, thumbnail_url, parent_playlist_title=None, on_play_local=None):
         super().__init__()
         self.video_id = video_id
@@ -25,6 +27,7 @@ class DownloadItemWidget(QFrame):
         self._build_ui()
         if self.thumbnail_url:
             asyncio.create_task(self._load_thumbnail(self.thumbnail_url))
+        asyncio.create_task(self._check_like_state())
 
     def _build_ui(self):
         self.setObjectName("downloadCard")
@@ -79,6 +82,26 @@ class DownloadItemWidget(QFrame):
         self.status_lbl.setStyleSheet("color: #9B9BC0; font-size: 12px;")
         layout.addWidget(self.status_lbl)
         
+        # Like button
+        self.btn_like = IconButton(size=36, active_color="#F472B6")
+        self.btn_like.setText(Icon.get("favorite"))
+        self.btn_like.setFont(Icon.font(20, filled=False))
+        self.btn_like.setFixedSize(36, 36)
+        self.btn_like.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                color: #9B9BC0;
+                border: none;
+                border-radius: 18px;
+            }
+            QPushButton:hover {
+                background-color: rgba(244,114,182,0.15);
+                color: #F472B6;
+            }
+        """)
+        self.btn_like.clicked.connect(self._on_like)
+        layout.addWidget(self.btn_like)
+        
         self.play_btn = IconButton(size=36)
         self.play_btn.setText(Icon.get("play_arrow"))
         self.play_btn.setFont(Icon.font(20))
@@ -87,6 +110,38 @@ class DownloadItemWidget(QFrame):
         self.play_btn.clicked.connect(self._on_play)
         self.play_btn.hide()
         layout.addWidget(self.play_btn)
+
+    def _on_like(self):
+        self.like_requested.emit(self.video_id, self.btn_like)
+
+    async def _check_like_state(self):
+        try:
+            from pyrolist.db.repository import SongRepository
+            repo = SongRepository()
+            song = await repo.get_song(self.video_id)
+            is_liked = song.is_liked if song else False
+            
+            # Apply initial style
+            self.btn_like.setFont(Icon.font(20, filled=is_liked))
+            if is_liked:
+                self.btn_like.setStyleSheet("QPushButton { color: #F472B6; background: transparent; border: none; }")
+                self.btn_like.set_active(True)
+            else:
+                self.btn_like.setStyleSheet("""
+                    QPushButton {
+                        background-color: transparent;
+                        color: #9B9BC0;
+                        border: none;
+                        border-radius: 18px;
+                    }
+                    QPushButton:hover {
+                        background-color: rgba(244,114,182,0.15);
+                        color: #F472B6;
+                    }
+                """)
+                self.btn_like.set_active(False)
+        except Exception as e:
+            logger.error(f"Error checking like state for {self.video_id}: {e}")
 
     def set_downloading(self):
         self.progress_bar.show()
@@ -328,6 +383,8 @@ class DownloadPlaylistItemWidget(QFrame):
                 self.thumb.setStyleSheet("background: transparent; border-radius: 8px;")
 
 class DownloadsScreen(QWidget):
+    like_requested = Signal(str, object)
+
     def __init__(self, extractor, on_play_local, on_play_local_playlist=None, on_navigate=None):
         super().__init__()
         self.extractor = extractor
@@ -452,6 +509,7 @@ class DownloadsScreen(QWidget):
         if vid in self._items:
             return
         widget = DownloadItemWidget(vid, title, artist, thumb_url, parent_playlist_title, self.on_play_local)
+        widget.like_requested.connect(self.like_requested.emit)
         self.content_layout.insertWidget(0, widget)
         self._items[vid] = widget
 

@@ -180,12 +180,21 @@ class MusicPlayer:
         while True:
             await asyncio.sleep(0.5)
             if self._player.is_playing():
+                if self.status.state != PlayerState.PLAYING:
+                    logger.debug(f"Self-correcting player state from {self.status.state} to PLAYING")
+                    self.status.state = PlayerState.PLAYING
+                    self._notify("state_changed", self.status)
                 pos = self._player.get_time()
                 dur = self._player.get_length()
                 if pos >= 0:
                     self.status.position_ms = pos
                     self.status.duration_ms = dur
                     self._notify("position_changed", self.status)
+            elif self._player.get_state() == vlc.State.Paused:
+                if self.status.state != PlayerState.PAUSED:
+                    logger.debug(f"Self-correcting player state from {self.status.state} to PAUSED")
+                    self.status.state = PlayerState.PAUSED
+                    self._notify("state_changed", self.status)
 
     def _schedule(self, func, *args):
         try:

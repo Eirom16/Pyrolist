@@ -26,18 +26,17 @@ class WelcomeScreen(QWidget):
         from pyrolist.config.paths import AppDirs
         logo_path = AppDirs.root / "assets" / "logo.png"
         
+        title = QLabel("Pyrolist")
+        title.setFont(QFont("Inter", 32, QFont.Weight.Bold))
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title.setStyleSheet("color: #BB86FC;")
+
         if logo_path.exists():
             logo = QLabel()
             pixmap = QPixmap(str(logo_path))
-            logo.setPixmap(pixmap.scaledToWidth(300, Qt.TransformationMode.SmoothTransformation))
+            logo.setPixmap(pixmap.scaledToWidth(180, Qt.TransformationMode.SmoothTransformation))
             logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
             layout.addWidget(logo)
-        else:
-            title = QLabel("Pyrolist")
-            title.setFont(QFont("Inter", 32, QFont.Weight.Bold))
-            title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            title.setStyleSheet("color: #BB86FC;")
-            layout.addWidget(title)
 
         subtitle = QLabel("Cliente de YouTube Music para Linux")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)

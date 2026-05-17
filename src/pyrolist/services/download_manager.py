@@ -169,6 +169,19 @@ class DownloadManager(QObject):
                 
             task.status = "completed"
             
+            # Fetch and save offline lyrics (.lrc format next to audio file)
+            try:
+                from pyrolist.api.lyrics import LyricsClient
+                lyrics_client = LyricsClient()
+                lyrics_text = await lyrics_client.get_plain_lyrics(task.title, task.artist)
+                if lyrics_text:
+                    lrc_filepath = os.path.splitext(filepath)[0] + ".lrc"
+                    with open(lrc_filepath, "w", encoding="utf-8") as f:
+                        f.write(lyrics_text)
+                    logger.info(f"Downloaded offline lyrics saved to: {lrc_filepath}")
+            except Exception as le:
+                logger.error(f"Failed to download offline lyrics: {le}")
+            
             # Save to DB
             await self._repo.add_download(
                 video_id=task.video_id,

@@ -313,6 +313,20 @@ class GlobalSearchBar(QWidget):
         dd.setFixedWidth(dd_width)
         dd.move(global_pos)
         
+        # Calculate dynamic height based on the widgets inside the scroll area layout
+        item_count = dd._layout.count() - 1  # Exclude the bottom stretch
+        ideal_height = 24  # Margins and paddings
+        for i in range(item_count):
+            item = dd._layout.itemAt(i)
+            if item:
+                w = item.widget()
+                if w:
+                    # Fallback to sizeHint height or standard height if not yet polished by Qt layout
+                    ideal_height += w.sizeHint().height() or (54 if "•" in getattr(w, '_subtitle', '') else 44)
+        
+        # Limit height between 150px and 380px to fit at least 6 items perfectly
+        dd.setFixedHeight(min(max(ideal_height, 150), 380))
+        
         # On some platforms/WMs, show() might still steal focus despite flags.
         # We ensure the input keeps it.
         dd.popup_at(global_pos)

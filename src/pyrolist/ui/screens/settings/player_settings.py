@@ -29,6 +29,30 @@ class PlayerSettingsScreen(QWidget):
         volume.setRange(0, 200)
         volume.setValue(self.settings.player.volume)
         volume.setMinimumWidth(180)
+        volume.setStyleSheet("""
+            QSlider::groove:horizontal {
+                border: none;
+                height: 6px;
+                background: #1E1E38;
+                border-radius: 3px;
+            }
+            QSlider::sub-page:horizontal {
+                background: #A78BFA;
+                border-radius: 3px;
+            }
+            QSlider::handle:horizontal {
+                background: #FFFFFF;
+                border: 2px solid #A78BFA;
+                width: 14px;
+                height: 14px;
+                margin: -4px 0;
+                border-radius: 7px;
+            }
+            QSlider::handle:horizontal:hover {
+                background: #A78BFA;
+                border-color: #FFFFFF;
+            }
+        """)
         volume.valueChanged.connect(self._on_volume_changed)
         row_widget = QWidget()
         from PySide6.QtWidgets import QHBoxLayout

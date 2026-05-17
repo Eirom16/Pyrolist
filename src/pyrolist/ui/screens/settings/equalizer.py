@@ -30,6 +30,34 @@ class EqBandSlider(QWidget):
         self.slider = QSlider(Qt.Orientation.Vertical)
         self.slider.setRange(-120, 120)
         self.slider.setFixedSize(28, 180)
+        self.slider.setStyleSheet("""
+            QSlider::groove:vertical {
+                border: none;
+                width: 6px;
+                background: #1E1E38;
+                border-radius: 3px;
+            }
+            QSlider::add-page:vertical {
+                background: #1E1E38;
+                border-radius: 3px;
+            }
+            QSlider::sub-page:vertical {
+                background: #A78BFA;
+                border-radius: 3px;
+            }
+            QSlider::handle:vertical {
+                background: #FFFFFF;
+                border: 2px solid #A78BFA;
+                width: 14px;
+                height: 14px;
+                margin: 0 -4px;
+                border-radius: 7px;
+            }
+            QSlider::handle:vertical:hover {
+                background: #A78BFA;
+                border-color: #FFFFFF;
+            }
+        """)
         self.slider.valueChanged.connect(self._on_value)
         layout.addWidget(self.slider, alignment=Qt.AlignmentFlag.AlignHCenter)
 
@@ -77,6 +105,33 @@ class EqualizerSettingsScreen(QWidget):
         preset.addItems(list(EQ_PRESETS.keys()))
         preset.setCurrentText(self.settings.equalizer.preset_name)
         preset.currentTextChanged.connect(self._on_preset_changed)
+        preset.setStyleSheet("""
+            QComboBox {
+                background-color: #1E1E38;
+                color: #F1F0FF;
+                border: 1px solid #2A2A4E;
+                border-radius: 8px;
+                padding: 6px 12px;
+                font-family: Inter;
+                font-size: 13px;
+                min-width: 120px;
+            }
+            QComboBox:focus {
+                border: 1px solid #A78BFA;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 20px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #1A1A2E;
+                color: #F1F0FF;
+                border: 1px solid #2A2A4E;
+                border-radius: 8px;
+                selection-background-color: #A78BFA;
+                selection-color: #10101E;
+            }
+        """)
         controls.add_row(SettingsRow("Preset", "Curva base para ajustar rapido", preset))
         layout.addWidget(controls)
 
@@ -87,6 +142,30 @@ class EqualizerSettingsScreen(QWidget):
         row.setSpacing(10)
         self.preamp_slider = QSlider(Qt.Orientation.Horizontal)
         self.preamp_slider.setRange(-120, 120)
+        self.preamp_slider.setStyleSheet("""
+            QSlider::groove:horizontal {
+                border: none;
+                height: 6px;
+                background: #1E1E38;
+                border-radius: 3px;
+            }
+            QSlider::sub-page:horizontal {
+                background: #A78BFA;
+                border-radius: 3px;
+            }
+            QSlider::handle:horizontal {
+                background: #FFFFFF;
+                border: 2px solid #A78BFA;
+                width: 14px;
+                height: 14px;
+                margin: -4px 0;
+                border-radius: 7px;
+            }
+            QSlider::handle:horizontal:hover {
+                background: #A78BFA;
+                border-color: #FFFFFF;
+            }
+        """)
         self.preamp_slider.valueChanged.connect(lambda value: (self._update_preamp_label(value), self._emit_eq()))
         self.preamp_value = QLabel("0.0 dB")
         self.preamp_value.setFont(AppFont.mono(12))

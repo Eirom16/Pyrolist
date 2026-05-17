@@ -682,9 +682,22 @@ class MainWindow(QMainWindow):
 
     async def _load_lyrics(self, item: QueueItem) -> None:
         try:
-            lyrics = await self.lyrics_client.get_lyrics(
-                item.title, item.artist, item.album
-            )
+            lyrics = None
+            if item.is_local and item.local_path:
+                import os
+                lrc_path = os.path.splitext(item.local_path)[0] + ".lrc"
+                if os.path.exists(lrc_path):
+                    try:
+                        with open(lrc_path, "r", encoding="utf-8") as f:
+                            lyrics = f.read()
+                        logger.info(f"Loaded offline lyrics from: {lrc_path}")
+                    except Exception as e:
+                        logger.error(f"Error reading offline lyrics file: {e}")
+            
+            if not lyrics:
+                lyrics = await self.lyrics_client.get_lyrics(
+                    item.title, item.artist, item.album
+                )
             self.now_playing_screen.set_lyrics(lyrics)
         except Exception as e:
             logger.error(f"Error loading lyrics: {e}")
