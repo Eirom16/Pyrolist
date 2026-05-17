@@ -68,10 +68,7 @@ class DownloadItemWidget(QFrame):
         self.progress_bar = QProgressBar()
         self.progress_bar.setFixedHeight(4)
         self.progress_bar.setTextVisible(False)
-        self.progress_bar.setStyleSheet("""
-            QProgressBar { background: #1E1E38; border-radius: 2px; }
-            QProgressBar::chunk { background: #A78BFA; border-radius: 2px; }
-        """)
+        self._update_progress_bar_style()
         self.progress_bar.hide()
         info.addWidget(self.progress_bar)
         
@@ -184,6 +181,20 @@ class DownloadItemWidget(QFrame):
                 pixmap = pixmap.scaled(48, 48, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
                 self.thumb.setPixmap(pixmap)
                 self.thumb.setStyleSheet("background: transparent; border-radius: 6px;")
+
+    def _update_progress_bar_style(self) -> None:
+        from pyrolist.ui.design import tokens
+        accent = tokens.CURRENT.accent
+        self.progress_bar.setStyleSheet(f"""
+            QProgressBar {{ background: #1E1E38; border-radius: 2px; }}
+            QProgressBar::chunk {{ background: {accent}; border-radius: 2px; }}
+        """)
+
+    def changeEvent(self, event) -> None:
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
+            self._update_progress_bar_style()
+        super().changeEvent(event)
 
 class DownloadPlaylistItemWidget(QFrame):
     def __init__(self, playlist_id, title, tracks, on_play_local=None, on_play_local_playlist=None):

@@ -56,17 +56,19 @@ class IconButton(QPushButton):
         super().leaveEvent(event)
 
     def paintEvent(self, event: QPaintEvent) -> None:
+        from pyrolist.ui.design import tokens
+        active_color = QColor(tokens.CURRENT.accent)
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         if self._bg_opacity > 0:
-            color = QColor(self._active_color if self._is_active else QColor(255, 255, 255))
+            color = QColor(active_color if self._is_active else QColor(255, 255, 255))
             color.setAlphaF(self._bg_opacity * 0.12)
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QBrush(color))
             painter.drawEllipse(self.rect())
         if self._is_active:
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(self._active_color))
+            painter.setBrush(QBrush(active_color))
             painter.drawEllipse(self.width() // 2 - 3, self.height() - 6, 6, 4)
         painter.end()
         super().paintEvent(event)

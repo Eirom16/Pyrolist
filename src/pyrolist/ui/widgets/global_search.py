@@ -252,7 +252,6 @@ class GlobalSearchBar(QWidget):
         self._search_icon.setFixedSize(28, 28)
         self._search_icon.setText(Icon.get("search"))
         self._search_icon.setFont(Icon.font(20))
-        self._search_icon.setStyleSheet("color: #A78BFA; background: transparent;")
         self._search_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         bar_layout.addWidget(self._search_icon)
 
@@ -260,23 +259,7 @@ class GlobalSearchBar(QWidget):
         self.input = QLineEdit()
         self.input.setObjectName("globalSearchInput")
         self.input.setPlaceholderText("¿Qué quieres escuchar hoy?")
-        self.input.setStyleSheet("""
-            QLineEdit {
-                background-color: #1A1A2E;
-                border: 1px solid #2A2A3E;
-                border-radius: 24px;
-                color: #FFFFFF;
-                padding: 12px 24px;
-                font-size: 15px;
-                font-family: Inter;
-                selection-background-color: #7C4DFF;
-            }
-            QLineEdit:focus {
-                border: 1px solid #7C4DFF;
-                background-color: #1E1E3A;
-            }
-            QLineEdit::placeholder { color: #666688; }
-        """)
+        self._update_search_bar_styles()
         self.input.textChanged.connect(self._on_text_changed)
         self.input.returnPressed.connect(self._on_return_pressed)
         bar_layout.addWidget(self.input)
@@ -508,3 +491,33 @@ class GlobalSearchBar(QWidget):
     def focus_search(self):
         self.input.setFocus()
         self.input.selectAll()
+
+    def _update_search_bar_styles(self) -> None:
+        from pyrolist.ui.design import tokens
+        accent = tokens.CURRENT.accent
+        if hasattr(self, '_search_icon') and self._search_icon:
+            self._search_icon.setStyleSheet(f"color: {accent}; background: transparent;")
+        if hasattr(self, 'input') and self.input:
+            self.input.setStyleSheet(f"""
+                QLineEdit {{
+                    background-color: #1A1A2E;
+                    border: 1px solid #2A2A3E;
+                    border-radius: 24px;
+                    color: #FFFFFF;
+                    padding: 12px 24px;
+                    font-size: 15px;
+                    font-family: Inter;
+                    selection-background-color: {accent};
+                }}
+                QLineEdit:focus {{
+                    border: 1px solid {accent};
+                    background-color: #1E1E3A;
+                }}
+                QLineEdit::placeholder {{ color: #666688; }}
+            """)
+
+    def changeEvent(self, event) -> None:
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
+            self._update_search_bar_styles()
+        super().changeEvent(event)

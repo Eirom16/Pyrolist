@@ -38,8 +38,12 @@ class StorageSettingsScreen(QWidget):
         layout.addStretch()
 
     def _metric(self, path: Path) -> QLabel:
+        from pyrolist.ui.design import tokens
         label = QLabel(self._get_size(path))
-        label.setStyleSheet("color: #A78BFA; background: transparent; font-weight: 700;")
+        label.setStyleSheet(f"color: {tokens.CURRENT.accent}; background: transparent; font-weight: 700;")
+        if not hasattr(self, "_metric_labels"):
+            self._metric_labels = []
+        self._metric_labels.append(label)
         return label
 
     def _get_size(self, path: Path) -> str:
@@ -57,4 +61,17 @@ class StorageSettingsScreen(QWidget):
         for file in AppDirs.downloads.glob("*"):
             if file.is_file():
                 file.unlink()
+
+    def _update_metric_labels_style(self) -> None:
+        if not hasattr(self, "_metric_labels"):
+            return
+        from pyrolist.ui.design import tokens
+        for label in self._metric_labels:
+            label.setStyleSheet(f"color: {tokens.CURRENT.accent}; background: transparent; font-weight: 700;")
+
+    def changeEvent(self, event) -> None:
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
+            self._update_metric_labels_style()
+        super().changeEvent(event)
 

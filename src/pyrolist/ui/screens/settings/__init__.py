@@ -124,8 +124,15 @@ class SettingsScreen(QWidget):
         return button
 
     def _style_cat_button(self, button: QPushButton, active: bool) -> None:
-        color = "#A78BFA" if active else "#9B9BC0"
-        bg = "rgba(167,139,250,0.15)" if active else "transparent"
+        from pyrolist.ui.design import tokens
+        from PySide6.QtGui import QColor
+        accent = tokens.CURRENT.accent
+        c = QColor(accent)
+        r, g, b, _ = c.getRgb()
+
+        color = accent if active else "#9B9BC0"
+        bg = f"rgba({r},{g},{b},0.15)" if active else "transparent"
+        hover_bg = f"rgba({r},{g},{b},0.09)"
         button._icon_label.setStyleSheet(f"color: {color}; background: transparent;")
         button._text_label.setStyleSheet(f"color: {color}; background: transparent; font-weight: {'700' if active else '500'};")
         button.setStyleSheet(f"""
@@ -135,7 +142,7 @@ class SettingsScreen(QWidget):
                 border-radius: 10px;
             }}
             QPushButton:hover {{
-                background: rgba(167,139,250,0.09);
+                background: {hover_bg};
             }}
         """)
 
@@ -145,4 +152,11 @@ class SettingsScreen(QWidget):
             button.setChecked(active)
             self._style_cat_button(button, active)
         self.stack.setCurrentIndexAnimated(index)
+
+    def changeEvent(self, event) -> None:
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
+            for i, button in enumerate(self._cat_buttons):
+                self._style_cat_button(button, button.isChecked())
+        super().changeEvent(event)
 

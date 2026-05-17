@@ -28,10 +28,20 @@ class RippleButton(QPushButton):
         self._apply_style()
 
     def _apply_style(self) -> None:
+        from pyrolist.ui.design import tokens
+        from PySide6.QtGui import QColor
+        accent = tokens.CURRENT.accent
+        c = QColor(accent)
+        r, g, b, _ = c.getRgb()
+        
+        # Calculate variants dynamically
+        bright_hex = c.lighter(125).name()
+        dark_hex = c.darker(120).name()
+
         styles = {
-            "primary": """
-                QPushButton {
-                    background-color: #A78BFA;
+            "primary": f"""
+                QPushButton {{
+                    background-color: {accent};
                     color: #0A0A14;
                     border: none;
                     border-radius: 20px;
@@ -39,26 +49,26 @@ class RippleButton(QPushButton):
                     font-family: 'Nunito';
                     font-size: 14px;
                     font-weight: 700;
-                }
-                QPushButton:hover { background-color: #BBA4FC; }
-                QPushButton:pressed { background-color: #8B5CF6; }
-                QPushButton:disabled { background-color: #2A2A4A; color: #4A4A6A; }
+                }}
+                QPushButton:hover {{ background-color: {bright_hex}; }}
+                QPushButton:pressed {{ background-color: {dark_hex}; }}
+                QPushButton:disabled {{ background-color: #2A2A4A; color: #4A4A6A; }}
             """,
-            "secondary": """
-                QPushButton {
-                    background-color: rgba(167,139,250,0.12);
-                    color: #A78BFA;
-                    border: 1px solid rgba(167,139,250,0.3);
+            "secondary": f"""
+                QPushButton {{
+                    background-color: rgba({r},{g},{b},0.12);
+                    color: {accent};
+                    border: 1px solid rgba({r},{g},{b},0.3);
                     border-radius: 20px;
                     padding: 10px 24px;
                     font-family: 'Nunito';
                     font-size: 14px;
                     font-weight: 600;
-                }
-                QPushButton:hover {
-                    background-color: rgba(167,139,250,0.2);
-                    border-color: rgba(167,139,250,0.6);
-                }
+                }}
+                QPushButton:hover {{
+                    background-color: rgba({r},{g},{b},0.2);
+                    border-color: rgba({r},{g},{b},0.6);
+                }}
             """,
             "ghost": """
                 QPushButton {
@@ -87,6 +97,17 @@ class RippleButton(QPushButton):
             """,
         }
         self.setStyleSheet(styles.get(self.variant, styles["primary"]))
+
+    def changeEvent(self, event) -> None:
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
+            if not getattr(self, '_in_style_change', False):
+                self._in_style_change = True
+                try:
+                    self._apply_style()
+                finally:
+                    self._in_style_change = False
+        super().changeEvent(event)
 
     def _get_opacity(self) -> float:
         return self._ripple_opacity

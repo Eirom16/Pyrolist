@@ -55,11 +55,19 @@ class NavButton(QPushButton):
         self.text_label.setVisible(not collapsed)
 
     def _apply_style(self, active: bool) -> None:
-        color = "#A78BFA" if active else "#9B9BC0"
+        from pyrolist.ui.design import tokens
+        from PySide6.QtGui import QColor
+        accent = tokens.CURRENT.accent
+        c = QColor(accent)
+        r, g, b, _ = c.getRgb()
+
+        color = accent if active else "#9B9BC0"
         weight = "700" if active else "500"
         self.icon_label.setStyleSheet(f"color: {color}; background: transparent;")
         self.text_label.setStyleSheet(f"color: {color}; background: transparent; font-weight: {weight};")
-        bg = "rgba(167,139,250,0.14)" if active else "transparent"
+        
+        bg = f"rgba({r},{g},{b},0.14)" if active else "transparent"
+        hover_bg = f"rgba({r},{g},{b},0.09)"
         self.setStyleSheet(f"""
             QPushButton {{
                 background: {bg};
@@ -69,9 +77,21 @@ class NavButton(QPushButton):
                 padding: 0;
             }}
             QPushButton:hover {{
-                background: rgba(167,139,250,0.09);
+                background: {hover_bg};
             }}
         """)
+
+    def changeEvent(self, event) -> None:
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
+            if hasattr(self, 'icon_label') and self.icon_label:
+                if not getattr(self, '_in_style_change', False):
+                    self._in_style_change = True
+                    try:
+                        self._apply_style(self.isChecked())
+                    finally:
+                        self._in_style_change = False
+        super().changeEvent(event)
 
 
 class NavSidebar(QWidget):
@@ -124,12 +144,14 @@ class NavSidebar(QWidget):
             self._app_icon = QLabel()
             pixmap = QPixmap(str(icon_path))
             self._app_icon.setPixmap(pixmap.scaled(28, 28, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+            self._app_icon_is_custom = True
         else:
             self._app_icon = Icon.label("music_note", 26, "#A78BFA")
+            self._app_icon_is_custom = False
             
         self._app_title = QLabel("Pyrolist")
         self._app_title.setFont(AppFont.heading(18))
-        self._app_title.setStyleSheet("color: #A78BFA; background: transparent;")
+        self._update_header_style()
         logo_layout.addWidget(self._app_icon)
         logo_layout.addWidget(self._app_title)
         logo_layout.addStretch()
@@ -231,19 +253,25 @@ class NavSidebar(QWidget):
         self._profile_btn.setIcon(QIcon())
         self._profile_btn.setIconSize(QSize(24, 24))
         self._profile_btn.setFont(AppFont.body(12))
-        self._profile_btn.setStyleSheet("""
-            QPushButton {
+        from pyrolist.ui.design import tokens
+        from PySide6.QtGui import QColor
+        accent = tokens.CURRENT.accent
+        c = QColor(accent)
+        r, g, b, _ = c.getRgb()
+
+        self._profile_btn.setStyleSheet(f"""
+            QPushButton {{
                 background-color: transparent;
                 color: #9B9BC0;
                 border: none;
                 border-radius: 12px;
                 padding: 8px 10px;
                 text-align: left;
-            }
-            QPushButton:hover {
-                background-color: rgba(167,139,250,0.08);
+            }}
+            QPushButton:hover {{
+                background-color: rgba({r},{g},{b},0.08);
                 color: #F1F0FF;
-            }
+            }}
         """)
 
         if self._is_authenticated and self._user_avatar:
@@ -312,3 +340,22 @@ class NavSidebar(QWidget):
         self._user_name = user_name
         self._user_avatar = avatar_url
         self._update_profile_ui()
+
+    def _update_header_style(self) -> None:
+        from pyrolist.ui.design import tokens
+        accent = tokens.CURRENT.accent
+        if hasattr(self, '_app_title') and self._app_title:
+            self._app_title.setStyleSheet(f"color: {accent}; background: transparent;")
+        if hasattr(self, '_app_icon') and self._app_icon:
+            if hasattr(self, '_app_icon_is_custom') and self._app_icon_is_custom:
+                return
+            if isinstance(self._app_icon, QLabel) and self._app_icon.text():
+                self._app_icon.setStyleSheet(f"color: {accent}; background: transparent;")
+
+    def changeEvent(self, event) -> None:
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
+            if hasattr(self, '_profile_btn') and self._profile_btn:
+                self._update_header_style()
+                self._update_profile_ui()
+        super().changeEvent(event)

@@ -111,18 +111,8 @@ class AccentColorPicker(QWidget):
         custom.setFixedSize(28, 28)
         custom.setCursor(Qt.CursorShape.PointingHandCursor)
         custom.setToolTip("Color personalizado")
-        custom.setStyleSheet("""
-            QPushButton {
-                border: 2px dashed rgba(167,139,250,0.4);
-                border-radius: 14px;
-                color: #9B9BC0;
-                background: transparent;
-            }
-            QPushButton:hover {
-                border-color: #A78BFA;
-                color: #A78BFA;
-            }
-        """)
+        self.custom_btn = custom
+        self._update_custom_button_style()
         custom.clicked.connect(self._pick_custom)
         layout.addWidget(custom)
 
@@ -153,12 +143,39 @@ class AccentColorPicker(QWidget):
         self._current = color
         for button, preset in zip(self._buttons, self.PRESETS, strict=False):
             self._style_swatch(button, preset)
+        self._update_custom_button_style()
         self.color_changed.emit(color)
 
     def _pick_custom(self) -> None:
         color = QColorDialog.getColor(QColor(self._current), self)
         if color.isValid():
             self._emit_color(color.name())
+
+    def _update_custom_button_style(self) -> None:
+        if hasattr(self, 'custom_btn') and isinstance(self.custom_btn, QPushButton):
+            from pyrolist.ui.design import tokens
+            from PySide6.QtGui import QColor
+            accent = tokens.CURRENT.accent
+            c = QColor(accent)
+            r, g, b, _ = c.getRgb()
+            self.custom_btn.setStyleSheet(f"""
+                QPushButton {{
+                    border: 2px dashed rgba({r},{g},{b},0.4);
+                    border-radius: 14px;
+                    color: #9B9BC0;
+                    background: transparent;
+                }}
+                QPushButton:hover {{
+                    border-color: {accent};
+                    color: {accent};
+                }}
+            """)
+
+    def changeEvent(self, event) -> None:
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
+            self._update_custom_button_style()
+        super().changeEvent(event)
 
 
 def page_title(text: str) -> QLabel:

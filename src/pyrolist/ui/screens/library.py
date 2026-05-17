@@ -78,36 +78,7 @@ class LibraryScreen(QWidget):
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             
             # Apply styling
-            if key == self._current_tab:
-                btn.setStyleSheet("""
-                    QPushButton {
-                        background: rgba(167, 139, 250, 0.15);
-                        color: #A78BFA;
-                        padding: 8px 18px;
-                        border: 1px solid rgba(167, 139, 250, 0.3);
-                        border-radius: 18px;
-                        font-family: 'Inter';
-                        font-weight: bold;
-                        font-size: 13px;
-                    }
-                """)
-            else:
-                btn.setStyleSheet("""
-                    QPushButton {
-                        background: transparent;
-                        color: #9B9BC0;
-                        padding: 8px 18px;
-                        border: 1px solid transparent;
-                        border-radius: 18px;
-                        font-family: 'Inter';
-                        font-weight: 600;
-                        font-size: 13px;
-                    }
-                    QPushButton:hover {
-                        background: rgba(255, 255, 255, 0.05);
-                        color: #F1F0FF;
-                    }
-                """)
+            self._apply_tab_style(btn, key == self._current_tab)
             
             btn.clicked.connect(lambda _, k=key: self._switch_tab(k))
             tabs_layout.addWidget(btn)
@@ -135,23 +106,7 @@ class LibraryScreen(QWidget):
         self.fab.clicked.connect(self._on_create_playlist_clicked)
         
         # Style the FAB
-        self.fab.setStyleSheet("""
-            QPushButton {
-                background-color: #A78BFA;
-                color: #0A0A14;
-                border: none;
-                border-radius: 28px;
-                font-family: 'Inter';
-                font-size: 26px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #BBA4FC;
-            }
-            QPushButton:pressed {
-                background-color: #8B5CF6;
-            }
-        """)
+        self._update_fab_style()
         
         # Add elevation/shadow to FAB
         shadow = QGraphicsDropShadowEffect(self.fab)
@@ -174,38 +129,7 @@ class LibraryScreen(QWidget):
         self._current_tab = key
 
         # Update button styles
-        for btn in self.tabs.findChildren(QPushButton):
-            k = btn.objectName().replace("tab_", "")
-            if k == key:
-                btn.setStyleSheet("""
-                    QPushButton {
-                        background: rgba(167, 139, 250, 0.15);
-                        color: #A78BFA;
-                        padding: 8px 18px;
-                        border: 1px solid rgba(167, 139, 250, 0.3);
-                        border-radius: 18px;
-                        font-family: 'Inter';
-                        font-weight: bold;
-                        font-size: 13px;
-                    }
-                """)
-            else:
-                btn.setStyleSheet("""
-                    QPushButton {
-                        background: transparent;
-                        color: #9B9BC0;
-                        padding: 8px 18px;
-                        border: 1px solid transparent;
-                        border-radius: 18px;
-                        font-family: 'Inter';
-                        font-weight: 600;
-                        font-size: 13px;
-                    }
-                    QPushButton:hover {
-                        background: rgba(255, 255, 255, 0.05);
-                        color: #F1F0FF;
-                    }
-                """)
+        self._update_tab_styles()
 
         # Toggle FAB visibility depending on selected tab
         if key == "playlists":
@@ -500,11 +424,16 @@ class LibraryScreen(QWidget):
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         button_box.button(QDialogButtonBox.StandardButton.Ok).setText("Crear")
         button_box.button(QDialogButtonBox.StandardButton.Cancel).setText("Cancelar")
-        button_box.setStyleSheet("""
-            QPushButton {
-                background: #A78BFA; color: #0A0A14; border: none; border-radius: 8px; padding: 8px 16px; font-weight: bold;
-            }
-            QPushButton:hover { background: #BBA4FC; }
+        from pyrolist.ui.design import tokens
+        from PySide6.QtGui import QColor
+        accent = tokens.CURRENT.accent
+        c = QColor(accent)
+        bright_hex = c.lighter(125).name()
+        button_box.setStyleSheet(f"""
+            QPushButton {{
+                background: {accent}; color: #0A0A14; border: none; border-radius: 8px; padding: 8px 16px; font-weight: bold;
+            }}
+            QPushButton:hover {{ background: {bright_hex}; }}
         """)
         layout.addWidget(button_box)
         
@@ -525,3 +454,79 @@ class LibraryScreen(QWidget):
                 self._switch_tab("playlists")
         except Exception as e:
             logger.error(f"Error creating playlist: {e}")
+
+    def _apply_tab_style(self, btn, active: bool) -> None:
+        from pyrolist.ui.design import tokens
+        from PySide6.QtGui import QColor
+        accent = tokens.CURRENT.accent
+        c = QColor(accent)
+        r, g, b, _ = c.getRgb()
+        if active:
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background: rgba({r}, {g}, {b}, 0.15);
+                    color: {accent};
+                    padding: 8px 18px;
+                    border: 1px solid rgba({r}, {g}, {b}, 0.3);
+                    border-radius: 18px;
+                    font-family: 'Inter';
+                    font-weight: bold;
+                    font-size: 13px;
+                }}
+            """)
+        else:
+            btn.setStyleSheet("""
+                QPushButton {
+                    background: transparent;
+                    color: #9B9BC0;
+                    padding: 8px 18px;
+                    border: 1px solid transparent;
+                    border-radius: 18px;
+                    font-family: 'Inter';
+                    font-weight: 600;
+                    font-size: 13px;
+                }
+                QPushButton:hover {
+                    background: rgba(255, 255, 255, 0.05);
+                    color: #F1F0FF;
+                }
+            """)
+
+    def _update_tab_styles(self) -> None:
+        for btn in self.tabs.findChildren(QPushButton):
+            key = btn.objectName().replace("tab_", "")
+            self._apply_tab_style(btn, key == self._current_tab)
+
+    def _update_fab_style(self) -> None:
+        if not hasattr(self, 'fab'):
+            return
+        from pyrolist.ui.design import tokens
+        from PySide6.QtGui import QColor
+        accent = tokens.CURRENT.accent
+        c = QColor(accent)
+        bright_hex = c.lighter(125).name()
+        dark_hex = c.darker(120).name()
+        self.fab.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {accent};
+                color: #0A0A14;
+                border: none;
+                border-radius: 28px;
+                font-family: 'Inter';
+                font-size: 26px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: {bright_hex};
+            }}
+            QPushButton:pressed {{
+                background-color: {dark_hex};
+            }}
+        """)
+
+    def changeEvent(self, event) -> None:
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
+            self._update_tab_styles()
+            self._update_fab_style()
+        super().changeEvent(event)

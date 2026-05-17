@@ -169,18 +169,8 @@ class PlaylistScreen(QWidget):
         else:
             btn_dl = QPushButton(" Descargar Playlist")
             btn_dl.setIcon(Icon.icon("download", color="#0A0A14"))
-            btn_dl.setStyleSheet("""
-                QPushButton {
-                    background-color: #A78BFA;
-                    color: #0A0A14;
-                    border: none;
-                    border-radius: 16px;
-                    padding: 8px 16px;
-                    font-weight: bold;
-                    margin-top: 12px;
-                }
-                QPushButton:hover { background-color: #BBA4FC; }
-            """)
+            self.btn_dl = btn_dl
+            self._update_dl_button_style()
             btn_dl.setCursor(Qt.CursorShape.PointingHandCursor)
             btn_dl.clicked.connect(lambda: self.download_playlist_requested.emit(
                 self._playlist_id, 
@@ -240,3 +230,29 @@ class PlaylistScreen(QWidget):
                 return
         if self.on_play_song:
             self.on_play_song(video_id, title, artists, "", 0, "")
+
+    def _update_dl_button_style(self) -> None:
+        if hasattr(self, 'btn_dl') and isinstance(self.btn_dl, QPushButton):
+            from pyrolist.ui.design import tokens
+            from PySide6.QtGui import QColor
+            accent = tokens.CURRENT.accent
+            c = QColor(accent)
+            bright_hex = c.lighter(125).name()
+            self.btn_dl.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {accent};
+                    color: #0A0A14;
+                    border: none;
+                    border-radius: 16px;
+                    padding: 8px 16px;
+                    font-weight: bold;
+                    margin-top: 12px;
+                }}
+                QPushButton:hover {{ background-color: {bright_hex}; }}
+            """)
+
+    def changeEvent(self, event) -> None:
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
+            self._update_dl_button_style()
+        super().changeEvent(event)

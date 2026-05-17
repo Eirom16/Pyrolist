@@ -86,8 +86,16 @@ class AccountsSettingsScreen(QWidget):
         line.setText(value)
         line.setPlaceholderText(placeholder)
         line.setMinimumWidth(220)
-        line.setStyleSheet("""
-            QLineEdit {
+        if not hasattr(self, "_line_edits"):
+            self._line_edits = []
+        self._line_edits.append(line)
+        self._update_line_edit_style(line)
+        return line
+
+    def _update_line_edit_style(self, line: QLineEdit) -> None:
+        from pyrolist.ui.design import tokens
+        line.setStyleSheet(f"""
+            QLineEdit {{
                 background-color: #1E1E38;
                 color: #F1F0FF;
                 border: 1px solid #2A2A4E;
@@ -95,12 +103,11 @@ class AccountsSettingsScreen(QWidget):
                 padding: 6px 12px;
                 font-family: Inter;
                 font-size: 13px;
-            }
-            QLineEdit:focus {
-                border: 1px solid #A78BFA;
-            }
+            }}
+            QLineEdit:focus {{
+                border: 1px solid {tokens.CURRENT.accent};
+            }}
         """)
-        return line
 
     def _on_browser_login(self) -> None:
         from pyrolist.ui.dialogs.login_dialog import WebLoginDialog
@@ -125,3 +132,11 @@ class AccountsSettingsScreen(QWidget):
     def _set_integration(self, key: str, value) -> None:
         setattr(self.settings.integrations, key, value)
         self.on_changed(self.settings)
+
+    def changeEvent(self, event) -> None:
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
+            if hasattr(self, "_line_edits"):
+                for line in self._line_edits:
+                    self._update_line_edit_style(line)
+        super().changeEvent(event)

@@ -941,6 +941,31 @@ class MainWindow(QMainWindow):
                 dark_r, dark_g, dark_b, _ = dark.getRgb()
                 new_qss = new_qss.replace('139,92,246', f"{dark_r},{dark_g},{dark_b}")
                 new_qss = new_qss.replace('139, 92, 246', f"{dark_r}, {dark_g}, {dark_b}")
+                # Update design tokens globally in memory
+                from pyrolist.ui.design import tokens
+                tokens.CURRENT = tokens.ColorScheme(
+                    bg_base=tokens.CURRENT.bg_base,
+                    bg_surface=tokens.CURRENT.bg_surface,
+                    bg_elevated=tokens.CURRENT.bg_elevated,
+                    bg_high=tokens.CURRENT.bg_high,
+                    bg_overlay=tokens.CURRENT.bg_overlay,
+                    accent=accent,
+                    accent_bright=bright_hex,
+                    accent_dim=f"rgba({r},{g},{b},0.15)",
+                    secondary=tokens.CURRENT.secondary,
+                    secondary_dim=tokens.CURRENT.secondary_dim,
+                    text_primary=tokens.CURRENT.text_primary,
+                    text_secondary=tokens.CURRENT.text_secondary,
+                    text_disabled=tokens.CURRENT.text_disabled,
+                    text_on_accent=tokens.CURRENT.text_on_accent,
+                    border=f"rgba({r},{g},{b},0.12)",
+                    border_focus=f"rgba({r},{g},{b},0.50)",
+                    success=tokens.CURRENT.success,
+                    warning=tokens.CURRENT.warning,
+                    error=tokens.CURRENT.error,
+                    info=tokens.CURRENT.info,
+                    like_color=tokens.CURRENT.like_color,
+                )
         except Exception as e:
             logger.error(f"Error calculating accent color variants: {e}")
         

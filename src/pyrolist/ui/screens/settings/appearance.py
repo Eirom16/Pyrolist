@@ -33,33 +33,8 @@ class AppearanceSettingsScreen(QWidget):
         mode.addItems(["dark", "light", "system"])
         mode.setCurrentText(self.settings.appearance.theme_mode)
         mode.currentTextChanged.connect(lambda value: self._set_appearance("theme_mode", value))
-        mode.setStyleSheet("""
-            QComboBox {
-                background-color: #1E1E38;
-                color: #F1F0FF;
-                border: 1px solid #2A2A4E;
-                border-radius: 8px;
-                padding: 6px 12px;
-                font-family: Inter;
-                font-size: 13px;
-                min-width: 120px;
-            }
-            QComboBox:focus {
-                border: 1px solid #A78BFA;
-            }
-            QComboBox::drop-down {
-                border: none;
-                width: 20px;
-            }
-            QComboBox QAbstractItemView {
-                background-color: #1A1A2E;
-                color: #F1F0FF;
-                border: 1px solid #2A2A4E;
-                border-radius: 8px;
-                selection-background-color: #A78BFA;
-                selection-color: #10101E;
-            }
-        """)
+        self.mode_combo = mode
+        self._update_combo_style()
         theme.add_row(SettingsRow("Tema", "Modo visual preferido", mode))
         layout.addWidget(theme)
 
@@ -83,4 +58,41 @@ class AppearanceSettingsScreen(QWidget):
     def _set_appearance(self, key: str, value) -> None:
         setattr(self.settings.appearance, key, value)
         self.on_changed(self.settings)
+
+    def _update_combo_style(self) -> None:
+        if hasattr(self, 'mode_combo') and isinstance(self.mode_combo, QComboBox):
+            from pyrolist.ui.design import tokens
+            self.mode_combo.setStyleSheet(f"""
+                QComboBox {{
+                    background-color: #1E1E38;
+                    color: #F1F0FF;
+                    border: 1px solid #2A2A4E;
+                    border-radius: 8px;
+                    padding: 6px 12px;
+                    font-family: Inter;
+                    font-size: 13px;
+                    min-width: 120px;
+                }}
+                QComboBox:focus {{
+                    border: 1px solid {tokens.CURRENT.accent};
+                }}
+                QComboBox::drop-down {{
+                    border: none;
+                    width: 20px;
+                }}
+                QComboBox QAbstractItemView {{
+                    background-color: #1A1A2E;
+                    color: #F1F0FF;
+                    border: 1px solid #2A2A4E;
+                    border-radius: 8px;
+                    selection-background-color: {tokens.CURRENT.accent};
+                    selection-color: #10101E;
+                }}
+            """)
+
+    def changeEvent(self, event) -> None:
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
+            self._update_combo_style()
+        super().changeEvent(event)
 

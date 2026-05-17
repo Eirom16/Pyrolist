@@ -30,10 +30,10 @@ class AboutScreen(QWidget):
             logo.setStyleSheet("background: transparent; margin-bottom: 10px;")
             layout.addWidget(logo)
 
-        name = QLabel("Pyrolist")
-        name.setFont(AppFont.display(32))
-        name.setStyleSheet("color: #A78BFA; background: transparent;")
-        layout.addWidget(name)
+        self.name = QLabel("Pyrolist")
+        self.name.setFont(AppFont.display(32))
+        self._update_name_style()
+        layout.addWidget(self.name)
 
         version = QLabel("Version 1.0.0")
         version.setFont(AppFont.body(14))
@@ -52,4 +52,14 @@ class AboutScreen(QWidget):
         github = RippleButton("Ver proyecto", "secondary")
         layout.addWidget(github)
         layout.addStretch()
+
+    def _update_name_style(self) -> None:
+        from pyrolist.ui.design import tokens
+        self.name.setStyleSheet(f"color: {tokens.CURRENT.accent}; background: transparent;")
+
+    def changeEvent(self, event) -> None:
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
+            self._update_name_style()
+        super().changeEvent(event)
 

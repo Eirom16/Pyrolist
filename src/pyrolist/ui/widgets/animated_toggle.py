@@ -72,6 +72,10 @@ class AnimatedToggle(QCheckBox):
             self._thumb_pos = 1.0 if checked else 0.0
 
     def paintEvent(self, event: QPaintEvent) -> None:
+        from pyrolist.ui.design import tokens
+        self._active_color = QColor(tokens.CURRENT.accent)
+        self._pulse_color = QColor(tokens.CURRENT.accent)
+
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 

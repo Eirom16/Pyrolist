@@ -51,6 +51,10 @@ class AnimatedProgressBar(QWidget):
     display_val = Property(float, _get_display, _set_display)
 
     def paintEvent(self, event: QPaintEvent) -> None:
+        from pyrolist.ui.design import tokens
+        accent = tokens.CURRENT.accent
+        accent_bright = tokens.CURRENT.accent_bright
+
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         w, h = self.width(), self.height()
@@ -65,8 +69,8 @@ class AnimatedProgressBar(QWidget):
         fill_w = int(w * self._display_value)
         if fill_w > 0:
             gradient = QLinearGradient(0, 0, w, 0)
-            gradient.setColorAt(0.0, QColor(self.DARK_ACCENT_COLOR))
-            gradient.setColorAt(1.0, QColor(self.ACCENT_COLOR))
+            gradient.setColorAt(0.0, QColor(accent_bright))
+            gradient.setColorAt(1.0, QColor(accent))
             painter.setBrush(QBrush(gradient))
             painter.drawRoundedRect(0, bar_y, fill_w, bar_h, radius, radius)
 
