@@ -56,18 +56,10 @@ class MiniPlayerWidget(QWidget):
         outer.setSpacing(0)
 
         # Inner card
-        card = QWidget()
-        card.setObjectName("playerCard")
-        card.setStyleSheet("""
-            #playerCard {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #10101E, stop:1 #16162A);
-                border-radius: 16px;
-                border: 1px solid rgba(167,139,250,0.10);
-            }
-        """)
+        self.card = QWidget()
+        self.card.setObjectName("playerCard")
 
-        card_layout = QHBoxLayout(card)
+        card_layout = QHBoxLayout(self.card)
         card_layout.setContentsMargins(12, 10, 16, 10)
         card_layout.setSpacing(14)
         card_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
@@ -79,11 +71,6 @@ class MiniPlayerWidget(QWidget):
         self.artwork.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.artwork.setText(Icon.get("library_music"))
         self.artwork.setFont(Icon.font(28))
-        self.artwork.setStyleSheet("""
-            background: #1E1E38;
-            color: #4A4A6A;
-            border-radius: 10px;
-        """)
         card_layout.addWidget(self.artwork)
 
         # ── Song info ──
@@ -161,7 +148,8 @@ class MiniPlayerWidget(QWidget):
 
         card_layout.addLayout(controls)
 
-        outer.addWidget(card)
+        outer.addWidget(self.card)
+        self._update_mini_player_styles()
 
     @staticmethod
     def _make_control_btn(icon_name, size=24, color="#FFFFFF", btn_size=40, primary=False):
@@ -203,10 +191,11 @@ class MiniPlayerWidget(QWidget):
         if thumbnail_url:
             asyncio.ensure_future(self._load_thumbnail(thumbnail_url))
         else:
+            from pyrolist.ui.design import tokens
             self.artwork.setPixmap(QPixmap())
             self.artwork.setText(Icon.get("library_music"))
             self.artwork.setFont(Icon.font(28))
-            self.artwork.setStyleSheet("background: #1E1E38; color: #4A4A6A; border-radius: 10px;")
+            self.artwork.setStyleSheet(f"background: {tokens.CURRENT.bg_high}; color: {tokens.CURRENT.text_disabled}; border-radius: 10px;")
 
     async def _load_thumbnail(self, url: str):
         path = await _image_cache.download(url)
@@ -243,3 +232,54 @@ class MiniPlayerWidget(QWidget):
             self.progress.set_value(position_ms / duration_ms)
         self.time_current.setText(format_duration_short(position_ms))
         self.time_total.setText(format_duration_short(duration_ms))
+
+    def _update_mini_player_styles(self) -> None:
+        if not hasattr(self, 'card') or not self.card:
+            return
+        from pyrolist.ui.design import tokens
+        from PySide6.QtGui import QColor
+        accent = tokens.CURRENT.accent
+        c = QColor(accent)
+        r, g, b = c.red(), c.green(), c.blue()
+        
+        # 1. Card styling with dynamic gradient and borders
+        self.card.setStyleSheet(f"""
+            #playerCard {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 {tokens.CURRENT.bg_surface}, stop:1 {tokens.CURRENT.bg_elevated});
+                border-radius: 16px;
+                border: 1px solid rgba({r},{g},{b},0.12);
+            }}
+        """)
+        
+        # 2. Artwork styling
+        if not self.artwork.pixmap() or self.artwork.pixmap().isNull():
+            self.artwork.setStyleSheet(f"""
+                background: {tokens.CURRENT.bg_high};
+                color: {tokens.CURRENT.text_disabled};
+                border-radius: 10px;
+            """)
+        else:
+            self.artwork.setStyleSheet("background: transparent; border-radius: 10px;")
+
+        # 3. Label text styling
+        self.title.setColor(tokens.CURRENT.text_primary)
+        self.artist.setStyleSheet(f"color: {tokens.CURRENT.text_secondary};")
+        self.time_current.setStyleSheet(f"color: {tokens.CURRENT.text_secondary};")
+        self.time_total.setStyleSheet(f"color: {tokens.CURRENT.text_secondary};")
+
+        # 4. Button styles
+        self.btn_prev.setStyleSheet(f"QPushButton {{ color: {tokens.CURRENT.text_primary}; border: none; background: transparent; }}")
+        self.btn_next.setStyleSheet(f"QPushButton {{ color: {tokens.CURRENT.text_primary}; border: none; background: transparent; }}")
+        self.btn_expand.setStyleSheet(f"QPushButton {{ color: {tokens.CURRENT.text_secondary}; border: none; background: transparent; }}")
+
+    def changeEvent(self, event):
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
+            if not getattr(self, "_in_style_change", False):
+                self._in_style_change = True
+                try:
+                    self._update_mini_player_styles()
+                finally:
+                    self._in_style_change = False
+        super().changeEvent(event)

@@ -95,7 +95,7 @@ class ArtistScreen(QWidget):
             
         self.cover = QLabel()
         self.cover.setFixedSize(200, 200)
-        self.cover.setStyleSheet("background: #2A2A3E; border-radius: 100px;")
+        self.cover.setObjectName("artistCover")
         header_layout.addWidget(self.cover)
         
         if thumbnail_url:
@@ -107,13 +107,13 @@ class ArtistScreen(QWidget):
         
         type_lbl = QLabel("ARTISTA")
         type_lbl.setFont(QFont("Inter", 10, QFont.Weight.Bold))
-        type_lbl.setStyleSheet("color: #FFFFFF;")
+        type_lbl.setObjectName("artistType")
         info_layout.addWidget(type_lbl)
         
         name = data.get('name', 'Unknown')
         title_lbl = QLabel(name)
         title_lbl.setFont(QFont("Inter", 32, QFont.Weight.Bold))
-        title_lbl.setStyleSheet("color: #FFFFFF;")
+        title_lbl.setObjectName("artistTitle")
         title_lbl.setWordWrap(True)
         info_layout.addWidget(title_lbl)
         
@@ -121,7 +121,7 @@ class ArtistScreen(QWidget):
         if subscribers:
             meta_lbl = QLabel(subscribers)
             meta_lbl.setFont(QFont("Inter", 11))
-            meta_lbl.setStyleSheet("color: #888899;")
+            meta_lbl.setObjectName("artistMeta")
             info_layout.addWidget(meta_lbl)
         
         header_layout.addLayout(info_layout)
@@ -135,7 +135,7 @@ class ArtistScreen(QWidget):
         if songs:
             songs_header = QLabel("Top Canciones")
             songs_header.setFont(QFont("Inter", 16, QFont.Weight.Bold))
-            songs_header.setStyleSheet("color: #FFFFFF;")
+            songs_header.setObjectName("artistSectionHeader")
             self.content_layout.addWidget(songs_header)
             
             for track in songs[:5]:
@@ -177,7 +177,7 @@ class ArtistScreen(QWidget):
         if albums:
             albums_header = QLabel("Álbumes")
             albums_header.setFont(QFont("Inter", 16, QFont.Weight.Bold))
-            albums_header.setStyleSheet("color: #FFFFFF;")
+            albums_header.setObjectName("artistSectionHeader_2")
             self.content_layout.addWidget(albums_header)
             
             grid = QGridLayout()

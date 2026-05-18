@@ -278,6 +278,19 @@ QLabel.sectionHeader {
     padding: 16px 0 8px 0;
 }
 
+QLabel#libraryHeader {
+    color: #F1F0FF;
+    background: transparent;
+    font-family: 'Nunito';
+    font-weight: 800;
+}
+
+QLabel#libraryEmptyMessage {
+    color: #9B9BC0;
+    font-family: 'Inter';
+    background: transparent;
+}
+
 /* ─── Cards ────────────────────────────────────────────────── */
 .MusicCard, .AlbumCard {
     background-color: #16162A;
@@ -328,11 +341,112 @@ QFrame#queueSeparator {
 }
 
 /* ─── Settings specific ───────────────────────────────────── */
-SettingsRow {
+#settingsSidebar {
+    background-color: #10101E;
+    border-right: 1px solid rgba(167,139,250,0.08);
+}
+QLabel#settingsTitle, QLabel#settingsPageTitle {
+    color: #F1F0FF;
+    padding: 0 8px 12px 8px;
+}
+QLabel#settingsPageTitle {
+    padding: 0 0 10px 0;
+}
+QWidget#settingsRow {
     border-radius: 12px;
+    background: transparent;
+}
+QWidget#settingsRow:hover {
+    background-color: rgba(167,139,250,0.05);
+}
+QLabel#settingsRowTitle {
+    color: #F1F0FF;
+}
+QLabel#settingsRowDesc, QLabel#settingsSectionHeader {
+    color: #9B9BC0;
+}
+QLabel#settingsSectionHeader {
+    padding: 16px 20px 8px 20px;
+}
+QFrame#settingsCard {
+    background-color: #16162A;
+    border-radius: 16px;
+    border: 1px solid rgba(167,139,250,0.08);
+}
+QFrame#settingsSeparator {
+    background-color: rgba(167,139,250,0.06);
+    max-height: 1px;
 }
 
-SettingsRow:hover {
-    background-color: rgba(167,139,250,0.05);
+/* ─── Now Playing Screen ───────────────────────────────────── */
+QLabel#nowPlayingTitle {
+    color: #F1F0FF;
+}
+QLabel#nowPlayingArtist {
+    color: #9B9BC0;
+}
+QLabel#nowPlayingTimeCurrent, QLabel#nowPlayingTimeTotal {
+    color: #9B9BC0;
+}
+QLabel#nowPlayingArtwork {
+    background-color: #16162A;
+    border-radius: 24px;
+}
+QTabWidget#nowPlayingTabs QTabBar::tab {
+    color: #9B9BC0;
+}
+QTabWidget#nowPlayingTabs QTabBar::tab:selected {
+    color: #A78BFA;
+    border-bottom: 2px solid #A78BFA;
+}
+
+/* ─── Full Player Dialog ───────────────────────────────────── */
+QDialog#fullPlayerBg {
+    background-color: #0A0A14;
+}
+QLabel#fullPlayerArtwork {
+    background-color: #1E1E38;
+    color: #4A4A6A;
+    border-radius: 20px;
+}
+QLabel#fullPlayerArtist {
+    color: #9B9BC0;
+}
+QLabel#fullPlayerTimeCurrent, QLabel#fullPlayerTimeTotal {
+    color: #9B9BC0;
+}
+QPushButton#fullPlayerCloseBtn, QPushButton#fullPlayerShuffleBtn, QPushButton#fullPlayerPrevBtn, QPushButton#fullPlayerNextBtn, QPushButton#fullPlayerRepeatBtn {
+    color: #9B9BC0;
+}
+QPushButton#fullPlayerPrevBtn:hover, QPushButton#fullPlayerNextBtn:hover {
+    color: #F1F0FF;
+}
+QPushButton#fullPlayerShuffleBtn:hover, QPushButton#fullPlayerRepeatBtn:hover, QPushButton#fullPlayerCloseBtn:hover {
+    color: #A78BFA;
+}
+QLabel#fullPlayerLyricsHeader {
+    color: #F1F0FF;
+}
+
+/* ─── Playlist / Artist Screens ────────────────────────────── */
+QLabel#playlistCover, QLabel#artistCover {
+    background-color: #1E1E38;
+    border-radius: 8px;
+}
+QLabel#artistCover {
+    border-radius: 100px;
+}
+QLabel#playlistType, QLabel#artistType {
+    color: #A78BFA;
+}
+QLabel#playlistTitle, QLabel#artistTitle {
+    color: #F1F0FF;
+}
+QLabel#playlistMeta, QLabel#artistMeta {
+    color: #9B9BC0;
+}
+QLabel#artistSectionHeader, QLabel#artistSectionHeader_2 {
+    color: #F1F0FF;
+    padding: 16px 0 8px 0;
 }
 """

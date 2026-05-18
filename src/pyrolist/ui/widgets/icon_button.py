@@ -61,7 +61,7 @@ class IconButton(QPushButton):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         if self._bg_opacity > 0:
-            color = QColor(active_color if self._is_active else QColor(255, 255, 255))
+            color = QColor(active_color if self._is_active else QColor(tokens.CURRENT.text_primary))
             color.setAlphaF(self._bg_opacity * 0.12)
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QBrush(color))

@@ -19,29 +19,21 @@ class SettingsRow(QWidget):
         text_col.setSpacing(3)
         title_label = QLabel(title)
         title_label.setFont(AppFont.body(14))
-        title_label.setStyleSheet("color: #F1F0FF; background: transparent;")
+        title_label.setObjectName("settingsRowTitle")
         text_col.addWidget(title_label)
 
         if description:
             desc = QLabel(description)
             desc.setFont(AppFont.label(12))
             desc.setWordWrap(True)
-            desc.setStyleSheet("color: #6B6B9B; background: transparent;")
+            desc.setObjectName("settingsRowDesc")
             text_col.addWidget(desc)
 
         layout.addLayout(text_col, stretch=1)
         if control:
             layout.addWidget(control, alignment=Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
-        self.setStyleSheet("""
-            SettingsRow {
-                border-radius: 12px;
-                background: transparent;
-            }
-            SettingsRow:hover {
-                background-color: rgba(167,139,250,0.05);
-            }
-        """)
+        self.setObjectName("settingsRow")
 
 
 class SettingsSection(QWidget):
@@ -53,18 +45,11 @@ class SettingsSection(QWidget):
 
         header = QLabel(title.upper())
         header.setFont(AppFont.label(11))
-        header.setStyleSheet("color: #6B6B9B; padding: 16px 20px 8px 20px; background: transparent;")
+        header.setObjectName("settingsSectionHeader")
         layout.addWidget(header)
 
         self.card = QFrame()
         self.card.setObjectName("settingsCard")
-        self.card.setStyleSheet("""
-            QFrame#settingsCard {
-                background-color: #16162A;
-                border-radius: 16px;
-                border: 1px solid rgba(167,139,250,0.08);
-            }
-        """)
         self.card_layout = QVBoxLayout(self.card)
         self.card_layout.setContentsMargins(0, 4, 0, 4)
         self.card_layout.setSpacing(0)
@@ -74,7 +59,7 @@ class SettingsSection(QWidget):
         if self.card_layout.count() > 0:
             sep = QFrame()
             sep.setFrameShape(QFrame.Shape.HLine)
-            sep.setStyleSheet("color: rgba(167,139,250,0.06); max-height: 1px;")
+            sep.setObjectName("settingsSeparator")
             self.card_layout.addWidget(sep)
         self.card_layout.addWidget(row)
 
@@ -181,6 +166,6 @@ class AccentColorPicker(QWidget):
 def page_title(text: str) -> QLabel:
     label = QLabel(text)
     label.setFont(AppFont.display(24))
-    label.setStyleSheet("color: #F1F0FF; background: transparent; margin-bottom: 10px;")
+    label.setObjectName("settingsPageTitle")
     return label
 

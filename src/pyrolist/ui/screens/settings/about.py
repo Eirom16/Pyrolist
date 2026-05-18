@@ -32,34 +32,43 @@ class AboutScreen(QWidget):
 
         self.name = QLabel("Pyrolist")
         self.name.setFont(AppFont.display(32))
-        self._update_name_style()
+        self._update_about_styles()
         layout.addWidget(self.name)
 
-        version = QLabel("Version 1.0.0")
-        version.setFont(AppFont.body(14))
-        version.setStyleSheet("color: #9B9BC0; background: transparent;")
-        layout.addWidget(version)
+        self.version = QLabel("Version 1.0.0")
+        self.version.setFont(AppFont.body(14))
+        layout.addWidget(self.version)
 
-        description = QLabel(
+        self.description = QLabel(
             "Cliente de escritorio para YouTube Music construido con Python, PySide6 y VLC.\n"
             "Incluye streaming, descargas offline, letras sincronizadas, ecualizador e integraciones."
         )
-        description.setFont(AppFont.body(14))
-        description.setWordWrap(True)
-        description.setStyleSheet("color: #9B9BC0; background: transparent;")
-        layout.addWidget(description)
+        self.description.setFont(AppFont.body(14))
+        self.description.setWordWrap(True)
+        layout.addWidget(self.description)
 
         github = RippleButton("Ver proyecto", "secondary")
         layout.addWidget(github)
         layout.addStretch()
+        
+        self._update_about_styles()
 
-    def _update_name_style(self) -> None:
+    def _update_about_styles(self) -> None:
         from pyrolist.ui.design import tokens
         self.name.setStyleSheet(f"color: {tokens.CURRENT.accent}; background: transparent;")
+        if hasattr(self, "version") and self.version:
+            self.version.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent;")
+        if hasattr(self, "description") and self.description:
+            self.description.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent;")
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
         if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-            self._update_name_style()
+            if not getattr(self, '_in_style_change', False):
+                self._in_style_change = True
+                try:
+                    self._update_about_styles()
+                finally:
+                    self._in_style_change = False
         super().changeEvent(event)
 

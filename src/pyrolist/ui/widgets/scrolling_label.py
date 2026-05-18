@@ -88,9 +88,10 @@ class ScrollingLabel(QWidget):
             self._text,
         )
         if self._scrolling:
+            from pyrolist.ui.design import tokens
             fade = QLinearGradient(self.width() - 30, 0, self.width(), 0)
             fade.setColorAt(0, QColor(0, 0, 0, 0))
-            fade.setColorAt(1, QColor(16, 16, 30, 255))
+            fade.setColorAt(1, QColor(tokens.CURRENT.bg_elevated))
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QBrush(fade))
             painter.drawRect(self.width() - 30, 0, 30, self.height())

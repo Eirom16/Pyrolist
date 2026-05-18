@@ -69,19 +69,20 @@ class HomeScreen(QWidget):
     def _create_genre_card(self, name, query):
         card = RippleButton(name, "secondary")
         card.setFixedSize(150, 80)
-        card.setStyleSheet("""
-            QPushButton {
-                background: #16162A;
-                color: #F1F0FF;
-                border: 1px solid rgba(167,139,250,0.12);
+        from pyrolist.ui.design import tokens
+        card.setStyleSheet(f"""
+            QPushButton {{
+                background: {tokens.CURRENT.bg_elevated};
+                color: {tokens.CURRENT.text_primary};
+                border: 1px solid {tokens.CURRENT.border};
                 border-radius: 12px;
                 font-size: 14px;
                 font-weight: 700;
-            }
-            QPushButton:hover {
-                background: #1E1E38;
-                border-color: rgba(167,139,250,0.32);
-            }
+            }}
+            QPushButton:hover {{
+                background: {tokens.CURRENT.bg_high};
+                border-color: {tokens.CURRENT.accent}55;
+            }}
         """)
         card.clicked.connect(lambda: self._on_genre_click(query))
         return card
@@ -415,28 +416,30 @@ class HomeScreen(QWidget):
         self.content_layout.addStretch()
 
     def _show_search_prompt(self):
+        from pyrolist.ui.design import tokens
         self._clear_content()
         title = QLabel("Bienvenido a Pyrolist")
         title.setFont(QFont("Inter", 20, QFont.Weight.Bold))
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("color: #FFFFFF; padding: 20px;")
+        title.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; padding: 20px; background: transparent;")
         self.content_layout.addWidget(title)
 
         search_hint = QLabel("Ve a Buscar y escribe el nombre de una cancion")
         search_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        search_hint.setStyleSheet("color: #B0B0C0; font-size: 14px; padding: 10px;")
+        search_hint.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; font-size: 14px; padding: 10px; background: transparent;")
         self.content_layout.addWidget(search_hint)
 
         self.content_layout.addStretch()
 
     def _display_explore(self, explore):
+        from pyrolist.ui.design import tokens
         section = QWidget()
         section_layout = QVBoxLayout(section)
         section_layout.setSpacing(12)
 
         header = QLabel("Explorar")
         header.setFont(QFont("Inter", 16, QFont.Weight.Bold))
-        header.setStyleSheet("color: #FFFFFF;")
+        header.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent;")
         section_layout.addWidget(header)
 
         mood_cats = explore.get("moodCategories", [])
@@ -453,9 +456,8 @@ class HomeScreen(QWidget):
 
         self.content_layout.addWidget(section)
 
-
-
     def _display_home(self, home):
+        from pyrolist.ui.design import tokens
         for item in home:
             section = QWidget()
             section_layout = QVBoxLayout(section)
@@ -464,7 +466,7 @@ class HomeScreen(QWidget):
             title = item.get("title", {}).get("text", "Sección")
             header = QLabel(title)
             header.setFont(QFont("Inter", 16, QFont.Weight.Bold))
-            header.setStyleSheet("color: #FFFFFF;")
+            header.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent;")
             section_layout.addWidget(header)
 
             contents = item.get("contents", [])
@@ -511,3 +513,40 @@ class HomeScreen(QWidget):
                     section_layout.addLayout(grid)
 
             self.content_layout.addWidget(section)
+
+    def _update_home_styles(self) -> None:
+        from pyrolist.ui.design import tokens
+        for label in self.findChildren(QLabel):
+            font_size = label.font().pointSize()
+            if font_size >= 14:
+                label.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent;")
+            else:
+                label.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent;")
+        
+        for btn in self.findChildren(QPushButton):
+            if hasattr(self, "_genres") and any(btn.text() == name for name, _ in self._genres):
+                btn.setStyleSheet(f"""
+                    QPushButton {{
+                        background: {tokens.CURRENT.bg_elevated};
+                        color: {tokens.CURRENT.text_primary};
+                        border: 1px solid {tokens.CURRENT.border};
+                        border-radius: 12px;
+                        font-size: 14px;
+                        font-weight: 700;
+                    }}
+                    QPushButton:hover {{
+                        background: {tokens.CURRENT.bg_high};
+                        border-color: {tokens.CURRENT.accent}55;
+                    }}
+                """)
+
+    def changeEvent(self, event) -> None:
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
+            if not getattr(self, '_in_style_change', False):
+                self._in_style_change = True
+                try:
+                    self._update_home_styles()
+                finally:
+                    self._in_style_change = False
+        super().changeEvent(event)

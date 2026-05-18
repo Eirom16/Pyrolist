@@ -39,7 +39,8 @@ class NowPlayingScreen(QWidget):
         btn.setFont(Icon.font(size))
         btn.setFixedSize(btn_size, btn_size)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn.setStyleSheet(f"QPushButton {{ color: {color}; border: none; background: transparent; }}")
+        # Style border and background cleanly without inline color hardcoding
+        btn.setStyleSheet("QPushButton { border: none; background: transparent; }")
         return btn
 
     def _build_ui(self):
@@ -55,7 +56,7 @@ class NowPlayingScreen(QWidget):
 
         self.artwork = QLabel()
         self.artwork.setFixedSize(360, 360)
-        self.artwork.setStyleSheet("background: #1E1E38; color: #4A4A6A; border-radius: 24px;")
+        self.artwork.setObjectName("nowPlayingArtwork")
         self.artwork.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.artwork.setText(Icon.get("library_music"))
         self.artwork.setFont(Icon.font(120))
@@ -69,13 +70,13 @@ class NowPlayingScreen(QWidget):
         text_info = QVBoxLayout()
         self.title = QLabel("No hay canción")
         self.title.setFont(QFont("Inter", 22, QFont.Weight.Bold))
-        self.title.setStyleSheet("color: #FFFFFF;")
+        self.title.setObjectName("nowPlayingTitle")
         self.title.setWordWrap(True)
         text_info.addWidget(self.title)
 
         self.artist = QLabel("")
         self.artist.setFont(QFont("Inter", 14))
-        self.artist.setStyleSheet("color: #888899;")
+        self.artist.setObjectName("nowPlayingArtist")
         text_info.addWidget(self.artist)
         
         info_layout.addLayout(text_info)
@@ -85,7 +86,7 @@ class NowPlayingScreen(QWidget):
         self.btn_like = IconButton(size=48, active_color="#F472B6")
         self.btn_like.setText(Icon.get("favorite"))
         self.btn_like.setFont(Icon.font(28, filled=False))
-        self.btn_like.setStyleSheet("color: #9B9BC0; background: transparent; border: none; border-radius: 24px;")
+        self.btn_like.setObjectName("nowPlayingLikeBtn")
         self.btn_like.clicked.connect(self._on_like_clicked)
         info_layout.addWidget(self.btn_like)
 
@@ -98,7 +99,7 @@ class NowPlayingScreen(QWidget):
 
         self.time_current = QLabel("0:00")
         self.time_current.setFont(AppFont.mono(11))
-        self.time_current.setStyleSheet("color: #9B9BC0;")
+        self.time_current.setObjectName("nowPlayingTimeCurrent")
         self.time_current.setFixedWidth(40)
         self.time_current.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         progress_row.addWidget(self.time_current)
@@ -110,7 +111,7 @@ class NowPlayingScreen(QWidget):
 
         self.time_total = QLabel("0:00")
         self.time_total.setFont(AppFont.mono(11))
-        self.time_total.setStyleSheet("color: #9B9BC0;")
+        self.time_total.setObjectName("nowPlayingTimeTotal")
         self.time_total.setFixedWidth(40)
         self.time_total.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         progress_row.addWidget(self.time_total)
@@ -124,9 +125,11 @@ class NowPlayingScreen(QWidget):
         controls.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.btn_shuffle = self._make_btn("shuffle", 22, "#6B6B9B", 40)
+        self.btn_shuffle.setObjectName("nowPlayingShuffleBtn")
         controls.addWidget(self.btn_shuffle)
 
         self.btn_prev = self._make_btn("skip_previous", 30, "#F1F0FF", 48)
+        self.btn_prev.setObjectName("nowPlayingPrevBtn")
         self.btn_prev.clicked.connect(self._on_prev)
         controls.addWidget(self.btn_prev)
 
@@ -135,10 +138,12 @@ class NowPlayingScreen(QWidget):
         controls.addWidget(self.btn_play)
 
         self.btn_next = self._make_btn("skip_next", 30, "#F1F0FF", 48)
+        self.btn_next.setObjectName("nowPlayingNextBtn")
         self.btn_next.clicked.connect(self._on_next)
         controls.addWidget(self.btn_next)
 
         self.btn_repeat = self._make_btn("repeat", 22, "#6B6B9B", 40)
+        self.btn_repeat.setObjectName("nowPlayingRepeatBtn")
         controls.addWidget(self.btn_repeat)
 
         left_layout.addLayout(controls)
@@ -151,24 +156,8 @@ class NowPlayingScreen(QWidget):
         right_layout.setContentsMargins(0, 0, 0, 0)
 
         self.tabs = QTabWidget()
-        self.tabs.setStyleSheet("""
-            QTabWidget::pane {
-                border: none;
-                background: transparent;
-            }
-            QTabBar::tab {
-                background: transparent;
-                color: #888899;
-                padding: 12px 24px;
-                font-family: Inter;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QTabBar::tab:selected {
-                color: #FFFFFF;
-                border-bottom: 2px solid #FFFFFF;
-            }
-        """)
+        self.tabs.setObjectName("nowPlayingTabs")
+
 
         # Tab: Queue (A CONTINUACIÓN)
         from pyrolist.ui.widgets.queue_panel import QueuePanel
@@ -193,7 +182,8 @@ class NowPlayingScreen(QWidget):
         # Initial message
         msg = QLabel("Reproduce una canción para ver las letras")
         msg.setFont(QFont("Inter", 14))
-        msg.setStyleSheet("color: #4A4A6A;")
+        from pyrolist.ui.design import tokens
+        msg.setStyleSheet(f"color: {tokens.CURRENT.text_disabled};")
         msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lyrics_layout.addWidget(msg)
         
@@ -265,7 +255,8 @@ class NowPlayingScreen(QWidget):
             self.artwork.setPixmap(QPixmap())
             self.artwork.setText(Icon.get("library_music"))
             self.artwork.setFont(Icon.font(120))
-            self.artwork.setStyleSheet("background: #1E1E38; color: #4A4A6A; border-radius: 24px;")
+            from pyrolist.ui.design import tokens
+            self.artwork.setStyleSheet(f"background: {tokens.CURRENT.bg_high}; color: {tokens.CURRENT.text_disabled}; border-radius: 24px;")
 
     def update_state(self, status):
         self._is_playing = status.state == PlayerState.PLAYING
@@ -291,7 +282,8 @@ class NowPlayingScreen(QWidget):
             no_lyrics = QLabel("No hay letras disponibles")
             no_lyrics.setFont(QFont("Inter", 14))
             no_lyrics.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            no_lyrics.setStyleSheet("color: #4A4A6A;")
+            from pyrolist.ui.design import tokens
+            no_lyrics.setStyleSheet(f"color: {tokens.CURRENT.text_disabled};")
             self.lyrics_layout.addWidget(no_lyrics)
             return
 
@@ -325,7 +317,8 @@ class NowPlayingScreen(QWidget):
             
             lbl = QLabel(clean)
             lbl.setFont(QFont("Inter", 16, QFont.Weight.Bold))
-            lbl.setStyleSheet("color: #4A4A6A; background: transparent; padding: 4px 0;")
+            from pyrolist.ui.design import tokens
+            lbl.setStyleSheet(f"color: {tokens.CURRENT.text_disabled}; background: transparent; padding: 4px 0;")
             lbl.setWordWrap(True)
             self.lyrics_layout.addWidget(lbl)
             self._lyric_lines.append((timestamp_ms, lbl))
@@ -342,13 +335,14 @@ class NowPlayingScreen(QWidget):
                 active_idx = i
 
         if active_idx != -1 and active_idx != self._current_lyric_index:
+            from pyrolist.ui.design import tokens
             if self._current_lyric_index != -1:
                 old_ts, old_lbl = self._lyric_lines[self._current_lyric_index]
-                old_lbl.setStyleSheet("color: #4A4A6A; background: transparent; padding: 4px 0;")
+                old_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_disabled}; background: transparent; padding: 4px 0;")
                 old_lbl.setFont(QFont("Inter", 16, QFont.Weight.Bold))
             
             new_ts, new_lbl = self._lyric_lines[active_idx]
-            new_lbl.setStyleSheet("color: #F1F0FF; background: transparent; padding: 4px 0;")
+            new_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent; padding: 4px 0;")
             new_lbl.setFont(QFont("Inter", 18, QFont.Weight.Black))
             
             self._current_lyric_index = active_idx
@@ -397,7 +391,8 @@ class NowPlayingScreen(QWidget):
             msg = QLabel("No hay canciones similares")
             msg.setFont(QFont("Inter", 14))
             msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            msg.setStyleSheet("color: #4A4A6A;")
+            from pyrolist.ui.design import tokens
+            msg.setStyleSheet(f"color: {tokens.CURRENT.text_disabled};")
             self.related_layout.addWidget(msg)
             return
 

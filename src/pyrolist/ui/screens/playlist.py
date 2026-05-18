@@ -76,8 +76,9 @@ class PlaylistScreen(QWidget):
         
         playlist_tracks = [d for d in downloads if d.parent_playlist_id == actual_pid]
         if not playlist_tracks:
+            from pyrolist.ui.design import tokens
             msg = QLabel("Esta playlist no contiene canciones descargadas.")
-            msg.setStyleSheet("color: #888899; font-size: 16px; padding: 40px;")
+            msg.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; font-size: 16px; padding: 40px; background: transparent;")
             msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self.content_layout.addWidget(msg)
             return
@@ -133,7 +134,7 @@ class PlaylistScreen(QWidget):
             
         self.cover = QLabel()
         self.cover.setFixedSize(200, 200)
-        self.cover.setStyleSheet("background: #2A2A3E; border-radius: 8px;")
+        self.cover.setObjectName("playlistCover")
         header_layout.addWidget(self.cover)
         
         if thumbnail_url:
@@ -145,12 +146,12 @@ class PlaylistScreen(QWidget):
         
         type_lbl = QLabel("PLAYLIST")
         type_lbl.setFont(QFont("Inter", 10, QFont.Weight.Bold))
-        type_lbl.setStyleSheet("color: #FFFFFF;")
+        type_lbl.setObjectName("playlistType")
         info_layout.addWidget(type_lbl)
         
         title_lbl = QLabel(data.get('title', 'Unknown'))
         title_lbl.setFont(QFont("Inter", 32, QFont.Weight.Bold))
-        title_lbl.setStyleSheet("color: #FFFFFF;")
+        title_lbl.setObjectName("playlistTitle")
         title_lbl.setWordWrap(True)
         info_layout.addWidget(title_lbl)
         
@@ -159,13 +160,14 @@ class PlaylistScreen(QWidget):
         
         meta_lbl = QLabel(f"{author} • {track_count} canciones")
         meta_lbl.setFont(QFont("Inter", 11))
-        meta_lbl.setStyleSheet("color: #888899;")
+        meta_lbl.setObjectName("playlistMeta")
         info_layout.addWidget(meta_lbl)
         
         if data.get('is_local_playlist', False):
+            from pyrolist.ui.design import tokens
             btn_dl = QLabel("📥 Disponible sin conexión")
             btn_dl.setFont(QFont("Inter", 11, QFont.Weight.Bold))
-            btn_dl.setStyleSheet("color: #BB86FC; margin-top: 12px;")
+            btn_dl.setStyleSheet(f"color: {tokens.CURRENT.accent}; margin-top: 12px; background: transparent;")
         else:
             btn_dl = QPushButton(" Descargar Playlist")
             btn_dl.setIcon(Icon.icon("download", color="#0A0A14"))
@@ -241,7 +243,7 @@ class PlaylistScreen(QWidget):
             self.btn_dl.setStyleSheet(f"""
                 QPushButton {{
                     background-color: {accent};
-                    color: #0A0A14;
+                    color: {tokens.CURRENT.text_on_accent};
                     border: none;
                     border-radius: 16px;
                     padding: 8px 16px;
@@ -254,5 +256,10 @@ class PlaylistScreen(QWidget):
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
         if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-            self._update_dl_button_style()
+            if not getattr(self, '_in_style_change', False):
+                self._in_style_change = True
+                try:
+                    self._update_dl_button_style()
+                finally:
+                    self._in_style_change = False
         super().changeEvent(event)

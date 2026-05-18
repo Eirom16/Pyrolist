@@ -49,19 +49,14 @@ class SettingsScreen(QWidget):
 
         sidebar = QWidget()
         sidebar.setFixedWidth(220)
-        sidebar.setStyleSheet("""
-            QWidget {
-                background-color: #10101E;
-                border-right: 1px solid rgba(167,139,250,0.08);
-            }
-        """)
+        sidebar.setObjectName("settingsSidebar")
         side_layout = QVBoxLayout(sidebar)
         side_layout.setContentsMargins(12, 22, 12, 22)
         side_layout.setSpacing(4)
 
         title = QLabel("Ajustes")
         title.setFont(AppFont.heading(18))
-        title.setStyleSheet("color: #F1F0FF; padding: 0 8px 12px 8px; background: transparent;")
+        title.setObjectName("settingsTitle")
         side_layout.addWidget(title)
 
         for i, (icon_name, label) in enumerate(self.CATEGORIES):
@@ -73,7 +68,7 @@ class SettingsScreen(QWidget):
 
         self.stack = FadeStackedWidget()
         self.stack.setObjectName("settingsStack")
-        self.stack.setStyleSheet("#settingsStack { background-color: #0A0A14; }")
+        self.stack.setStyleSheet("#settingsStack { background: transparent; }")
         root.addWidget(self.stack)
 
         self.accounts_screen = AccountsSettingsScreen(self.yt, self.settings, self.on_settings_changed)
@@ -89,9 +84,9 @@ class SettingsScreen(QWidget):
             scroll = QScrollArea()
             scroll.setWidgetResizable(True)
             scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-            scroll.setStyleSheet("QScrollArea { background: #0A0A14; border: none; }")
+            scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
             wrapper = QWidget()
-            wrapper.setStyleSheet("background: #0A0A14;")
+            wrapper.setObjectName("settingsPageWrapper")
             wrapper_layout = QVBoxLayout(wrapper)
             wrapper_layout.setContentsMargins(34, 26, 34, 26)
             wrapper_layout.addWidget(page)
@@ -109,7 +104,8 @@ class SettingsScreen(QWidget):
         row = QHBoxLayout(button)
         row.setContentsMargins(12, 0, 12, 0)
         row.setSpacing(10)
-        icon = Icon.label(icon_name, 18, "#9B9BC0")
+        from pyrolist.ui.design import tokens
+        icon = Icon.label(icon_name, 18, tokens.CURRENT.text_secondary)
         text = QLabel(label)
         text.setFont(AppFont.body(13))
         icon.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
@@ -130,7 +126,7 @@ class SettingsScreen(QWidget):
         c = QColor(accent)
         r, g, b, _ = c.getRgb()
 
-        color = accent if active else "#9B9BC0"
+        color = accent if active else tokens.CURRENT.text_secondary
         bg = f"rgba({r},{g},{b},0.15)" if active else "transparent"
         hover_bg = f"rgba({r},{g},{b},0.09)"
         button._icon_label.setStyleSheet(f"color: {color}; background: transparent;")
@@ -156,7 +152,12 @@ class SettingsScreen(QWidget):
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
         if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-            for i, button in enumerate(self._cat_buttons):
-                self._style_cat_button(button, button.isChecked())
+            if not getattr(self, '_in_style_change', False):
+                self._in_style_change = True
+                try:
+                    for i, button in enumerate(self._cat_buttons):
+                        self._style_cat_button(button, button.isChecked())
+                finally:
+                    self._in_style_change = False
         super().changeEvent(event)
 

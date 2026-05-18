@@ -52,5 +52,29 @@ DARK = ColorScheme(
     like_color="#F472B6",
 )
 
-CURRENT = DARK
 
+LIGHT = ColorScheme(
+    bg_base="#F3F3F9",
+    bg_surface="#FFFFFF",
+    bg_elevated="#E8E8F0",
+    bg_high="#DFDFE8",
+    bg_overlay="rgba(243,243,249,0.85)",
+    accent="#A78BFA",
+    accent_bright="#8B5CF6",
+    accent_dim="rgba(167,139,250,0.15)",
+    secondary="#06B6D4",
+    secondary_dim="rgba(6,182,212,0.15)",
+    text_primary="#121224",
+    text_secondary="#5C5C8A",
+    text_disabled="#9E9EBF",
+    text_on_accent="#FFFFFF",
+    border="rgba(167,139,250,0.12)",
+    border_focus="rgba(167,139,250,0.50)",
+    success="#10B981",
+    warning="#F59E0B",
+    error="#EF4444",
+    info="#3B82F6",
+    like_color="#EC4899",
+)
+
+CURRENT = DARK

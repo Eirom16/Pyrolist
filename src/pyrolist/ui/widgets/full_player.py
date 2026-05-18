@@ -41,7 +41,7 @@ class FullPlayerDialog(QDialog):
     def _build_ui(self):
         self.setWindowTitle("Reproductor Completo")
         self.resize(900, 650)
-        self.setStyleSheet("background-color: #0A0A14;")
+        self.setObjectName("fullPlayerBg")
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -60,10 +60,8 @@ class FullPlayerDialog(QDialog):
 
         # Close button
         close_row = QHBoxLayout()
-        close_btn = IconButton(size=40)
-        close_btn.setText(Icon.get("expand_more"))
-        close_btn.setFont(Icon.font(28))
-        close_btn.setStyleSheet("color: #9B9BC0; border: none; background: transparent;")
+        close_btn.setObjectName("fullPlayerCloseBtn")
+        close_btn.setStyleSheet("QPushButton { border: none; background: transparent; }")
         close_btn.clicked.connect(self._close_animated)
         close_row.addStretch()
         close_row.addWidget(close_btn)
@@ -76,24 +74,21 @@ class FullPlayerDialog(QDialog):
         self.artwork.setText(Icon.get("music_note"))
         self.artwork.setFont(Icon.font(80))
         self.artwork.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.artwork.setStyleSheet("""
-            background: #1E1E38;
-            color: #4A4A6A;
-            border-radius: 20px;
-        """)
+        self.artwork.setObjectName("fullPlayerArtwork")
         left.addWidget(self.artwork, alignment=Qt.AlignmentFlag.AlignCenter)
 
         # Title (scrolling for long names)
         self.title = ScrollingLabel("No hay canción")
         self.title.setFont(AppFont.title(18))
-        self.title.setColor("#F1F0FF")
+        from pyrolist.ui.design import tokens
+        self.title.setColor(tokens.CURRENT.text_primary)
         self.title.setFixedWidth(300)
         left.addWidget(self.title, alignment=Qt.AlignmentFlag.AlignCenter)
 
         # Artist
         self.artist = QLabel("")
         self.artist.setFont(AppFont.label(13))
-        self.artist.setStyleSheet("color: #9B9BC0;")
+        self.artist.setObjectName("fullPlayerArtist")
         self.artist.setAlignment(Qt.AlignmentFlag.AlignCenter)
         left.addWidget(self.artist, alignment=Qt.AlignmentFlag.AlignCenter)
 
@@ -107,10 +102,10 @@ class FullPlayerDialog(QDialog):
         time_row = QHBoxLayout()
         self.time_current = QLabel("0:00")
         self.time_current.setFont(AppFont.mono(10))
-        self.time_current.setStyleSheet("color: #6B6B9B;")
+        self.time_current.setObjectName("fullPlayerTimeCurrent")
         self.time_total = QLabel("0:00")
         self.time_total.setFont(AppFont.mono(10))
-        self.time_total.setStyleSheet("color: #6B6B9B;")
+        self.time_total.setObjectName("fullPlayerTimeTotal")
         time_row.addWidget(self.time_current)
         time_row.addStretch()
         time_row.addWidget(self.time_total)
@@ -125,9 +120,11 @@ class FullPlayerDialog(QDialog):
         controls.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.btn_shuffle = self._make_btn("shuffle", 20, "#6B6B9B", 36)
+        self.btn_shuffle.setObjectName("fullPlayerShuffleBtn")
         controls.addWidget(self.btn_shuffle)
 
         self.btn_prev = self._make_btn("skip_previous", 28, "#F1F0FF", 44)
+        self.btn_prev.setObjectName("fullPlayerPrevBtn")
         self.btn_prev.clicked.connect(self._on_prev)
         controls.addWidget(self.btn_prev)
 
@@ -136,10 +133,12 @@ class FullPlayerDialog(QDialog):
         controls.addWidget(self.btn_play)
 
         self.btn_next = self._make_btn("skip_next", 28, "#F1F0FF", 44)
+        self.btn_next.setObjectName("fullPlayerNextBtn")
         self.btn_next.clicked.connect(self._on_next)
         controls.addWidget(self.btn_next)
 
         self.btn_repeat = self._make_btn("repeat", 20, "#6B6B9B", 36)
+        self.btn_repeat.setObjectName("fullPlayerRepeatBtn")
         controls.addWidget(self.btn_repeat)
 
         left.addLayout(controls)
@@ -152,7 +151,7 @@ class FullPlayerDialog(QDialog):
 
         lyrics_header = QLabel("Letra")
         lyrics_header.setFont(AppFont.heading(18))
-        lyrics_header.setStyleSheet("color: #F1F0FF;")
+        lyrics_header.setObjectName("fullPlayerLyricsHeader")
         right.addWidget(lyrics_header)
 
         self.lyrics_area = QScrollArea()
@@ -170,13 +169,14 @@ class FullPlayerDialog(QDialog):
         no_lyrics = QLabel(Icon.get("lyrics"))
         no_lyrics.setFont(Icon.font(48))
         no_lyrics.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        no_lyrics.setStyleSheet("color: #2A2A4A; padding: 40px;")
+        from pyrolist.ui.design import tokens
+        no_lyrics.setStyleSheet(f"color: {tokens.CURRENT.text_disabled}; padding: 40px;")
         self.lyrics_content_layout.addWidget(no_lyrics)
 
         msg = QLabel("Reproduce una canción para ver las letras")
         msg.setFont(AppFont.body(14))
         msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        msg.setStyleSheet("color: #4A4A6A;")
+        msg.setStyleSheet(f"color: {tokens.CURRENT.text_disabled};")
         self.lyrics_content_layout.addWidget(msg)
         self.lyrics_content_layout.addStretch()
 
@@ -205,7 +205,7 @@ class FullPlayerDialog(QDialog):
         btn.setFont(Icon.font(size))
         btn.setFixedSize(btn_size, btn_size)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn.setStyleSheet(f"QPushButton {{ color: {color}; border: none; background: transparent; }}")
+        btn.setStyleSheet("QPushButton { border: none; background: transparent; }")
         return btn
 
     def _connect_signals(self):
@@ -287,7 +287,8 @@ class FullPlayerDialog(QDialog):
         loading = QLabel("Buscando letras...")
         loading.setFont(AppFont.body(14))
         loading.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        loading.setStyleSheet("color: #6B6B9B; padding: 40px;")
+        from pyrolist.ui.design import tokens
+        loading.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; padding: 40px;")
         self.lyrics_content_layout.addWidget(loading)
 
         try:
@@ -338,7 +339,8 @@ class FullPlayerDialog(QDialog):
                     
                     lbl = QLabel(clean)
                     lbl.setFont(AppFont.title(16)) # Use title font for better readability
-                    lbl.setStyleSheet("color: #4A4A6A; background: transparent; padding: 4px 0;")
+                    from pyrolist.ui.design import tokens
+                    lbl.setStyleSheet(f"color: {tokens.CURRENT.text_disabled}; background: transparent; padding: 4px 0;")
                     lbl.setWordWrap(True)
                     self.lyrics_content_layout.addWidget(lbl)
                     self._lyric_lines.append((timestamp_ms, lbl))
@@ -347,13 +349,14 @@ class FullPlayerDialog(QDialog):
                 icon_lbl = QLabel(Icon.get("lyrics"))
                 icon_lbl.setFont(Icon.font(48))
                 icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                icon_lbl.setStyleSheet("color: #2A2A4A; padding: 30px 0 10px 0;")
+                from pyrolist.ui.design import tokens
+                icon_lbl.setStyleSheet(f"color: {tokens.CURRENT.border}; padding: 30px 0 10px 0;")
                 self.lyrics_content_layout.addWidget(icon_lbl)
 
                 no_lyrics = QLabel("No hay letras disponibles")
                 no_lyrics.setFont(AppFont.body(14))
                 no_lyrics.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                no_lyrics.setStyleSheet("color: #4A4A6A;")
+                no_lyrics.setStyleSheet(f"color: {tokens.CURRENT.text_disabled};")
                 self.lyrics_content_layout.addWidget(no_lyrics)
         except Exception:
             while self.lyrics_content_layout.count():
@@ -364,7 +367,8 @@ class FullPlayerDialog(QDialog):
             no_lyrics = QLabel("Error al buscar letras")
             no_lyrics.setFont(AppFont.body(14))
             no_lyrics.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            no_lyrics.setStyleSheet("color: #F87171;")
+            from pyrolist.ui.design import tokens
+            no_lyrics.setStyleSheet(f"color: {tokens.CURRENT.error};")
             self.lyrics_content_layout.addWidget(no_lyrics)
 
         self.lyrics_content_layout.addStretch()
@@ -380,15 +384,16 @@ class FullPlayerDialog(QDialog):
                 active_idx = i
 
         if active_idx != -1 and active_idx != self._current_lyric_index:
+            from pyrolist.ui.design import tokens
             # Revert old
             if self._current_lyric_index != -1:
                 old_ts, old_lbl = self._lyric_lines[self._current_lyric_index]
-                old_lbl.setStyleSheet("color: #4A4A6A; background: transparent; padding: 4px 0;")
+                old_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_disabled}; background: transparent; padding: 4px 0;")
                 old_lbl.setFont(AppFont.title(16))
             
             # Highlight new
             new_ts, new_lbl = self._lyric_lines[active_idx]
-            new_lbl.setStyleSheet("color: #F1F0FF; background: transparent; padding: 4px 0;")
+            new_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent; padding: 4px 0;")
             new_lbl.setFont(AppFont.heading(18)) # Bigger for active
             
             self._current_lyric_index = active_idx

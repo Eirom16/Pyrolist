@@ -26,14 +26,19 @@ class AnimatedToggle(QCheckBox):
         self.setText("")
 
         self._thumb_anim = QPropertyAnimation(self, b"thumb_position", self)
-        self._thumb_anim.setDuration(280)
-        self._thumb_anim.setEasingCurve(QEasingCurve.Type.OutBack)
+        self._thumb_anim.setDuration(220)
+        self._thumb_anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
 
         self._pulse_anim = QPropertyAnimation(self, b"pulse_radius", self)
-        self._pulse_anim.setDuration(350)
+        self._pulse_anim.setDuration(300)
         self._pulse_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
 
-        self.stateChanged.connect(self._animate)
+        # Connect directly to toggled instead of stateChanged for flawless boolean trigger
+        self.toggled.connect(self._animate_toggled)
+
+    def hitButton(self, pos) -> bool:
+        """Make the entire widget boundary interactive and clickable."""
+        return self.rect().contains(pos)
 
     def _get_thumb_pos(self) -> float:
         return self._thumb_pos
@@ -53,9 +58,8 @@ class AnimatedToggle(QCheckBox):
 
     pulse_radius = Property(float, _get_pulse, _set_pulse)
 
-    @Slot(int)
-    def _animate(self, state: int) -> None:
-        checked = state == Qt.CheckState.Checked.value
+    @Slot(bool)
+    def _animate_toggled(self, checked: bool) -> None:
         self._thumb_anim.stop()
         self._thumb_anim.setStartValue(self._thumb_pos)
         self._thumb_anim.setEndValue(1.0 if checked else 0.0)
@@ -68,13 +72,17 @@ class AnimatedToggle(QCheckBox):
 
     def setChecked(self, checked: bool) -> None:
         super().setChecked(checked)
-        if not self._thumb_anim.state() == QPropertyAnimation.State.Running:
+        # Instantly update position without animating if we are initializing (not visible yet)
+        if not self.isVisible():
             self._thumb_pos = 1.0 if checked else 0.0
+            self.update()
 
     def paintEvent(self, event: QPaintEvent) -> None:
         from pyrolist.ui.design import tokens
         self._active_color = QColor(tokens.CURRENT.accent)
         self._pulse_color = QColor(tokens.CURRENT.accent)
+        # Adapt inactive track color to the active theme's disabled color token
+        self._track_color = QColor(tokens.CURRENT.text_disabled)
 
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -104,7 +112,8 @@ class AnimatedToggle(QCheckBox):
                 thumb_r * 1.9 * self._pulse_radius,
             )
 
-        painter.setBrush(QColor(0, 0, 0, 60))
+        # Subtle shadow under the thumb for a premium depth aesthetic
+        painter.setBrush(QColor(0, 0, 0, 45))
         painter.drawEllipse(QPointF(thumb_x + thumb_r + 0.5, thumb_y + 1), thumb_r, thumb_r)
         painter.setBrush(QBrush(self._thumb_color))
         painter.drawEllipse(QPointF(thumb_x + thumb_r, thumb_y), thumb_r, thumb_r)
@@ -112,4 +121,3 @@ class AnimatedToggle(QCheckBox):
 
     def sizeHint(self) -> QSize:
         return QSize(52, 28)
-

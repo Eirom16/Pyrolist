@@ -124,12 +124,6 @@ class NavSidebar(QWidget):
         self._build_ui()
 
     def _build_ui(self) -> None:
-        self.setStyleSheet("""
-            #navSidebar {
-                background-color: #10101E;
-                border-right: 1px solid rgba(167,139,250,0.08);
-            }
-        """)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 16, 10, 16)
         layout.setSpacing(4)
@@ -177,21 +171,10 @@ class NavSidebar(QWidget):
         self._toggle_btn.setFixedHeight(40)
         self._toggle_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._toggle_btn.setFont(Icon.font(20))
-        self._toggle_btn.setStyleSheet("""
-            QPushButton {
-                background: transparent;
-                border: none;
-                border-radius: 10px;
-                color: #6B6B9B;
-            }
-            QPushButton:hover {
-                background: rgba(255,255,255,0.05);
-                color: #F1F0FF;
-            }
-        """)
         self._toggle_btn.clicked.connect(self.toggle_collapse)
         layout.addWidget(self._toggle_btn)
 
+        self._update_sidebar_styles()
         self._update_toggle_icon()
         self._update_profile_ui()
         self._select("home")
@@ -262,7 +245,7 @@ class NavSidebar(QWidget):
         self._profile_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: transparent;
-                color: #9B9BC0;
+                color: {tokens.CURRENT.text_secondary};
                 border: none;
                 border-radius: 12px;
                 padding: 8px 10px;
@@ -270,7 +253,7 @@ class NavSidebar(QWidget):
             }}
             QPushButton:hover {{
                 background-color: rgba({r},{g},{b},0.08);
-                color: #F1F0FF;
+                color: {tokens.CURRENT.text_primary};
             }}
         """)
 
@@ -316,7 +299,7 @@ class NavSidebar(QWidget):
                 pix.fill(Qt.GlobalColor.transparent)
                 painter = QPainter(pix)
                 painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-                painter.setPen(QColor("#9B9BC0"))
+                painter.setPen(QColor(tokens.CURRENT.text_secondary))
                 painter.setFont(Icon.font(20))
                 painter.drawText(pix.rect(), Qt.AlignmentFlag.AlignCenter, icon_char)
                 painter.end()
@@ -352,10 +335,43 @@ class NavSidebar(QWidget):
             if isinstance(self._app_icon, QLabel) and self._app_icon.text():
                 self._app_icon.setStyleSheet(f"color: {accent}; background: transparent;")
 
+    def _update_sidebar_styles(self) -> None:
+        from pyrolist.ui.design import tokens
+        bg_surface = tokens.CURRENT.bg_surface
+        border_color = tokens.CURRENT.border
+        text_secondary = tokens.CURRENT.text_secondary
+        text_primary = tokens.CURRENT.text_primary
+        
+        self.setStyleSheet(f"""
+            #navSidebar {{
+                background-color: {bg_surface};
+                border-right: 1px solid {border_color};
+            }}
+        """)
+        
+        if hasattr(self, '_toggle_btn'):
+            self._toggle_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background: transparent;
+                    border: none;
+                    border-radius: 10px;
+                    color: {text_secondary};
+                }}
+                QPushButton:hover {{
+                    background: {tokens.CURRENT.bg_elevated};
+                    color: {text_primary};
+                }}
+            """)
+        self._update_header_style()
+        self._update_profile_ui()
+
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
         if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-            if hasattr(self, '_profile_btn') and self._profile_btn:
-                self._update_header_style()
-                self._update_profile_ui()
+            if not getattr(self, '_in_style_change', False):
+                self._in_style_change = True
+                try:
+                    self._update_sidebar_styles()
+                finally:
+                    self._in_style_change = False
         super().changeEvent(event)

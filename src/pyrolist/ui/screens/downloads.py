@@ -31,15 +31,6 @@ class DownloadItemWidget(QFrame):
 
     def _build_ui(self):
         self.setObjectName("downloadCard")
-        self.setStyleSheet("""
-            QFrame#downloadCard {
-                background-color: #1E1E2E;
-                border-radius: 12px;
-            }
-            QFrame#downloadCard:hover {
-                background-color: #2A2A3E;
-            }
-        """)
         
         layout = QHBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
@@ -49,26 +40,22 @@ class DownloadItemWidget(QFrame):
         self.thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.thumb.setText(Icon.get("music_note"))
         self.thumb.setFont(Icon.font(24))
-        self.thumb.setStyleSheet("background-color: #1E1E38; color: #4A4A6A; border-radius: 6px;")
         layout.addWidget(self.thumb)
         
         info = QVBoxLayout()
-        title_lbl = QLabel(self.title)
-        title_lbl.setStyleSheet("color: #FFFFFF; font-weight: 600; font-size: 14px;")
+        self.title_lbl = QLabel(self.title)
         
         artist_text = self.artist
         if self.parent_playlist_title:
             artist_text += f" • {self.parent_playlist_title}"
         self.artist_lbl = QLabel(artist_text)
-        self.artist_lbl.setStyleSheet("color: #888899; font-size: 12px;")
         
-        info.addWidget(title_lbl)
+        info.addWidget(self.title_lbl)
         info.addWidget(self.artist_lbl)
         
         self.progress_bar = QProgressBar()
         self.progress_bar.setFixedHeight(4)
         self.progress_bar.setTextVisible(False)
-        self._update_progress_bar_style()
         self.progress_bar.hide()
         info.addWidget(self.progress_bar)
         
@@ -76,7 +63,6 @@ class DownloadItemWidget(QFrame):
         layout.addStretch()
         
         self.status_lbl = QLabel("")
-        self.status_lbl.setStyleSheet("color: #9B9BC0; font-size: 12px;")
         layout.addWidget(self.status_lbl)
         
         # Like button
@@ -84,18 +70,6 @@ class DownloadItemWidget(QFrame):
         self.btn_like.setText(Icon.get("favorite"))
         self.btn_like.setFont(Icon.font(20, filled=False))
         self.btn_like.setFixedSize(36, 36)
-        self.btn_like.setStyleSheet("""
-            QPushButton {
-                background-color: transparent;
-                color: #9B9BC0;
-                border: none;
-                border-radius: 18px;
-            }
-            QPushButton:hover {
-                background-color: rgba(244,114,182,0.15);
-                color: #F472B6;
-            }
-        """)
         self.btn_like.clicked.connect(self._on_like)
         layout.addWidget(self.btn_like)
         
@@ -103,10 +77,64 @@ class DownloadItemWidget(QFrame):
         self.play_btn.setText(Icon.get("play_arrow"))
         self.play_btn.setFont(Icon.font(20))
         self.play_btn.setFixedSize(36, 36)
-        self.play_btn.setStyleSheet("background: transparent; color: #F1F0FF; border: none;")
         self.play_btn.clicked.connect(self._on_play)
         self.play_btn.hide()
         layout.addWidget(self.play_btn)
+        
+        self._update_item_styles()
+
+    def _update_item_styles(self) -> None:
+        from pyrolist.ui.design import tokens
+        accent = tokens.CURRENT.accent
+        text_primary = tokens.CURRENT.text_primary
+        text_secondary = tokens.CURRENT.text_secondary
+        bg_surface = tokens.CURRENT.bg_surface
+        bg_elevated = tokens.CURRENT.bg_elevated
+        bg_high = tokens.CURRENT.bg_high
+        border = tokens.CURRENT.border
+        
+        self.setStyleSheet(f"""
+            QFrame#downloadCard {{
+                background-color: {bg_surface};
+                border-radius: 12px;
+                border: 1px solid {border};
+            }}
+            QFrame#downloadCard:hover {{
+                background-color: {bg_elevated};
+            }}
+        """)
+        
+        if not self.thumb.pixmap():
+            self.thumb.setStyleSheet(f"background-color: {bg_high}; color: {text_secondary}; border-radius: 6px;")
+        else:
+            self.thumb.setStyleSheet("background: transparent; border-radius: 6px;")
+            
+        self.title_lbl.setStyleSheet(f"color: {text_primary}; font-weight: 600; font-size: 14px; background: transparent; border: none;")
+        self.artist_lbl.setStyleSheet(f"color: {text_secondary}; font-size: 12px; background: transparent; border: none;")
+        self.status_lbl.setStyleSheet(f"color: {text_secondary}; font-size: 12px; background: transparent; border: none;")
+        
+        is_liked = getattr(self.btn_like, '_active', False)
+        if is_liked:
+            self.btn_like.setStyleSheet("QPushButton { color: #F472B6; background: transparent; border: none; }")
+        else:
+            self.btn_like.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: transparent;
+                    color: {text_secondary};
+                    border: none;
+                    border-radius: 18px;
+                }}
+                QPushButton:hover {{
+                    background-color: rgba(244,114,182,0.15);
+                    color: #F472B6;
+                }}
+            """)
+            
+        self.play_btn.setStyleSheet(f"background: transparent; color: {text_primary}; border: none;")
+        self.progress_bar.setStyleSheet(f"""
+            QProgressBar {{ background: {bg_high}; border-radius: 2px; }}
+            QProgressBar::chunk {{ background: {accent}; border-radius: 2px; }}
+        """)
 
     def _on_like(self):
         self.like_requested.emit(self.video_id, self.btn_like)
@@ -120,23 +148,8 @@ class DownloadItemWidget(QFrame):
             
             # Apply initial style
             self.btn_like.setFont(Icon.font(20, filled=is_liked))
-            if is_liked:
-                self.btn_like.setStyleSheet("QPushButton { color: #F472B6; background: transparent; border: none; }")
-                self.btn_like.set_active(True)
-            else:
-                self.btn_like.setStyleSheet("""
-                    QPushButton {
-                        background-color: transparent;
-                        color: #9B9BC0;
-                        border: none;
-                        border-radius: 18px;
-                    }
-                    QPushButton:hover {
-                        background-color: rgba(244,114,182,0.15);
-                        color: #F472B6;
-                    }
-                """)
-                self.btn_like.set_active(False)
+            self.btn_like.set_active(is_liked)
+            self._update_item_styles()
         except Exception as e:
             logger.error(f"Error checking like state for {self.video_id}: {e}")
 
@@ -159,7 +172,7 @@ class DownloadItemWidget(QFrame):
     def set_error(self, msg):
         self.progress_bar.hide()
         self.status_lbl.setText("Error")
-        self.status_lbl.setStyleSheet("color: #EF4444; font-size: 12px;")
+        self.status_lbl.setStyleSheet("color: #EF4444; font-size: 12px; background: transparent; border: none;")
         self.play_btn.hide()
 
     def _on_play(self):
@@ -180,20 +193,17 @@ class DownloadItemWidget(QFrame):
             if not pixmap.isNull():
                 pixmap = pixmap.scaled(48, 48, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
                 self.thumb.setPixmap(pixmap)
-                self.thumb.setStyleSheet("background: transparent; border-radius: 6px;")
-
-    def _update_progress_bar_style(self) -> None:
-        from pyrolist.ui.design import tokens
-        accent = tokens.CURRENT.accent
-        self.progress_bar.setStyleSheet(f"""
-            QProgressBar {{ background: #1E1E38; border-radius: 2px; }}
-            QProgressBar::chunk {{ background: {accent}; border-radius: 2px; }}
-        """)
+                self._update_item_styles()
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
         if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-            self._update_progress_bar_style()
+            if not getattr(self, '_in_style_change', False):
+                self._in_style_change = True
+                try:
+                    self._update_item_styles()
+                finally:
+                    self._in_style_change = False
         super().changeEvent(event)
 
 class DownloadPlaylistItemWidget(QFrame):
@@ -209,12 +219,6 @@ class DownloadPlaylistItemWidget(QFrame):
 
     def _build_ui(self):
         self.setObjectName("playlistCard")
-        self.setStyleSheet("""
-            QFrame#playlistCard {
-                background-color: #1E1E2E;
-                border-radius: 12px;
-            }
-        """)
         
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -223,15 +227,6 @@ class DownloadPlaylistItemWidget(QFrame):
         # Header Widget (contains thumbnail, title, stats, play and expand buttons)
         self.header = QFrame()
         self.header.setObjectName("playlistHeader")
-        self.header.setStyleSheet("""
-            QFrame#playlistHeader {
-                background-color: transparent;
-                border-radius: 12px;
-            }
-            QFrame#playlistHeader:hover {
-                background-color: #2A2A3E;
-            }
-        """)
         self.header.setCursor(Qt.CursorShape.PointingHandCursor)
         
         header_layout = QHBoxLayout(self.header)
@@ -243,20 +238,17 @@ class DownloadPlaylistItemWidget(QFrame):
         self.thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.thumb.setText(Icon.get("library_music"))
         self.thumb.setFont(Icon.font(32))
-        self.thumb.setStyleSheet("background-color: #1E1E38; color: #BB86FC; border-radius: 8px;")
         header_layout.addWidget(self.thumb)
         
         # Metadata Info
         info_layout = QVBoxLayout()
-        title_lbl = QLabel(self.title)
-        title_lbl.setStyleSheet("color: #FFFFFF; font-weight: 600; font-size: 16px;")
+        self.title_lbl = QLabel(self.title)
         
         count = len(self.tracks)
         tracks_text = f"1 canción" if count == 1 else f"{count} canciones"
         self.stats_lbl = QLabel(f"Playlist Offline • {tracks_text}")
-        self.stats_lbl.setStyleSheet("color: #888899; font-size: 12px;")
         
-        info_layout.addWidget(title_lbl)
+        info_layout.addWidget(self.title_lbl)
         info_layout.addWidget(self.stats_lbl)
         header_layout.addLayout(info_layout)
         header_layout.addStretch()
@@ -266,18 +258,6 @@ class DownloadPlaylistItemWidget(QFrame):
         self.play_btn.setText(Icon.get("play_arrow"))
         self.play_btn.setFont(Icon.font(24))
         self.play_btn.setFixedSize(40, 40)
-        self.play_btn.setStyleSheet("""
-            QPushButton {
-                background: #2D1B69; 
-                color: #BB86FC; 
-                border: none;
-                border-radius: 20px;
-            }
-            QPushButton:hover {
-                background: #BB86FC;
-                color: #0A0A14;
-            }
-        """)
         self.play_btn.clicked.connect(self._on_play_all)
         header_layout.addWidget(self.play_btn)
         
@@ -286,7 +266,6 @@ class DownloadPlaylistItemWidget(QFrame):
         self.expand_btn.setText(Icon.get("chevron_right"))
         self.expand_btn.setFont(Icon.font(24))
         self.expand_btn.setFixedSize(40, 40)
-        self.expand_btn.setStyleSheet("background: transparent; color: #888899; border: none;")
         self.expand_btn.clicked.connect(self.toggle_expand)
         header_layout.addWidget(self.expand_btn)
         
@@ -295,14 +274,6 @@ class DownloadPlaylistItemWidget(QFrame):
         # Contenedor para las canciones (colapsable)
         self.tracks_container = QFrame()
         self.tracks_container.setObjectName("tracksContainer")
-        self.tracks_container.setStyleSheet("""
-            QFrame#tracksContainer {
-                background-color: #161622;
-                border-bottom-left-radius: 12px;
-                border-bottom-right-radius: 12px;
-                border-top: 1px solid #2A2A3E;
-            }
-        """)
         
         container_layout = QVBoxLayout(self.tracks_container)
         container_layout.setContentsMargins(12, 8, 12, 12)
@@ -320,7 +291,7 @@ class DownloadPlaylistItemWidget(QFrame):
             )
             widget.set_completed(t.file_path)
             # Make the card style slightly more compact inside the group
-            widget.setStyleSheet("QFrame#downloadCard { background-color: #1E1E2E; border-radius: 8px; } QFrame#downloadCard:hover { background-color: #252538; }")
+            widget.setStyleSheet("QFrame#downloadCard { border-radius: 8px; }")
             container_layout.addWidget(widget)
             
         self.tracks_container.hide()
@@ -329,10 +300,74 @@ class DownloadPlaylistItemWidget(QFrame):
         # Permitir expandir haciendo clic en toda la cabecera (excepto si pulsas el botón play)
         self.header.mousePressEvent = self._on_header_clicked
         
+        self._update_playlist_item_styles()
+        
         # Cargar miniatura de la primera canción si está disponible
         if self.tracks and self.tracks[0].thumbnail_url:
             import asyncio
             asyncio.create_task(self._load_thumbnail(self.tracks[0].thumbnail_url))
+
+    def _update_playlist_item_styles(self) -> None:
+        from pyrolist.ui.design import tokens
+        accent = tokens.CURRENT.accent
+        text_primary = tokens.CURRENT.text_primary
+        text_secondary = tokens.CURRENT.text_secondary
+        bg_surface = tokens.CURRENT.bg_surface
+        bg_elevated = tokens.CURRENT.bg_elevated
+        bg_high = tokens.CURRENT.bg_high
+        border = tokens.CURRENT.border
+        
+        self.setStyleSheet(f"""
+            QFrame#playlistCard {{
+                background-color: {bg_surface};
+                border-radius: 12px;
+                border: 1px solid {border};
+            }}
+        """)
+        
+        radius_style = "border-radius: 12px;" if not self.is_expanded else "border-top-left-radius: 12px; border-top-right-radius: 12px; border-bottom-left-radius: 0px; border-bottom-right-radius: 0px;"
+        
+        self.header.setStyleSheet(f"""
+            QFrame#playlistHeader {{
+                background-color: transparent;
+                {radius_style}
+            }}
+            QFrame#playlistHeader:hover {{
+                background-color: {bg_elevated};
+            }}
+        """)
+        
+        if not self.thumb.pixmap():
+            self.thumb.setStyleSheet(f"background-color: {bg_high}; color: {accent}; border-radius: 8px;")
+        else:
+            self.thumb.setStyleSheet("background: transparent; border-radius: 8px;")
+            
+        self.title_lbl.setStyleSheet(f"color: {text_primary}; font-weight: 600; font-size: 16px; background: transparent; border: none;")
+        self.stats_lbl.setStyleSheet(f"color: {text_secondary}; font-size: 12px; background: transparent; border: none;")
+        
+        self.play_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: {accent}1F; 
+                color: {accent}; 
+                border: none;
+                border-radius: 20px;
+            }}
+            QPushButton:hover {{
+                background: {accent};
+                color: {bg_surface};
+            }}
+        """)
+        
+        self.expand_btn.setStyleSheet(f"background: transparent; color: {text_secondary}; border: none;")
+        
+        self.tracks_container.setStyleSheet(f"""
+            QFrame#tracksContainer {{
+                background-color: {bg_elevated};
+                border-bottom-left-radius: 12px;
+                border-bottom-right-radius: 12px;
+                border-top: 1px solid {border};
+            }}
+        """)
 
     def _on_header_clicked(self, event):
         pos = event.position().toPoint()
@@ -346,28 +381,10 @@ class DownloadPlaylistItemWidget(QFrame):
         if self.is_expanded:
             self.tracks_container.show()
             self.expand_btn.setText(Icon.get("expand_more"))
-            self.header.setStyleSheet("""
-                QFrame#playlistHeader {
-                    background-color: transparent;
-                    border-bottom-left-radius: 0px;
-                    border-bottom-right-radius: 0px;
-                }
-                QFrame#playlistHeader:hover {
-                    background-color: #2A2A3E;
-                }
-            """)
         else:
             self.tracks_container.hide()
             self.expand_btn.setText(Icon.get("chevron_right"))
-            self.header.setStyleSheet("""
-                QFrame#playlistHeader {
-                    background-color: transparent;
-                    border-radius: 12px;
-                }
-                QFrame#playlistHeader:hover {
-                    background-color: #2A2A3E;
-                }
-            """)
+        self._update_playlist_item_styles()
 
     def _on_play_all(self):
         if self.tracks and self.on_play_local_playlist:
@@ -391,7 +408,18 @@ class DownloadPlaylistItemWidget(QFrame):
             if not pixmap.isNull():
                 pixmap = pixmap.scaled(64, 64, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
                 self.thumb.setPixmap(pixmap)
-                self.thumb.setStyleSheet("background: transparent; border-radius: 8px;")
+                self._update_playlist_item_styles()
+
+    def changeEvent(self, event) -> None:
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
+            if not getattr(self, '_in_style_change', False):
+                self._in_style_change = True
+                try:
+                    self._update_playlist_item_styles()
+                finally:
+                    self._in_style_change = False
+        super().changeEvent(event)
 
 class DownloadsScreen(QWidget):
     like_requested = Signal(str, object)
@@ -413,10 +441,11 @@ class DownloadsScreen(QWidget):
         layout.setContentsMargins(24, 16, 24, 16)
         layout.setSpacing(20)
 
-        header = QLabel("Descargas")
-        header.setFont(QFont("Inter", 24, QFont.Weight.Bold))
-        header.setStyleSheet("color: #FFFFFF;")
-        layout.addWidget(header)
+        from pyrolist.ui.design import tokens
+        self.header = QLabel("Descargas")
+        self.header.setFont(QFont("Inter", 24, QFont.Weight.Bold))
+        self.header.setStyleSheet(f"color: {tokens.CURRENT.text_primary};")
+        layout.addWidget(self.header)
 
         # Tabs
         self.tabs = QWidget()
@@ -454,29 +483,36 @@ class DownloadsScreen(QWidget):
         layout.addWidget(self.content_area)
 
     def _tab_style(self, active: bool):
+        from pyrolist.ui.design import tokens
+        accent = tokens.CURRENT.accent
+        accent_dim = tokens.CURRENT.accent_dim
+        text_primary = tokens.CURRENT.text_primary
+        text_secondary = tokens.CURRENT.text_secondary
+        bg_elevated = tokens.CURRENT.bg_elevated
         if active:
-            return """
-                QPushButton {
-                    background: #2D1B69;
-                    color: #BB86FC;
+            return f"""
+                QPushButton {{
+                    background: {accent_dim};
+                    color: {accent};
                     padding: 8px 16px;
                     border-radius: 20px;
                     font-weight: bold;
-                }
+                    border: none;
+                }}
             """
-        return """
-            QPushButton {
+        return f"""
+            QPushButton {{
                 background: transparent;
-                color: #888899;
+                color: {text_secondary};
                 padding: 8px 16px;
                 border: none;
                 border-radius: 20px;
                 font-weight: bold;
-            }
-            QPushButton:hover {
-                background: #2A2A3E;
-                color: #FFFFFF;
-            }
+            }}
+            QPushButton:hover {{
+                background: {bg_elevated};
+                color: {text_primary};
+            }}
         """
 
     def _switch_tab(self, key):
@@ -600,3 +636,26 @@ class DownloadsScreen(QWidget):
                         self._items[vid].set_downloading()
                     elif task.status == "error":
                         self._items[vid].set_error("Error")
+
+    def _update_downloads_styles(self) -> None:
+        from pyrolist.ui.design import tokens
+        if hasattr(self, "header"):
+            self.header.setStyleSheet(f"color: {tokens.CURRENT.text_primary};")
+        if hasattr(self, "tab_btns"):
+            for key, btn in self.tab_btns.items():
+                btn.setStyleSheet(self._tab_style(key == self._current_tab))
+        
+        for label in self.findChildren(QLabel):
+            if label != getattr(self, "header", None) and label.parent() == getattr(self, "scroll_content", None):
+                label.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; font-size: 16px; padding: 40px; background: transparent; border: none;")
+
+    def changeEvent(self, event) -> None:
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
+            if not getattr(self, '_in_style_change', False):
+                self._in_style_change = True
+                try:
+                    self._update_downloads_styles()
+                finally:
+                    self._in_style_change = False
+        super().changeEvent(event)

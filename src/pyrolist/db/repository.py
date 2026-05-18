@@ -91,6 +91,13 @@ class HistoryRepository:
 
 class DownloadRepository:
 
+    async def get_download(self, video_id: str) -> Download | None:
+        async with get_session() as session:
+            result = await session.execute(
+                select(Download).where(Download.video_id == video_id)
+            )
+            return result.scalar_one_or_none()
+
     async def add_download(self, **kwargs) -> Download:
         async with get_session() as session:
             video_id = kwargs.get("video_id")

@@ -3,7 +3,7 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
     QFrame
 )
-from PySide6.QtCore import Qt, QSize, QEasingCurve, QPropertyAnimation
+from PySide6.QtCore import Qt, QSize, QEasingCurve, QPropertyAnimation, Property
 from qasync import asyncSlot
 from loguru import logger
 from pyrolist.config.settings import AppSettings
@@ -411,17 +411,27 @@ class MainWindow(QMainWindow):
         self._run_async(self._toggle_like_async(video_id, btn_like))
 
     async def _toggle_like_async(self, video_id, btn_like):
-        from pyrolist.db.repository import SongRepository
+        from pyrolist.db.repository import SongRepository, DownloadRepository
         repo = SongRepository()
         
         # Ensure song exists in DB before liking
         song = await repo.get_song(video_id)
         if not song:
-            # If not in DB, create a minimal entry to save the like
-            await repo.upsert_song(video_id=video_id, title="Unknown", artist="Unknown")
+            dl_repo = DownloadRepository()
+            dl = await dl_repo.get_download(video_id)
+            if dl:
+                await repo.upsert_song(
+                    video_id=video_id,
+                    title=dl.title or "Unknown",
+                    artist=dl.artist or "Unknown",
+                    thumbnail_url=dl.thumbnail_url or ""
+                )
+            else:
+                await repo.upsert_song(video_id=video_id, title="Unknown", artist="Unknown")
             
         liked = await repo.toggle_like(video_id)
         
+        from pyrolist.ui.design import tokens
         from pyrolist.ui.design.icons import Icon
         btn_like.setText(Icon.get("favorite"))
         if liked:
@@ -430,17 +440,17 @@ class MainWindow(QMainWindow):
             btn_like.set_active(True)
             self.statusBar().showMessage("Añadido a Favoritas", 2000)
         else:
-            btn_like.setStyleSheet("""
-                QPushButton {
+            btn_like.setStyleSheet(f"""
+                QPushButton {{
                     background-color: transparent;
-                    color: #9B9BC0;
+                    color: {tokens.CURRENT.text_secondary};
                     border: none;
                     border-radius: 18px;
-                }
-                QPushButton:hover {
+                }}
+                QPushButton:hover {{
                     background-color: rgba(244,114,182,0.15);
                     color: #F472B6;
-                }
+                }}
             """)
             btn_like.setFont(Icon.font(20, filled=False))
             btn_like.set_active(False)
@@ -835,7 +845,14 @@ class MainWindow(QMainWindow):
         self._run_async(self._toggle_play_pause())
 
     async def _toggle_play_pause(self) -> None:
-        if self.player.status.state == PlayerState.PLAYING:
+        from pyrolist.audio.player import PlayerState
+        is_vlc_playing = False
+        try:
+            is_vlc_playing = self.player._player.is_playing()
+        except Exception:
+            pass
+
+        if self.player.status.state in (PlayerState.PLAYING, PlayerState.LOADING) or is_vlc_playing:
             await self.player.pause()
         else:
             await self.player.resume()
@@ -895,85 +912,145 @@ class MainWindow(QMainWindow):
                 elif not settings.appearance.compact_sidebar and self.sidebar._collapsed:
                     self.sidebar.toggle_collapse()
             
-            # Accent color change — regenerate stylesheet dynamically
+            # Theme mode and accent color change — regenerate stylesheet dynamically
             accent = getattr(settings.appearance, 'accent_color', '#A78BFA')
-            if accent:
-                self._apply_accent_color(accent)
+            theme_mode = getattr(settings.appearance, 'theme_mode', 'dark')
+            self._apply_theme_and_accent(theme_mode, accent)
 
     def _apply_accent_color(self, accent: str) -> None:
-        """Regenerate QSS with new accent color and apply with fade."""
-        # Guard against redundant applications
-        if hasattr(self, '_last_accent') and self._last_accent == accent:
+        """Helper for legacy calls or quick updates."""
+        theme_mode = getattr(self.settings.appearance, 'theme_mode', 'dark')
+        self._apply_theme_and_accent(theme_mode, accent)
+
+    def _apply_theme_and_accent(self, theme_mode: str, accent: str) -> None:
+        """Regenerate QSS with custom theme colors and dynamic accent, applying it with a beautiful diagonal wipe transition."""
+        theme_key = (theme_mode, accent)
+        if hasattr(self, '_last_theme_key') and self._last_theme_key == theme_key:
             return
+        
+        # Capture current screen pixmap before changing styling for transition animation
+        old_pixmap = None
+        try:
+            old_pixmap = self.grab()
+        except Exception as e:
+            logger.error(f"Failed to grab screenshot: {e}")
+
+        self._last_theme_key = theme_key
         self._last_accent = accent
+
+        from pyrolist.ui.design import tokens
         
+        # Resolve active theme mode base colors
+        active_mode = theme_mode
+        if active_mode == "system":
+            import subprocess
+            try:
+                res = subprocess.run(
+                    ["gsettings", "get", "org.gnome.desktop.interface", "color-scheme"],
+                    capture_output=True, text=True, timeout=0.5
+                )
+                if "prefer-light" in res.stdout:
+                    active_mode = "light"
+                else:
+                    active_mode = "dark"
+            except Exception:
+                active_mode = "dark"
+
+        base_scheme = tokens.LIGHT if active_mode == "light" else tokens.DARK
+
         from pyrolist.ui.stylesheet import PYROLIST_QSS
-        
         new_qss = PYROLIST_QSS
+
+        # Compute dynamic accent color variants
+        bright_hex = "#BBA4FC"
+        dark_hex = "#8B5CF6"
+        r, g, b = 167, 139, 250
+        dark_r, dark_g, dark_b = 139, 92, 246
         
-        # Calculate variants and RGB components
         try:
             from PySide6.QtGui import QColor
             c = QColor(accent)
             if c.isValid():
-                # Primary color hex replacement
-                new_qss = new_qss.replace('#A78BFA', accent)
-                new_qss = new_qss.replace('#a78bfa', accent.lower())
-                
-                # Brighter hover variant
                 bright = c.lighter(125)
                 bright_hex = bright.name()
-                new_qss = new_qss.replace('#BBA4FC', bright_hex)
-                new_qss = new_qss.replace('#bba4fc', bright_hex.lower())
-                
-                # Darker pressed variant
                 dark = c.darker(120)
                 dark_hex = dark.name()
-                new_qss = new_qss.replace('#8B5CF6', dark_hex)
-                new_qss = new_qss.replace('#8b5cf6', dark_hex.lower())
-                
-                # RGB component replacement for rgba scrollbars/borders
                 r, g, b, _ = c.getRgb()
-                new_qss = new_qss.replace('167,139,250', f"{r},{g},{b}")
-                new_qss = new_qss.replace('167, 139, 250', f"{r}, {g}, {b}")
-                
-                # Also replace the darker rgb if it is used in scrollbar or anywhere
                 dark_r, dark_g, dark_b, _ = dark.getRgb()
-                new_qss = new_qss.replace('139,92,246', f"{dark_r},{dark_g},{dark_b}")
-                new_qss = new_qss.replace('139, 92, 246', f"{dark_r}, {dark_g}, {dark_b}")
-                # Update design tokens globally in memory
-                from pyrolist.ui.design import tokens
-                tokens.CURRENT = tokens.ColorScheme(
-                    bg_base=tokens.CURRENT.bg_base,
-                    bg_surface=tokens.CURRENT.bg_surface,
-                    bg_elevated=tokens.CURRENT.bg_elevated,
-                    bg_high=tokens.CURRENT.bg_high,
-                    bg_overlay=tokens.CURRENT.bg_overlay,
-                    accent=accent,
-                    accent_bright=bright_hex,
-                    accent_dim=f"rgba({r},{g},{b},0.15)",
-                    secondary=tokens.CURRENT.secondary,
-                    secondary_dim=tokens.CURRENT.secondary_dim,
-                    text_primary=tokens.CURRENT.text_primary,
-                    text_secondary=tokens.CURRENT.text_secondary,
-                    text_disabled=tokens.CURRENT.text_disabled,
-                    text_on_accent=tokens.CURRENT.text_on_accent,
-                    border=f"rgba({r},{g},{b},0.12)",
-                    border_focus=f"rgba({r},{g},{b},0.50)",
-                    success=tokens.CURRENT.success,
-                    warning=tokens.CURRENT.warning,
-                    error=tokens.CURRENT.error,
-                    info=tokens.CURRENT.info,
-                    like_color=tokens.CURRENT.like_color,
-                )
         except Exception as e:
             logger.error(f"Error calculating accent color variants: {e}")
+
+        # Update dynamic design tokens globally in memory
+        tokens.CURRENT = tokens.ColorScheme(
+            bg_base=base_scheme.bg_base,
+            bg_surface=base_scheme.bg_surface,
+            bg_elevated=base_scheme.bg_elevated,
+            bg_high=base_scheme.bg_high,
+            bg_overlay=base_scheme.bg_overlay,
+            accent=accent,
+            accent_bright=bright_hex,
+            accent_dim=f"rgba({r},{g},{b},0.15)",
+            secondary=base_scheme.secondary,
+            secondary_dim=base_scheme.secondary_dim,
+            text_primary=base_scheme.text_primary,
+            text_secondary=base_scheme.text_secondary,
+            text_disabled=base_scheme.text_disabled,
+            text_on_accent="#FFFFFF" if active_mode == "light" else "#0A0A14",
+            border=f"rgba({r},{g},{b},0.12)",
+            border_focus=f"rgba({r},{g},{b},0.50)",
+            success=base_scheme.success,
+            warning=base_scheme.warning,
+            error=base_scheme.error,
+            info=base_scheme.info,
+            like_color=base_scheme.like_color,
+        )
+
+        # Replace accent colors in stylesheet
+        new_qss = new_qss.replace('#A78BFA', accent)
+        new_qss = new_qss.replace('#a78bfa', accent.lower())
+        new_qss = new_qss.replace('#BBA4FC', bright_hex)
+        new_qss = new_qss.replace('#bba4fc', bright_hex.lower())
+        new_qss = new_qss.replace('#8B5CF6', dark_hex)
+        new_qss = new_qss.replace('#8b5cf6', dark_hex.lower())
+        new_qss = new_qss.replace('167,139,250', f"{r},{g},{b}")
+        new_qss = new_qss.replace('167, 139, 250', f"{r}, {g}, {b}")
+        new_qss = new_qss.replace('139,92,246', f"{dark_r},{dark_g},{dark_b}")
+        new_qss = new_qss.replace('139, 92, 246', f"{dark_r}, {dark_g}, {dark_b}")
+
+        # Replace base dark background & text colors with dynamic values
+        new_qss = new_qss.replace('#0A0A14', tokens.CURRENT.bg_base)
+        new_qss = new_qss.replace('#0a0a14', tokens.CURRENT.bg_base.lower())
+        new_qss = new_qss.replace('#10101E', tokens.CURRENT.bg_surface)
+        new_qss = new_qss.replace('#10101e', tokens.CURRENT.bg_surface.lower())
+        new_qss = new_qss.replace('#16162A', tokens.CURRENT.bg_elevated)
+        new_qss = new_qss.replace('#16162a', tokens.CURRENT.bg_elevated.lower())
+        new_qss = new_qss.replace('#1E1E38', tokens.CURRENT.bg_high)
+        new_qss = new_qss.replace('#1e1e38', tokens.CURRENT.bg_high.lower())
+        new_qss = new_qss.replace('#F1F0FF', tokens.CURRENT.text_primary)
+        new_qss = new_qss.replace('#f1f0ff', tokens.CURRENT.text_primary.lower())
+        new_qss = new_qss.replace('#9B9BC0', tokens.CURRENT.text_secondary)
+        new_qss = new_qss.replace('#9b9bc0', tokens.CURRENT.text_secondary.lower())
+        new_qss = new_qss.replace('#6B6B9B', tokens.CURRENT.text_secondary)
+        new_qss = new_qss.replace('#6b6b9b', tokens.CURRENT.text_secondary.lower())
+        new_qss = new_qss.replace('#4A4A6A', tokens.CURRENT.text_disabled)
+        new_qss = new_qss.replace('#4a4a6a', tokens.CURRENT.text_disabled.lower())
         
+        groove_color = "#D0D0DF" if active_mode == "light" else "#2A2A4A"
+        new_qss = new_qss.replace('#2A2A4A', groove_color)
+        new_qss = new_qss.replace('#2a2a4a', groove_color.lower())
+
         from PySide6.QtWidgets import QApplication
         app = QApplication.instance()
         if app:
             app.setStyleSheet(new_qss)
-            logger.info(f"Accent color applied successfully: {accent}")
+            logger.info(f"Theme applied successfully: {active_mode} mode, accent {accent}")
+
+        # Create overlay to sweep and fade out old design state
+        if old_pixmap:
+            try:
+                ThemeTransitionOverlay(self, old_pixmap)
+            except Exception as e:
+                logger.error(f"Failed to trigger theme change transition: {e}")
 
     def closeEvent(self, event) -> None:
         if self.settings.player.stop_on_close:
@@ -983,3 +1060,83 @@ class MainWindow(QMainWindow):
             self._run_async(self.discord.disconnect())
         self.tray.hide()
         event.accept()
+
+
+# ─── ThemeTransitionOverlay ───────────────────────────────────
+from PySide6.QtGui import QBrush, QColor, QPainter, QPaintEvent, QPixmap, QLinearGradient
+
+class ThemeTransitionOverlay(QWidget):
+    def __init__(self, parent: QWidget, old_pixmap: QPixmap):
+        super().__init__(parent)
+        self.old_pixmap = old_pixmap
+        self._progress = 0.0
+        # Bypass mouse interaction so widgets underneath are immediately usable
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setGeometry(parent.rect())
+        self.show()
+
+        # Driving animation for a stunning 450ms diagonal wipe sweep
+        self.anim = QPropertyAnimation(self, b"progress", self)
+        self.anim.setDuration(450)
+        self.anim.setStartValue(0.0)
+        self.anim.setEndValue(1.0)
+        self.anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
+        self.anim.finished.connect(self.deleteLater)
+        self.anim.start()
+
+    def resizeEvent(self, event) -> None:
+        self.setGeometry(self.parentWidget().rect())
+        super().resizeEvent(event)
+
+    def _get_progress(self) -> float:
+        return self._progress
+
+    def _set_progress(self, val: float) -> None:
+        self._progress = val
+        self.update()
+
+    progress = Property(float, _get_progress, _set_progress)
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        if self._progress >= 1.0:
+            return
+        
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        
+        w, h = self.width(), self.height()
+        p = self._progress
+
+        # Draw the old theme state screenshot
+        painter.drawPixmap(0, 0, self.old_pixmap)
+
+        # Use DestinationOut composition to selectively erase parts of the old screen
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationOut)
+
+        # Slanted diagonal gradient mask
+        gradient = QLinearGradient(0, 0, w, h)
+        
+        # Calculate dynamic stops sweeping the diagonal
+        wipe_span = 0.35
+        start_wipe = p * (1.0 + wipe_span) - wipe_span
+        end_wipe = start_wipe + wipe_span
+        
+        s0 = max(0.0, start_wipe)
+        s1 = min(1.0, end_wipe)
+        
+        gradient.setColorAt(0.0, QColor(0, 0, 0, 255))
+        if s0 > 0.0:
+            gradient.setColorAt(s0, QColor(0, 0, 0, 255))
+        gradient.setColorAt(s1, QColor(0, 0, 0, 0))
+        gradient.setColorAt(1.0, QColor(0, 0, 0, 0))
+        
+        painter.setBrush(QBrush(gradient))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawRect(self.rect())
+        
+        # Superimpose a smooth flat transparency decay over time to guarantee 100% resolution
+        painter.setOpacity(p)
+        painter.setBrush(QColor(0, 0, 0, 255))
+        painter.drawRect(self.rect())
+        
+        painter.end()

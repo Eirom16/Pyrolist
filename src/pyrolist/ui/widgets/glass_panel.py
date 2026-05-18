@@ -68,12 +68,22 @@ class GlassPanel(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         rect = self.rect().adjusted(1, 1, -1, -1)
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(QColor(22, 22, 42, 230)))
+        
+        # Query tokens.CURRENT dynamically for elevated background
+        from pyrolist.ui.design import tokens
+        bg_col = QColor(tokens.CURRENT.bg_elevated)
+        bg_col.setAlpha(230)
+        
+        painter.setBrush(QBrush(bg_col))
         painter.drawRoundedRect(rect, 16, 16)
+        
+        # Build gradient borders with the dynamic accent color
+        accent_col = QColor(tokens.CURRENT.accent)
         border = QLinearGradient(0, 0, 0, self.height())
-        border.setColorAt(0, QColor(167, 139, 250, 80))
-        border.setColorAt(0.6, QColor(167, 139, 250, 22))
-        border.setColorAt(1, QColor(167, 139, 250, 10))
+        border.setColorAt(0, QColor(accent_col.red(), accent_col.green(), accent_col.blue(), 80))
+        border.setColorAt(0.6, QColor(accent_col.red(), accent_col.green(), accent_col.blue(), 22))
+        border.setColorAt(1, QColor(accent_col.red(), accent_col.green(), accent_col.blue(), 10))
+        
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.setPen(QPen(QBrush(border), 1.0))
         painter.drawRoundedRect(rect, 16, 16)

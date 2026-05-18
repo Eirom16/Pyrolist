@@ -64,9 +64,9 @@ class AppearanceSettingsScreen(QWidget):
             from pyrolist.ui.design import tokens
             self.mode_combo.setStyleSheet(f"""
                 QComboBox {{
-                    background-color: #1E1E38;
-                    color: #F1F0FF;
-                    border: 1px solid #2A2A4E;
+                    background-color: {tokens.CURRENT.bg_elevated};
+                    color: {tokens.CURRENT.text_primary};
+                    border: 1px solid {tokens.CURRENT.border};
                     border-radius: 8px;
                     padding: 6px 12px;
                     font-family: Inter;
@@ -81,18 +81,23 @@ class AppearanceSettingsScreen(QWidget):
                     width: 20px;
                 }}
                 QComboBox QAbstractItemView {{
-                    background-color: #1A1A2E;
-                    color: #F1F0FF;
-                    border: 1px solid #2A2A4E;
+                    background-color: {tokens.CURRENT.bg_surface};
+                    color: {tokens.CURRENT.text_primary};
+                    border: 1px solid {tokens.CURRENT.border};
                     border-radius: 8px;
                     selection-background-color: {tokens.CURRENT.accent};
-                    selection-color: #10101E;
+                    selection-color: {tokens.CURRENT.text_on_accent};
                 }}
             """)
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
         if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-            self._update_combo_style()
+            if not getattr(self, '_in_style_change', False):
+                self._in_style_change = True
+                try:
+                    self._update_combo_style()
+                finally:
+                    self._in_style_change = False
         super().changeEvent(event)
 

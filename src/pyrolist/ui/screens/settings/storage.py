@@ -72,6 +72,11 @@ class StorageSettingsScreen(QWidget):
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
         if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-            self._update_metric_labels_style()
+            if not getattr(self, '_in_style_change', False):
+                self._in_style_change = True
+                try:
+                    self._update_metric_labels_style()
+                finally:
+                    self._in_style_change = False
         super().changeEvent(event)
 

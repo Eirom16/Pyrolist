@@ -54,10 +54,9 @@ class LibraryScreen(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 16, 24, 16)
 
-        header = QLabel("Biblioteca")
-        header.setFont(AppFont.display(24))
-        header.setStyleSheet("color: #F1F0FF;")
-        layout.addWidget(header)
+        self.header_label = QLabel("Biblioteca")
+        self.header_label.setFont(AppFont.display(24))
+        layout.addWidget(self.header_label)
 
         # Tab container
         self.tabs = QWidget()
@@ -118,6 +117,8 @@ class LibraryScreen(QWidget):
         
         # Hidden by default, shown only when playlists tab is active
         self.fab.hide()
+        
+        self._update_library_styles()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -150,14 +151,16 @@ class LibraryScreen(QWidget):
 
         if not self.yt or not self.yt.is_authenticated:
             self._clear_content()
+            from pyrolist.ui.design import tokens
             msg = QLabel("Inicia sesión para ver tu biblioteca")
             msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            msg.setStyleSheet("color: #888899; font-size: 14px; padding: 40px;")
+            msg.setObjectName("libraryEmptyMessage")
             self.content_layout.addWidget(msg)
             self.content_layout.addStretch()
             return
 
         try:
+            from pyrolist.ui.design import tokens
             # 2. Perform async fetch while skeleton is active
             if tab == "songs":
                 liked_songs_data = None
@@ -175,7 +178,7 @@ class LibraryScreen(QWidget):
                 if tracks:
                     header = QLabel("Canciones que te gustan")
                     header.setFont(AppFont.heading(16))
-                    header.setStyleSheet("color: #F1F0FF;")
+                    header.setObjectName("libraryHeader")
                     self.content_layout.addWidget(header)
                     
                     for track in tracks:
@@ -202,7 +205,7 @@ class LibraryScreen(QWidget):
                 elif db_songs:
                     header = QLabel("Canciones que te gustan")
                     header.setFont(QFont("Inter", 16, QFont.Weight.Bold))
-                    header.setStyleSheet("color: #FFFFFF;")
+                    header.setObjectName("libraryHeader")
                     self.content_layout.addWidget(header)
 
                     for song in db_songs:
@@ -220,7 +223,7 @@ class LibraryScreen(QWidget):
                 else:
                     msg = QLabel("No tienes canciones guardadas\n\nLas canciones que reproduzcas aparecerán aquí")
                     msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                    msg.setStyleSheet("color: #888899; font-size: 14px; padding: 40px;")
+                    msg.setObjectName("libraryEmptyMessage")
                     self.content_layout.addWidget(msg)
 
             elif tab == "albums":
@@ -230,12 +233,12 @@ class LibraryScreen(QWidget):
                 if not albums:
                     msg = QLabel("No tienes álbumes guardados")
                     msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                    msg.setStyleSheet("color: #888899; font-size: 14px; padding: 40px;")
+                    msg.setObjectName("libraryEmptyMessage")
                     self.content_layout.addWidget(msg)
                 else:
                     header = QLabel("Tus Álbumes")
                     header.setFont(QFont("Inter", 16, QFont.Weight.Bold))
-                    header.setStyleSheet("color: #FFFFFF;")
+                    header.setObjectName("libraryHeader")
                     self.content_layout.addWidget(header)
 
                     grid = QGridLayout()
@@ -269,12 +272,12 @@ class LibraryScreen(QWidget):
                 if not artists:
                     msg = QLabel("No sigues a ningún artista")
                     msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                    msg.setStyleSheet("color: #888899; font-size: 14px; padding: 40px;")
+                    msg.setObjectName("libraryEmptyMessage")
                     self.content_layout.addWidget(msg)
                 else:
                     header = QLabel("Tus Artistas")
                     header.setFont(QFont("Inter", 16, QFont.Weight.Bold))
-                    header.setStyleSheet("color: #FFFFFF;")
+                    header.setObjectName("libraryHeader")
                     self.content_layout.addWidget(header)
 
                     grid = QGridLayout()
@@ -303,13 +306,13 @@ class LibraryScreen(QWidget):
 
                 header = QLabel("Tus Playlists")
                 header.setFont(QFont("Inter", 16, QFont.Weight.Bold))
-                header.setStyleSheet("color: #FFFFFF;")
+                header.setObjectName("libraryHeader")
                 self.content_layout.addWidget(header)
 
                 if not playlists:
                     msg = QLabel("No tienes playlists")
                     msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                    msg.setStyleSheet("color: #888899; font-size: 14px; padding: 40px;")
+                    msg.setObjectName("libraryEmptyMessage")
                     self.content_layout.addWidget(msg)
                 else:
                     grid = QGridLayout()
@@ -380,7 +383,7 @@ class LibraryScreen(QWidget):
         self.content_layout.addWidget(QLabel(""))
         msg = QLabel("Biblioteca no disponible.\nLa API de YouTube Music requiere autenticación.")
         msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        msg.setStyleSheet("color: #B0B0C0; font-size: 14px; padding: 40px;")
+        msg.setObjectName("libraryEmptyMessage")
         self.content_layout.addWidget(msg)
 
     def _format_duration(self, ms):
@@ -393,45 +396,45 @@ class LibraryScreen(QWidget):
 
     def _on_create_playlist_clicked(self):
         from PySide6.QtWidgets import QDialog, QLineEdit, QDialogButtonBox, QVBoxLayout
+        from pyrolist.ui.design import tokens
         
         dialog = QDialog(self)
         dialog.setWindowTitle("Crear Nueva Playlist")
         dialog.setFixedWidth(400)
-        dialog.setStyleSheet("background-color: #10101E; color: #F1F0FF;")
+        dialog.setStyleSheet(f"background-color: {tokens.CURRENT.bg_surface}; color: {tokens.CURRENT.text_primary};")
         
         layout = QVBoxLayout(dialog)
         
         title_input = QLineEdit()
         title_input.setPlaceholderText("Nombre de la playlist")
-        title_input.setStyleSheet("""
-            QLineEdit {
-                background: #1E1E38; border: none; border-radius: 8px; padding: 12px;
-                color: #F1F0FF; font-size: 14px;
-            }
+        title_input.setStyleSheet(f"""
+            QLineEdit {{
+                background: {tokens.CURRENT.bg_elevated}; border: 1px solid {tokens.CURRENT.border}; border-radius: 8px; padding: 12px;
+                color: {tokens.CURRENT.text_primary}; font-size: 14px;
+            }}
         """)
         layout.addWidget(title_input)
         
         desc_input = QLineEdit()
         desc_input.setPlaceholderText("Descripción (opcional)")
-        desc_input.setStyleSheet("""
-            QLineEdit {
-                background: #1E1E38; border: none; border-radius: 8px; padding: 12px;
-                color: #F1F0FF; font-size: 14px;
-            }
+        desc_input.setStyleSheet(f"""
+            QLineEdit {{
+                background: {tokens.CURRENT.bg_elevated}; border: 1px solid {tokens.CURRENT.border}; border-radius: 8px; padding: 12px;
+                color: {tokens.CURRENT.text_primary}; font-size: 14px;
+            }}
         """)
         layout.addWidget(desc_input)
         
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         button_box.button(QDialogButtonBox.StandardButton.Ok).setText("Crear")
         button_box.button(QDialogButtonBox.StandardButton.Cancel).setText("Cancelar")
-        from pyrolist.ui.design import tokens
         from PySide6.QtGui import QColor
         accent = tokens.CURRENT.accent
         c = QColor(accent)
         bright_hex = c.lighter(125).name()
         button_box.setStyleSheet(f"""
             QPushButton {{
-                background: {accent}; color: #0A0A14; border: none; border-radius: 8px; padding: 8px 16px; font-weight: bold;
+                background: {accent}; color: {tokens.CURRENT.text_on_accent}; border: none; border-radius: 8px; padding: 8px 16px; font-weight: bold;
             }}
             QPushButton:hover {{ background: {bright_hex}; }}
         """)
@@ -475,21 +478,21 @@ class LibraryScreen(QWidget):
                 }}
             """)
         else:
-            btn.setStyleSheet("""
-                QPushButton {
+            btn.setStyleSheet(f"""
+                QPushButton {{
                     background: transparent;
-                    color: #9B9BC0;
+                    color: {tokens.CURRENT.text_secondary};
                     padding: 8px 18px;
                     border: 1px solid transparent;
                     border-radius: 18px;
                     font-family: 'Inter';
                     font-weight: 600;
                     font-size: 13px;
-                }
-                QPushButton:hover {
-                    background: rgba(255, 255, 255, 0.05);
-                    color: #F1F0FF;
-                }
+                }}
+                QPushButton:hover {{
+                    background: {tokens.CURRENT.bg_elevated};
+                    color: {tokens.CURRENT.text_primary};
+                }}
             """)
 
     def _update_tab_styles(self) -> None:
@@ -509,7 +512,7 @@ class LibraryScreen(QWidget):
         self.fab.setStyleSheet(f"""
             QPushButton {{
                 background-color: {accent};
-                color: #0A0A14;
+                color: {tokens.CURRENT.text_on_accent};
                 border: none;
                 border-radius: 28px;
                 font-family: 'Inter';
@@ -524,9 +527,20 @@ class LibraryScreen(QWidget):
             }}
         """)
 
+    def _update_library_styles(self) -> None:
+        from pyrolist.ui.design import tokens
+        if hasattr(self, 'header_label'):
+            self.header_label.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent;")
+        self._update_tab_styles()
+        self._update_fab_style()
+
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
         if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-            self._update_tab_styles()
-            self._update_fab_style()
+            if not getattr(self, '_in_style_change', False):
+                self._in_style_change = True
+                try:
+                    self._update_library_styles()
+                finally:
+                    self._in_style_change = False
         super().changeEvent(event)

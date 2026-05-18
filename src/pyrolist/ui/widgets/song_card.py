@@ -45,16 +45,6 @@ class SongCard(QWidget):
 
     def _build_ui(self):
         self.setObjectName("songCard")
-        self.setStyleSheet("""
-            #songCard {
-                background-color: transparent;
-                border-radius: 12px;
-                padding: 6px;
-            }
-            #songCard:hover {
-                background-color: rgba(167,139,250,0.06);
-            }
-        """)
         self.setFixedHeight(64)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
@@ -67,7 +57,6 @@ class SongCard(QWidget):
         self.thumbnail.setText(Icon.get("music_note"))
         self.thumbnail.setFont(Icon.font(22))
         self.thumbnail.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.thumbnail.setStyleSheet("background: #1E1E38; color: #4A4A6A; border-radius: 8px;")
         layout.addWidget(self.thumbnail)
 
         info = QVBoxLayout()
@@ -76,7 +65,6 @@ class SongCard(QWidget):
 
         self.title_label = QLabel(self._title)
         self.title_label.setFont(QFont("Inter", 12, QFont.Weight.Medium))
-        self.title_label.setStyleSheet("color: #F1F0FF;")
         
         # Elide long text
         metrics = self.title_label.fontMetrics()
@@ -86,7 +74,6 @@ class SongCard(QWidget):
 
         self.artist_label = QLabel(self._artist)
         self.artist_label.setFont(QFont("Inter", 10))
-        self.artist_label.setStyleSheet("color: #9B9BC0;")
         elided_artist = metrics.elidedText(self._artist, Qt.TextElideMode.ElideRight, 240)
         self.artist_label.setText(elided_artist)
         info.addWidget(self.artist_label)
@@ -96,7 +83,6 @@ class SongCard(QWidget):
 
         self.duration_label = QLabel(self._duration)
         self.duration_label.setFont(QFont("Inter", 10))
-        self.duration_label.setStyleSheet("color: #6B6B9B;")
         self.duration_label.setFixedWidth(50)
         self.duration_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         layout.addWidget(self.duration_label)
@@ -107,21 +93,7 @@ class SongCard(QWidget):
         self.btn_like.setFont(Icon.font(20, filled=self._is_liked))
         self.btn_like.setFixedSize(36, 36)
         if self._is_liked:
-            self.btn_like.setStyleSheet("QPushButton { color: #F472B6; background: transparent; border: none; }")
             self.btn_like.set_active(True)
-        else:
-            self.btn_like.setStyleSheet("""
-                QPushButton {
-                    background-color: transparent;
-                    color: #9B9BC0;
-                    border: none;
-                    border-radius: 18px;
-                }
-                QPushButton:hover {
-                    background-color: rgba(244,114,182,0.15);
-                    color: #F472B6;
-                }
-            """)
         self.btn_like.clicked.connect(self._on_like_clicked)
         layout.addWidget(self.btn_like)
 
@@ -130,17 +102,6 @@ class SongCard(QWidget):
         self.btn_play.setText(Icon.get("play_arrow"))
         self.btn_play.setFont(Icon.font(22))
         self.btn_play.setFixedSize(36, 36)
-        self.btn_play.setStyleSheet("""
-            QPushButton {
-                background-color: transparent;
-                color: #F1F0FF;
-                border: none;
-                border-radius: 18px;
-            }
-            QPushButton:hover {
-                background-color: rgba(167,139,250,0.15);
-            }
-        """)
         if self._on_play:
             self.btn_play.clicked.connect(self._on_play)
         self.btn_play.setVisible(self._on_play is not None)
@@ -152,25 +113,85 @@ class SongCard(QWidget):
         self.menu_btn.setFont(Icon.font(20))
         self.menu_btn.setFixedSize(32, 32)
         self.menu_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.menu_btn.setStyleSheet("""
-            QToolButton {
-                background: transparent;
-                color: #9B9BC0;
-                border: none;
-                border-radius: 16px;
-            }
-            QToolButton:hover {
-                background: rgba(167,139,250,0.12);
-            }
-            QToolButton::menu-indicator {
-                image: none;
-            }
-        """)
         self.menu_btn.clicked.connect(self._show_context_menu)
         layout.addWidget(self.menu_btn)
 
+        self._update_card_styles()
+
         # Allow clicking anywhere on card
         self.mousePressEvent = self._handle_click
+
+    def _update_card_styles(self) -> None:
+        from pyrolist.ui.design import tokens
+        accent = tokens.CURRENT.accent
+        text_primary = tokens.CURRENT.text_primary
+        text_secondary = tokens.CURRENT.text_secondary
+        bg_high = tokens.CURRENT.bg_high
+        
+        self.setStyleSheet(f"""
+            #songCard {{
+                background-color: transparent;
+                border-radius: 12px;
+                padding: 6px;
+            }}
+            #songCard:hover {{
+                background-color: {accent}14;
+            }}
+        """)
+        
+        if not self.thumbnail.pixmap():
+            self.thumbnail.setStyleSheet(f"background: {bg_high}; color: {text_secondary}; border-radius: 8px;")
+        else:
+            self.thumbnail.setStyleSheet("background: transparent; border-radius: 8px;")
+            
+        self.title_label.setStyleSheet(f"color: {text_primary}; background: transparent;")
+        self.artist_label.setStyleSheet(f"color: {text_secondary}; background: transparent;")
+        self.duration_label.setStyleSheet(f"color: {text_secondary}; background: transparent;")
+        
+        if self._is_liked:
+            self.btn_like.setStyleSheet("QPushButton { color: #F472B6; background: transparent; border: none; }")
+        else:
+            self.btn_like.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: transparent;
+                    color: {text_secondary};
+                    border: none;
+                    border-radius: 18px;
+                }}
+                QPushButton:hover {{
+                    background-color: rgba(244,114,182,0.15);
+                    color: #F472B6;
+                }}
+            """)
+            
+        self.btn_play.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent;
+                color: {text_primary};
+                border: none;
+                border-radius: 18px;
+            }}
+            QPushButton:hover {{
+                background-color: {accent}26;
+                color: {accent};
+            }}
+        """)
+        
+        self.menu_btn.setStyleSheet(f"""
+            QToolButton {{
+                background: transparent;
+                color: {text_secondary};
+                border: none;
+                border-radius: 16px;
+            }}
+            QToolButton:hover {{
+                background: {accent}1E;
+                color: {accent};
+            }}
+            QToolButton::menu-indicator {{
+                image: none;
+            }}
+        """)
         
     def _handle_click(self, e):
         if e.button() == Qt.MouseButton.LeftButton:
@@ -212,3 +233,14 @@ class SongCard(QWidget):
         self._current_menu.add_to_playlist.connect(self._on_add_to_playlist_clicked)
         pos = self.menu_btn.mapToGlobal(self.menu_btn.rect().bottomLeft())
         self._current_menu.popup_at(pos)
+
+    def changeEvent(self, event) -> None:
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
+            if not getattr(self, '_in_style_change', False):
+                self._in_style_change = True
+                try:
+                    self._update_card_styles()
+                finally:
+                    self._in_style_change = False
+        super().changeEvent(event)

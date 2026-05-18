@@ -31,9 +31,10 @@ class HistoryScreen(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 16, 24, 16)
 
+        from pyrolist.ui.design import tokens
         header = QLabel("Historial")
         header.setFont(QFont("Inter", 24, QFont.Weight.Bold))
-        header.setStyleSheet("color: #FFFFFF;")
+        header.setStyleSheet(f"color: {tokens.CURRENT.text_primary};")
         layout.addWidget(header)
 
         self.scroll = QScrollArea()
@@ -159,8 +160,28 @@ class HistoryScreen(QWidget):
         if not has_items:
             msg = QLabel("Tu historial esta vacio\n\nLas canciones que reproduzcas apareceran aqui")
             msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            msg.setStyleSheet("color: #888899; font-size: 14px; padding: 40px;")
+            msg.setObjectName("libraryEmptyMessage")
             self.content_layout.addWidget(msg)
 
         self.content_layout.addStretch()
         self._fade_in_content()
+
+    def _update_history_styles(self) -> None:
+        from pyrolist.ui.design import tokens
+        for label in self.findChildren(QLabel):
+            font_size = label.font().pointSize()
+            if font_size >= 14:
+                label.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent;")
+            else:
+                label.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent;")
+
+    def changeEvent(self, event) -> None:
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
+            if not getattr(self, '_in_style_change', False):
+                self._in_style_change = True
+                try:
+                    self._update_history_styles()
+                finally:
+                    self._in_style_change = False
+        super().changeEvent(event)

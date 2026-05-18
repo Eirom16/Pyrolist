@@ -96,9 +96,9 @@ class AccountsSettingsScreen(QWidget):
         from pyrolist.ui.design import tokens
         line.setStyleSheet(f"""
             QLineEdit {{
-                background-color: #1E1E38;
-                color: #F1F0FF;
-                border: 1px solid #2A2A4E;
+                background-color: {tokens.CURRENT.bg_elevated};
+                color: {tokens.CURRENT.text_primary};
+                border: 1px solid {tokens.CURRENT.border};
                 border-radius: 8px;
                 padding: 6px 12px;
                 font-family: Inter;
@@ -136,7 +136,12 @@ class AccountsSettingsScreen(QWidget):
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
         if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-            if hasattr(self, "_line_edits"):
-                for line in self._line_edits:
-                    self._update_line_edit_style(line)
+            if not getattr(self, '_in_style_change', False):
+                self._in_style_change = True
+                try:
+                    if hasattr(self, "_line_edits"):
+                        for line in self._line_edits:
+                            self._update_line_edit_style(line)
+                finally:
+                    self._in_style_change = False
         super().changeEvent(event)

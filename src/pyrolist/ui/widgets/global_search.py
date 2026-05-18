@@ -63,12 +63,9 @@ class _SuggestionRow(QWidget):
         super().__init__()
         self._text = text
         self._on_click_extra = on_click_extra
+        self._has_thumbnail = bool(thumbnail_url)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFixedHeight(54 if subtitle or thumbnail_url else 44)
-        self.setStyleSheet("""
-            _SuggestionRow { background: transparent; }
-            _SuggestionRow:hover { background: rgba(255,255,255,0.04); }
-        """)
 
         lay = QHBoxLayout(self)
         lay.setContentsMargins(16, 0, 16, 0)
@@ -78,12 +75,10 @@ class _SuggestionRow(QWidget):
         self.icon_label = QLabel()
         self.icon_label.setFixedSize(32 if thumbnail_url else 24, 32 if thumbnail_url else 24)
         if thumbnail_url:
-            self.icon_label.setStyleSheet("background: #2A2A3E; border-radius: 4px;")
             asyncio.ensure_future(self._load_thumb(thumbnail_url))
         else:
             self.icon_label.setText(Icon.get(icon_name))
             self.icon_label.setFont(Icon.font(18))
-            self.icon_label.setStyleSheet("color: #9B9BC0; background: transparent;")
         self.icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(self.icon_label)
 
@@ -92,32 +87,59 @@ class _SuggestionRow(QWidget):
         text_col.setSpacing(0)
         text_col.setContentsMargins(0, 0, 0, 0)
 
-        title_lbl = QLabel(text)
-        title_lbl.setFont(QFont("Inter", 13))
-        title_lbl.setStyleSheet("color: #FFFFFF;")
-        text_col.addWidget(title_lbl)
+        self.title_lbl = QLabel(text)
+        self.title_lbl.setFont(QFont("Inter", 13))
+        text_col.addWidget(self.title_lbl)
 
+        self.sub_lbl = None
         if subtitle:
-            sub_lbl = QLabel(subtitle)
-            sub_lbl.setFont(QFont("Inter", 10))
-            sub_lbl.setStyleSheet("color: #888899;")
-            text_col.addWidget(sub_lbl)
+            self.sub_lbl = QLabel(subtitle)
+            self.sub_lbl.setFont(QFont("Inter", 10))
+            text_col.addWidget(self.sub_lbl)
 
         lay.addLayout(text_col, stretch=1)
 
         # Delete button (only for history items)
+        self.del_btn = None
         if deletable:
-            del_btn = QPushButton()
-            del_btn.setFixedSize(28, 28)
-            del_btn.setText(Icon.get("close"))
-            del_btn.setFont(Icon.font(16))
-            del_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            del_btn.setStyleSheet("""
-                QPushButton { background: transparent; color: #6B6B9B; border: none; border-radius: 14px; }
-                QPushButton:hover { background: rgba(255,255,255,0.08); }
+            self.del_btn = QPushButton()
+            self.del_btn.setFixedSize(28, 28)
+            self.del_btn.setText(Icon.get("close"))
+            self.del_btn.setFont(Icon.font(16))
+            self.del_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.del_btn.clicked.connect(lambda: self.deleted.emit(self._text))
+            lay.addWidget(self.del_btn)
+
+        self._update_row_styles()
+
+    def _update_row_styles(self):
+        from pyrolist.ui.design import tokens
+        from PySide6.QtGui import QColor
+        c = QColor(tokens.CURRENT.text_primary)
+        self.setStyleSheet(f"""
+            _SuggestionRow {{ background: transparent; }}
+            _SuggestionRow:hover {{ background: rgba({c.red()},{c.green()},{c.blue()},0.05); }}
+        """)
+        if not self._has_thumbnail:
+            self.icon_label.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent;")
+        else:
+            self.icon_label.setStyleSheet(f"background: {tokens.CURRENT.bg_high}; border-radius: 4px;")
+            
+        self.title_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent;")
+        if self.sub_lbl:
+            self.sub_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent;")
+            
+        if self.del_btn:
+            self.del_btn.setStyleSheet(f"""
+                QPushButton {{ background: transparent; color: {tokens.CURRENT.text_secondary}; border: none; border-radius: 14px; }}
+                QPushButton:hover {{ background: rgba({c.red()},{c.green()},{c.blue()},0.08); }}
             """)
-            del_btn.clicked.connect(lambda: self.deleted.emit(self._text))
-            lay.addWidget(del_btn)
+
+    def changeEvent(self, event):
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
+            self._update_row_styles()
+        super().changeEvent(event)
 
     # Click anywhere on the row
     def mousePressEvent(self, event):
@@ -151,14 +173,6 @@ class _SearchDropdown(GlassPanel):
         self.setAttribute(Qt.WidgetAttribute.WA_X11DoNotAcceptFocus) # Helpful on Linux
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.setMaximumHeight(400)
-        self.setStyleSheet("""
-            #searchDropdown {
-                background-color: #1A1A2E;
-                border: 1px solid #2A2A3E;
-                border-top: none;
-                border-radius: 0 0 16px 16px;
-            }
-        """)
 
         root_layout = self.layout()
         root_layout.setContentsMargins(0, 0, 0, 0)
@@ -178,6 +192,24 @@ class _SearchDropdown(GlassPanel):
 
         self._scroll.setWidget(self._inner)
         root_layout.addWidget(self._scroll)
+        self._update_dropdown_styles()
+
+    def _update_dropdown_styles(self):
+        from pyrolist.ui.design import tokens
+        self.setStyleSheet(f"""
+            #searchDropdown {{
+                background-color: {tokens.CURRENT.bg_surface};
+                border: 1px solid {tokens.CURRENT.border};
+                border-top: none;
+                border-radius: 0 0 16px 16px;
+            }}
+        """)
+
+    def changeEvent(self, event):
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
+            self._update_dropdown_styles()
+        super().changeEvent(event)
 
     # --- Public helpers ---
     def clear_rows(self):
@@ -188,14 +220,15 @@ class _SearchDropdown(GlassPanel):
                 item.widget().deleteLater()
 
     def add_separator(self, label: str = ""):
+        from pyrolist.ui.design import tokens
         sep = QWidget()
         sep.setFixedHeight(1)
-        sep.setStyleSheet("background: #2A2A3E; margin: 4px 16px;")
+        sep.setStyleSheet(f"background: {tokens.CURRENT.border}; margin: 4px 16px;")
         self._layout.addWidget(sep)
         if label:
             lbl = QLabel(f"  {label}")
             lbl.setFont(QFont("Inter", 11, QFont.Weight.Medium))
-            lbl.setStyleSheet("color: #666688; margin: 6px 16px 2px 16px;")
+            lbl.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; margin: 6px 16px 2px 16px;")
             self._layout.addWidget(lbl)
 
     def add_row(self, row: _SuggestionRow):
@@ -235,15 +268,9 @@ class GlobalSearchBar(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        bar_widget = QWidget()
-        bar_widget.setObjectName("searchBarRow")
-        bar_widget.setStyleSheet("""
-            #searchBarRow {
-                background-color: #0F0F1A;
-                border-bottom: 1px solid #2A2A3E;
-            }
-        """)
-        bar_layout = QHBoxLayout(bar_widget)
+        self.bar_widget = QWidget()
+        self.bar_widget.setObjectName("searchBarRow")
+        bar_layout = QHBoxLayout(self.bar_widget)
         bar_layout.setContentsMargins(24, 10, 24, 10)
         bar_layout.setSpacing(12)
 
@@ -270,15 +297,11 @@ class GlobalSearchBar(QWidget):
         self._clear_btn.setText(Icon.get("close"))
         self._clear_btn.setFont(Icon.font(18))
         self._clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._clear_btn.setStyleSheet("""
-            QPushButton { background: transparent; color: #9B9BC0; border: none; border-radius: 16px; }
-            QPushButton:hover { background: rgba(255,255,255,0.08); }
-        """)
         self._clear_btn.clicked.connect(self._clear_input)
         self._clear_btn.setVisible(False)
         bar_layout.addWidget(self._clear_btn)
 
-        layout.addWidget(bar_widget)
+        layout.addWidget(self.bar_widget)
 
     # ---- Dropdown lifecycle ----
     def _ensure_dropdown(self):
@@ -304,11 +327,17 @@ class GlobalSearchBar(QWidget):
             if item:
                 w = item.widget()
                 if w:
-                    # Fallback to sizeHint height or standard height if not yet polished by Qt layout
-                    ideal_height += w.sizeHint().height() or (54 if "•" in getattr(w, '_subtitle', '') else 44)
+                    if isinstance(w, _SuggestionRow):
+                        # Simple height check: if it has a thumbnail or a long text/subtitle, it is 54px
+                        ideal_height += 54 if hasattr(w, "icon_label") and w.icon_label.pixmap() else 44
+                    elif isinstance(w, QLabel):
+                        ideal_height += 24
+                    else:
+                        ideal_height += 8
         
-        # Limit height between 150px and 380px to fit at least 6 items perfectly
-        dd.setFixedHeight(min(max(ideal_height, 150), 380))
+        # Limit height: if there are 4 or more items, ensure at least 320px height so 6+ items show
+        min_h = 320 if item_count >= 4 else 150
+        dd.setFixedHeight(min(max(ideal_height, min_h), 400))
         
         # On some platforms/WMs, show() might still steal focus despite flags.
         # We ensure the input keeps it.
@@ -494,16 +523,29 @@ class GlobalSearchBar(QWidget):
 
     def _update_search_bar_styles(self) -> None:
         from pyrolist.ui.design import tokens
+        from PySide6.QtGui import QColor
         accent = tokens.CURRENT.accent
+        text_primary = tokens.CURRENT.text_primary
+        c = QColor(text_primary)
+        
+        if hasattr(self, 'bar_widget') and self.bar_widget:
+            self.bar_widget.setStyleSheet(f"""
+                #searchBarRow {{
+                    background-color: {tokens.CURRENT.bg_base};
+                    border-bottom: 1px solid {tokens.CURRENT.border};
+                }}
+            """)
+            
         if hasattr(self, '_search_icon') and self._search_icon:
             self._search_icon.setStyleSheet(f"color: {accent}; background: transparent;")
+            
         if hasattr(self, 'input') and self.input:
             self.input.setStyleSheet(f"""
                 QLineEdit {{
-                    background-color: #1A1A2E;
-                    border: 1px solid #2A2A3E;
+                    background-color: {tokens.CURRENT.bg_surface};
+                    border: 1px solid {tokens.CURRENT.border};
                     border-radius: 24px;
-                    color: #FFFFFF;
+                    color: {text_primary};
                     padding: 12px 24px;
                     font-size: 15px;
                     font-family: Inter;
@@ -511,13 +553,31 @@ class GlobalSearchBar(QWidget):
                 }}
                 QLineEdit:focus {{
                     border: 1px solid {accent};
-                    background-color: #1E1E3A;
+                    background-color: {tokens.CURRENT.bg_elevated};
                 }}
-                QLineEdit::placeholder {{ color: #666688; }}
+                QLineEdit::placeholder {{ color: {tokens.CURRENT.text_secondary}; }}
+            """)
+
+        if hasattr(self, '_clear_btn') and self._clear_btn:
+            self._clear_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background: transparent;
+                    color: {tokens.CURRENT.text_secondary};
+                    border: none;
+                    border-radius: 16px;
+                }}
+                QPushButton:hover {{
+                    background: rgba({c.red()},{c.green()},{c.blue()},0.08);
+                }}
             """)
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
         if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-            self._update_search_bar_styles()
+            if not getattr(self, '_in_style_change', False):
+                self._in_style_change = True
+                try:
+                    self._update_search_bar_styles()
+                finally:
+                    self._in_style_change = False
         super().changeEvent(event)

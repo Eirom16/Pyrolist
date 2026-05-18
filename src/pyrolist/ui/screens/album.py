@@ -82,8 +82,9 @@ class AlbumScreen(QWidget):
             thumbnail_url = thumbnails[-1].get('url', '')
             
         self.cover = QLabel()
+        from pyrolist.ui.design import tokens
         self.cover.setFixedSize(200, 200)
-        self.cover.setStyleSheet("background: #2A2A3E; border-radius: 8px;")
+        self.cover.setStyleSheet(f"background: {tokens.CURRENT.bg_elevated}; border-radius: 8px;")
         header_layout.addWidget(self.cover)
         
         if thumbnail_url:
@@ -95,12 +96,12 @@ class AlbumScreen(QWidget):
         
         type_lbl = QLabel(data.get('type', 'ÁLBUM').upper())
         type_lbl.setFont(QFont("Inter", 10, QFont.Weight.Bold))
-        type_lbl.setStyleSheet("color: #FFFFFF;")
+        type_lbl.setStyleSheet(f"color: {tokens.CURRENT.accent}; background: transparent;")
         info_layout.addWidget(type_lbl)
         
         title_lbl = QLabel(data.get('title', 'Unknown'))
         title_lbl.setFont(QFont("Inter", 32, QFont.Weight.Bold))
-        title_lbl.setStyleSheet("color: #FFFFFF;")
+        title_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent;")
         title_lbl.setWordWrap(True)
         info_layout.addWidget(title_lbl)
         
@@ -118,7 +119,7 @@ class AlbumScreen(QWidget):
             
         meta_lbl = QLabel(meta_str)
         meta_lbl.setFont(QFont("Inter", 11))
-        meta_lbl.setStyleSheet("color: #888899;")
+        meta_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent;")
         info_layout.addWidget(meta_lbl)
         
         header_layout.addLayout(info_layout)

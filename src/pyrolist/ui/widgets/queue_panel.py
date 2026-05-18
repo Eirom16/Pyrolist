@@ -13,18 +13,16 @@ class QueuePanel(QWidget):
 
     def _build_ui(self):
         self.setObjectName("queuePanel")
-        self.setStyleSheet("""
-            #queuePanel {
-                background-color: #13131F;
-            }
-        """)
+        
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(16)
 
-        header = QLabel("Cola de reproducción")
-        header.setStyleSheet("color: #FFFFFF; font-size: 16px; font-weight: bold;")
-        layout.addWidget(header)
+        self.header_lbl = QLabel("Cola de reproducción")
+        self.header_lbl.setStyleSheet("font-size: 16px; font-weight: bold;")
+        layout.addWidget(self.header_lbl)
+
+        self._apply_style()
 
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
@@ -72,3 +70,24 @@ class QueuePanel(QWidget):
             self.queue_layout.addWidget(card)
             
         self.queue_layout.addStretch()
+
+    def _apply_style(self):
+        from pyrolist.ui.design import tokens
+        self.setStyleSheet(f"""
+            #queuePanel {{
+                background-color: {tokens.CURRENT.bg_surface};
+            }}
+        """)
+        if hasattr(self, "header_lbl") and self.header_lbl:
+            self.header_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent;")
+
+    def changeEvent(self, event):
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
+            if not getattr(self, '_in_style_change', False):
+                self._in_style_change = True
+                try:
+                    self._apply_style()
+                finally:
+                    self._in_style_change = False
+        super().changeEvent(event)
