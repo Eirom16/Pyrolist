@@ -22,6 +22,7 @@ class PlayerSettings(BaseModel):
     resume_on_startup: bool = True
     gapless_playback: bool = True
     stop_on_close: bool = False
+    sleep_timer_minutes: int = 0
 
 class EqualizerSettings(BaseModel):
     enabled: bool = False

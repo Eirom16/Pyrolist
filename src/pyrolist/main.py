@@ -44,6 +44,17 @@ async def main_async(app: QApplication, settings: AppSettings, loop: qasync.QEve
         await quit_future
     except Exception:
         pass
+    finally:
+        from pyrolist.db.database import get_engine
+        try:
+            engine = get_engine()
+            if engine:
+                logger.info("Disposing database engine...")
+                await engine.dispose()
+                logger.info("Database engine successfully disposed.")
+        except Exception as e:
+            logger.warning(f"Error disposing database engine: {e}")
+
 
 
 def main() -> None:

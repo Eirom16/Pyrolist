@@ -115,10 +115,11 @@ class YouTubeMusicClient:
                 return self._search_cache[cache_key]
 
         # Try ytmusicapi first (richer results with types)
-        if self._public:
+        client = self._ytmusicapi if (self._is_authenticated and self._ytmusicapi) else self._public
+        if client:
             def _ytm_search():
                 try:
-                    return self._public.search(query_lower, filter=filter, limit=limit)
+                    return client.search(query_lower, filter=filter, limit=limit)
                 except Exception as e:
                     logger.warning(f"ytmusicapi search failed: {e}")
                     return None

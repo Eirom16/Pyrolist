@@ -14,6 +14,7 @@ NAV_ITEMS = [
     ("home", "home", "Inicio"),
     ("library", "library_music", "Biblioteca"),
     ("history", "history", "Historial"),
+    ("stats", "bar_chart", "Estadísticas"),
     ("downloads", "download", "Descargas"),
     ("settings", "settings", "Ajustes"),
 ]

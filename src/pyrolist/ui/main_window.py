@@ -20,6 +20,8 @@ from pyrolist.ui.widgets.nav_sidebar import NavSidebar
 from pyrolist.ui.widgets.mini_player import MiniPlayerWidget
 from pyrolist.ui.widgets.fade_stack import FadeStackedWidget
 from pyrolist.ui.widgets.toast import ToastNotification
+from pyrolist.audio.sleep_timer import SleepTimer
+from pyrolist.audio.crossfade import CrossfadeManager
 
 
 class MainWindow(QMainWindow):
@@ -34,6 +36,7 @@ class MainWindow(QMainWindow):
         "artist": 7,
         "now_playing": 8,
         "search": 9,
+        "stats": 10,
     }
 
     def __init__(self, settings: AppSettings, event_loop=None):
@@ -57,6 +60,11 @@ class MainWindow(QMainWindow):
         self.mpris = MprisPlayer(self.player, self.queue)
         self.scrobbler: LastFmScrobbler | None = None
         self.discord: DiscordRPC | None = None
+        self.sleep_timer = SleepTimer()
+        self.crossfade_manager = CrossfadeManager(
+            enabled=settings.player.crossfade_enabled,
+            duration_sec=settings.player.crossfade_duration_sec
+        )
 
         self._setup_window()
         self._build_ui()
@@ -143,6 +151,7 @@ class MainWindow(QMainWindow):
 
         from pyrolist.ui.screens.now_playing import NowPlayingScreen
         from pyrolist.ui.screens.search import SearchScreen
+        from pyrolist.ui.screens.stats import StatsScreen
 
         self.home_screen = HomeScreen(self.yt, self._play_song_sync, self._navigate_to)
         self.library_screen = LibraryScreen(self.yt, self._play_song_sync, self._navigate_to)
@@ -158,6 +167,7 @@ class MainWindow(QMainWindow):
         self.artist_screen = ArtistScreen(self.yt, self._play_song_sync, self._navigate_to)
         self.now_playing_screen = NowPlayingScreen(self.player, self.queue, self.yt, self._play_queue_item)
         self.search_screen = SearchScreen(self.yt, self._play_song_sync)
+        self.stats_screen = StatsScreen(self.yt, self._play_song_sync)
 
         for screen in [
             self.home_screen,
@@ -170,6 +180,7 @@ class MainWindow(QMainWindow):
             self.artist_screen,
             self.now_playing_screen,
             self.search_screen,
+            self.stats_screen,
         ]:
             self.stack.addWidget(screen)
             # Connect all context-menu signals if they exist
@@ -656,7 +667,7 @@ class MainWindow(QMainWindow):
         self.search_bar.yt = self.yt
         for screen in [self.home_screen, self.library_screen, self.playlist_screen, 
                        self.album_screen, self.artist_screen, self.search_screen,
-                       self.history_screen, self.settings_screen]:
+                       self.history_screen, self.settings_screen, self.stats_screen]:
             screen.yt = self.yt
 
     def _on_search_submitted(self, query: str) -> None:
@@ -678,6 +689,7 @@ class MainWindow(QMainWindow):
             "home": self.home_screen,
             "library": self.library_screen,
             "history": self.history_screen,
+            "stats": self.stats_screen,
             "search": self.search_screen,
             "downloads": self.downloads_screen,
         }
@@ -724,9 +736,14 @@ class MainWindow(QMainWindow):
 
         if item.is_local:
             logger.info(f"Playing local track: {item.title}")
+            if self.settings.player.crossfade_enabled and self.player.status.state == PlayerState.PLAYING:
+                await self.crossfade_manager.fade_out(self.player, duration_sec=1.2)
+            
             success = await self.player.play_url(item.local_path, "local")
             if success:
                 self._run_async(self._save_play_history(item))
+                if self.settings.player.crossfade_enabled:
+                    self._run_async(self.crossfade_manager.fade_in(self.player, self.settings.player.volume, duration_sec=1.2))
             return
 
         try:
@@ -750,15 +767,22 @@ class MainWindow(QMainWindow):
 
             if item.stream_url:
                 logger.info(f"Playing: {item.title} - URL length: {len(item.stream_url)}, format: {stream_info.get('format', 'unknown')}")
+                if self.settings.player.crossfade_enabled and self.player.status.state == PlayerState.PLAYING:
+                    await self.crossfade_manager.fade_out(self.player, duration_sec=1.2)
+
                 success = await self.player.play_url(item.stream_url, item.video_id)
                 if success:
                     self._run_async(self._save_play_history(item))
+                    if self.settings.player.crossfade_enabled:
+                        self._run_async(self.crossfade_manager.fade_in(self.player, self.settings.player.volume, duration_sec=1.2))
                 else:
                     logger.error(f"Player failed for {item.title}, trying alternative format...")
                     alt_url = await self.extractor.get_alternative_stream(item.video_id)
                     if alt_url:
                         logger.info(f"Retrying with alternative format")
-                        await self.player.play_url(alt_url, item.video_id)
+                        success = await self.player.play_url(alt_url, item.video_id)
+                        if success and self.settings.player.crossfade_enabled:
+                            self._run_async(self.crossfade_manager.fade_in(self.player, self.settings.player.volume, duration_sec=1.2))
             else:
                 logger.error(f"No stream URL for {item.title}")
 
@@ -998,6 +1022,24 @@ class MainWindow(QMainWindow):
                 settings.equalizer.bands,
             )
         
+        # Update crossfade settings dynamically
+        if hasattr(self, 'crossfade_manager'):
+            self.crossfade_manager.enabled = settings.player.crossfade_enabled
+            self.crossfade_manager.duration_sec = settings.player.crossfade_duration_sec
+
+        # Update sleep timer dynamically
+        if hasattr(self, 'sleep_timer'):
+            sleep_mins = getattr(settings.player, 'sleep_timer_minutes', 0)
+            if sleep_mins > 0:
+                logger.info(f"Setting sleep timer for {sleep_mins} minutes")
+                self._run_async(self.sleep_timer.start(sleep_mins * 60, self._on_sleep_timer_expired))
+                self.statusBar().showMessage(f"Temporizador de apagado activado: {sleep_mins} min", 3000)
+            else:
+                if self.sleep_timer._task and not self.sleep_timer._task.done():
+                    logger.info("Cancelling sleep timer")
+                    self.sleep_timer._task.cancel()
+                    self.statusBar().showMessage("Temporizador de apagado desactivado", 3000)
+
         # Apply appearance changes in real-time
         if hasattr(settings, 'appearance'):
             # Compact sidebar toggle
@@ -1011,6 +1053,24 @@ class MainWindow(QMainWindow):
             accent = getattr(settings.appearance, 'accent_color', '#A78BFA')
             theme_mode = getattr(settings.appearance, 'theme_mode', 'dark')
             self._apply_theme_and_accent(theme_mode, accent)
+
+    def _on_sleep_timer_expired(self) -> None:
+        logger.info("Sleep timer expired! Pausing music player...")
+        self._run_async(self.player.pause())
+        self.statusBar().showMessage("Temporizador de apagado finalizado. Pyrolist en pausa.", 5000)
+        
+        # Reset the sleep timer in settings and notify
+        self.settings.player.sleep_timer_minutes = 0
+        self._on_settings_changed(self.settings)
+
+        # Refresh PlayerSettingsScreen combobox dynamically if it's currently loaded
+        try:
+            from pyrolist.ui.screens.settings.player_settings import PlayerSettingsScreen
+            player_settings_page = self.settings_screen.stack.findChild(PlayerSettingsScreen)
+            if player_settings_page:
+                player_settings_page.update_fields()
+        except Exception as e:
+            logger.debug(f"Failed to refresh settings page fields: {e}")
 
     def _apply_accent_color(self, accent: str) -> None:
         """Helper for legacy calls or quick updates."""
