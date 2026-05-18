@@ -752,6 +752,12 @@ class MainWindow(QMainWindow):
             item.title, item.artist, item.thumbnail_url
         )
 
+        # Immediate visual feedback for lyrics and related suggestions
+        self.now_playing_screen.set_lyrics_loading()
+        self.now_playing_screen.set_related([], None)
+        self._run_async(self._load_lyrics(item))
+        self._run_async(self._load_related(item))
+
         if item.is_local:
             logger.info(f"Playing local track: {item.title}")
             if self.settings.player.crossfade_enabled and self.player.status.state == PlayerState.PLAYING:
@@ -804,9 +810,6 @@ class MainWindow(QMainWindow):
             else:
                 logger.error(f"No stream URL for {item.title}")
 
-            self._run_async(self._load_lyrics(item))
-            self._run_async(self._load_related(item))
-
             if getattr(getattr(self.settings, 'network', None), 'preload_next', True):
                 self._run_async(self._preload_next())
 
@@ -828,6 +831,7 @@ class MainWindow(QMainWindow):
             logger.error(f"Failed to play {item.video_id}: {e}")
 
     async def _load_lyrics(self, item: QueueItem) -> None:
+        self._current_lyrics_video_id = item.video_id
         self.now_playing_screen.set_lyrics_loading()
         try:
             lyrics = None
@@ -846,25 +850,35 @@ class MainWindow(QMainWindow):
                 lyrics = await self.lyrics_client.get_lyrics(
                     item.title, item.artist, item.album
                 )
-            self.now_playing_screen.set_lyrics(lyrics)
+            
+            if getattr(self, "_current_lyrics_video_id", None) == item.video_id:
+                self.now_playing_screen.set_lyrics(lyrics)
+            else:
+                logger.info(f"Discarded stale lyrics for {item.title} (current song changed)")
         except Exception as e:
             logger.error(f"Error loading lyrics: {e}")
-            self.now_playing_screen.set_lyrics(None)
+            if getattr(self, "_current_lyrics_video_id", None) == item.video_id:
+                self.now_playing_screen.set_lyrics(None)
 
     async def _load_related(self, item: QueueItem) -> None:
         """Load related/similar tracks for the SIMILARES tab."""
+        self._current_related_video_id = item.video_id
         try:
             if self.yt and item.video_id and item.video_id != "local":
                 watch_data = await self.yt.get_watch_playlist(video_id=item.video_id, limit=15)
                 tracks = watch_data.get('tracks', [])
                 # Skip the first track (it's the current song)
                 related = [t for t in tracks if t.get('videoId') != item.video_id]
-                self.now_playing_screen.set_related(related, self._play_song_sync)
+                
+                if getattr(self, "_current_related_video_id", None) == item.video_id:
+                    self.now_playing_screen.set_related(related, self._play_song_sync)
             else:
-                self.now_playing_screen.set_related([], None)
+                if getattr(self, "_current_related_video_id", None) == item.video_id:
+                    self.now_playing_screen.set_related([], None)
         except Exception as e:
             logger.error(f"Error loading related: {e}")
-            self.now_playing_screen.set_related([], None)
+            if getattr(self, "_current_related_video_id", None) == item.video_id:
+                self.now_playing_screen.set_related([], None)
 
     async def _save_play_history(self, item: QueueItem) -> None:
         try:
