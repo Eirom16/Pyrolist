@@ -20,12 +20,13 @@ class NowPlayingScreen(QWidget):
     add_to_playlist_requested = Signal(str, str)
     delete_download_requested = Signal(str)
 
-    def __init__(self, player, queue, yt_client, play_queue_item_cb):
+    def __init__(self, player, queue, yt_client, play_queue_item_cb, settings=None):
         super().__init__()
         self.player = player
         self.queue = queue
         self.yt = yt_client
         self.play_queue_item_cb = play_queue_item_cb
+        self.settings = settings
         self._is_playing = False
         self._build_ui()
 
@@ -276,6 +277,22 @@ class NowPlayingScreen(QWidget):
         self.time_total.setText(format_duration_short(duration_ms))
         self._highlight_lyric(position_ms)
         
+    def set_lyrics_loading(self):
+        while self.lyrics_layout.count():
+            item = self.lyrics_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+                
+        self._lyric_lines.clear()
+        self._current_lyric_index = -1
+        
+        loading_lbl = QLabel("Buscando letras...")
+        loading_lbl.setFont(QFont("Inter", 14))
+        loading_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        from pyrolist.ui.design import tokens
+        loading_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_disabled}; margin-top: 32px;")
+        self.lyrics_layout.addWidget(loading_lbl)
+
     def set_lyrics(self, lyrics):
         while self.lyrics_layout.count():
             item = self.lyrics_layout.takeAt(0)
@@ -302,6 +319,22 @@ class NowPlayingScreen(QWidget):
         else:
             lines = [str(lyrics)]
             
+        font_size = 18
+        alignment = "center"
+        line_spacing = 1.5
+        if self.settings:
+            font_size = self.settings.subtitles.font_size
+            alignment = self.settings.subtitles.alignment
+            line_spacing = self.settings.subtitles.line_spacing
+            
+        align_flag = Qt.AlignmentFlag.AlignCenter
+        if alignment == "left":
+            align_flag = Qt.AlignmentFlag.AlignLeft
+        elif alignment == "right":
+            align_flag = Qt.AlignmentFlag.AlignRight
+            
+        padding = int(line_spacing * 4)
+
         for line_text in lines:
             clean = line_text.strip()
             if not clean:
@@ -323,9 +356,10 @@ class NowPlayingScreen(QWidget):
                 continue
             
             lbl = QLabel(clean)
-            lbl.setFont(QFont("Inter", 16, QFont.Weight.Bold))
+            lbl.setFont(QFont("Inter", font_size - 2, QFont.Weight.Bold))
+            lbl.setAlignment(align_flag)
             from pyrolist.ui.design import tokens
-            lbl.setStyleSheet(f"color: {tokens.CURRENT.text_disabled}; background: transparent; padding: 4px 0;")
+            lbl.setStyleSheet(f"color: {tokens.CURRENT.text_disabled}; background: transparent; padding: {padding}px 0;")
             lbl.setWordWrap(True)
             self.lyrics_layout.addWidget(lbl)
             self._lyric_lines.append((timestamp_ms, lbl))
@@ -336,34 +370,110 @@ class NowPlayingScreen(QWidget):
         if not hasattr(self, '_lyric_lines') or not self._lyric_lines:
             return
 
+        adjusted_position = position_ms
+        if self.settings:
+            adjusted_position += self.settings.subtitles.delay_ms
+
         active_idx = -1
         for i, (ts, lbl) in enumerate(self._lyric_lines):
-            if ts != -1 and position_ms >= ts:
+            if ts != -1 and adjusted_position >= ts:
                 active_idx = i
 
         if active_idx != -1 and active_idx != self._current_lyric_index:
             from pyrolist.ui.design import tokens
+            
+            font_size = 18
+            line_spacing = 1.5
+            glow = True
+            auto_scroll = True
+            animation_style = "glow"
+            if self.settings:
+                font_size = self.settings.subtitles.font_size
+                line_spacing = self.settings.subtitles.line_spacing
+                glow = self.settings.subtitles.glow_effect
+                auto_scroll = self.settings.subtitles.auto_scroll
+                animation_style = self.settings.subtitles.animation_style
+                
+            padding = int(line_spacing * 4)
+
             if self._current_lyric_index != -1:
                 old_ts, old_lbl = self._lyric_lines[self._current_lyric_index]
-                old_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_disabled}; background: transparent; padding: 4px 0;")
-                old_lbl.setFont(QFont("Inter", 16, QFont.Weight.Bold))
+                old_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_disabled}; background: transparent; padding: {padding}px 0;")
+                old_lbl.setFont(QFont("Inter", font_size - 2, QFont.Weight.Bold))
+                old_lbl.setGraphicsEffect(None)
             
             new_ts, new_lbl = self._lyric_lines[active_idx]
-            new_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent; padding: 4px 0;")
-            new_lbl.setFont(QFont("Inter", 18, QFont.Weight.Black))
+            new_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent; padding: {padding}px 0;")
+            new_lbl.setFont(QFont("Inter", font_size, QFont.Weight.Black))
+            
+            if glow:
+                from PySide6.QtWidgets import QGraphicsDropShadowEffect
+                from PySide6.QtGui import QColor
+                shadow = QGraphicsDropShadowEffect(new_lbl)
+                shadow.setBlurRadius(10)
+                shadow.setColor(QColor(tokens.CURRENT.accent))
+                shadow.setOffset(0, 0)
+                new_lbl.setGraphicsEffect(shadow)
             
             self._current_lyric_index = active_idx
             
-            scroll_bar = self.lyrics_scroll.verticalScrollBar()
-            target_y = new_lbl.y() - (self.lyrics_scroll.height() / 2) + (new_lbl.height() / 2)
+            if auto_scroll:
+                scroll_bar = self.lyrics_scroll.verticalScrollBar()
+                target_y = new_lbl.y() - (self.lyrics_scroll.height() / 2) + (new_lbl.height() / 2)
+                
+                if animation_style == "none":
+                    scroll_bar.setValue(int(max(0, target_y)))
+                else:
+                    from PySide6.QtCore import QPropertyAnimation, QEasingCurve
+                    self._scroll_anim = QPropertyAnimation(scroll_bar, b"value")
+                    self._scroll_anim.setDuration(400)
+                    self._scroll_anim.setStartValue(scroll_bar.value())
+                    self._scroll_anim.setEndValue(int(max(0, target_y)))
+                    self._scroll_anim.setEasingCurve(QEasingCurve.Type.InOutSine)
+                    self._scroll_anim.start()
+
+    def update_lyrics_style(self):
+        if not hasattr(self, '_lyric_lines') or not self._lyric_lines:
+            return
             
-            from PySide6.QtCore import QPropertyAnimation, QEasingCurve
-            self._scroll_anim = QPropertyAnimation(scroll_bar, b"value")
-            self._scroll_anim.setDuration(400)
-            self._scroll_anim.setStartValue(scroll_bar.value())
-            self._scroll_anim.setEndValue(int(max(0, target_y)))
-            self._scroll_anim.setEasingCurve(QEasingCurve.Type.InOutSine)
-            self._scroll_anim.start()
+        font_size = 18
+        alignment = "center"
+        line_spacing = 1.5
+        if self.settings:
+            font_size = self.settings.subtitles.font_size
+            alignment = self.settings.subtitles.alignment
+            line_spacing = self.settings.subtitles.line_spacing
+            
+        align_flag = Qt.AlignmentFlag.AlignCenter
+        if alignment == "left":
+            align_flag = Qt.AlignmentFlag.AlignLeft
+        elif alignment == "right":
+            align_flag = Qt.AlignmentFlag.AlignRight
+            
+        padding = int(line_spacing * 4)
+        from pyrolist.ui.design import tokens
+        
+        for idx, (ts, lbl) in enumerate(self._lyric_lines):
+            if ts == -1:
+                continue
+            lbl.setAlignment(align_flag)
+            if idx == self._current_lyric_index:
+                lbl.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent; padding: {padding}px 0;")
+                lbl.setFont(QFont("Inter", font_size, QFont.Weight.Black))
+                if self.settings and self.settings.subtitles.glow_effect:
+                    from PySide6.QtWidgets import QGraphicsDropShadowEffect
+                    from PySide6.QtGui import QColor
+                    shadow = QGraphicsDropShadowEffect(lbl)
+                    shadow.setBlurRadius(10)
+                    shadow.setColor(QColor(tokens.CURRENT.accent))
+                    shadow.setOffset(0, 0)
+                    lbl.setGraphicsEffect(shadow)
+                else:
+                    lbl.setGraphicsEffect(None)
+            else:
+                lbl.setStyleSheet(f"color: {tokens.CURRENT.text_disabled}; background: transparent; padding: {padding}px 0;")
+                lbl.setFont(QFont("Inter", font_size - 2, QFont.Weight.Bold))
+                lbl.setGraphicsEffect(None)
 
     async def _load_thumbnail(self, url: str):
         # Request a higher-resolution thumbnail

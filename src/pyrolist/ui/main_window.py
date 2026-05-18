@@ -165,7 +165,7 @@ class MainWindow(QMainWindow):
         self.playlist_screen = PlaylistScreen(self.yt, self._play_song_sync, self._play_local_playlist)
         self.album_screen = AlbumScreen(self.yt, self._play_song_sync)
         self.artist_screen = ArtistScreen(self.yt, self._play_song_sync, self._navigate_to)
-        self.now_playing_screen = NowPlayingScreen(self.player, self.queue, self.yt, self._play_queue_item)
+        self.now_playing_screen = NowPlayingScreen(self.player, self.queue, self.yt, self._play_queue_item, self.settings)
         self.search_screen = SearchScreen(self.yt, self._play_song_sync)
         self.stats_screen = StatsScreen(self.yt, self._play_song_sync)
 
@@ -309,6 +309,11 @@ class MainWindow(QMainWindow):
         
         try:
             data = await self.yt.get_playlist(playlist_id)
+            playlist_thumbnails = data.get('thumbnails', [])
+            if playlist_thumbnails:
+                high_res_thumb = playlist_thumbnails[-1].get('url', '')
+                if high_res_thumb:
+                    thumbnail_url = high_res_thumb
             tracks = data.get('tracks', [])
             
             queued = 0
@@ -727,6 +732,19 @@ class MainWindow(QMainWindow):
         if not item:
             return
 
+        # Check if downloaded and play local instead of streaming
+        try:
+            from pyrolist.db.repository import DownloadRepository
+            dl_repo = DownloadRepository()
+            download = await dl_repo.get_download(item.video_id)
+            if download and download.file_path:
+                import os
+                if os.path.exists(download.file_path):
+                    item.is_local = True
+                    item.local_path = download.file_path
+        except Exception as e:
+            logger.debug(f"Error checking download status in _play_current: {e}")
+
         self.mini_player.update_track_info(
             item.title, item.artist, item.thumbnail_url
         )
@@ -739,7 +757,7 @@ class MainWindow(QMainWindow):
             if self.settings.player.crossfade_enabled and self.player.status.state == PlayerState.PLAYING:
                 await self.crossfade_manager.fade_out(self.player, duration_sec=1.2)
             
-            success = await self.player.play_url(item.local_path, "local")
+            success = await self.player.play_url(item.local_path, item.video_id)
             if success:
                 self._run_async(self._save_play_history(item))
                 if self.settings.player.crossfade_enabled:
@@ -810,6 +828,7 @@ class MainWindow(QMainWindow):
             logger.error(f"Failed to play {item.video_id}: {e}")
 
     async def _load_lyrics(self, item: QueueItem) -> None:
+        self.now_playing_screen.set_lyrics_loading()
         try:
             lyrics = None
             if item.is_local and item.local_path:
@@ -835,7 +854,7 @@ class MainWindow(QMainWindow):
     async def _load_related(self, item: QueueItem) -> None:
         """Load related/similar tracks for the SIMILARES tab."""
         try:
-            if self.yt and self.yt.is_authenticated:
+            if self.yt and item.video_id and item.video_id != "local":
                 watch_data = await self.yt.get_watch_playlist(video_id=item.video_id, limit=15)
                 tracks = watch_data.get('tracks', [])
                 # Skip the first track (it's the current song)
@@ -915,7 +934,6 @@ class MainWindow(QMainWindow):
                             self.queue.add_to_end(ni)
                         self.queue.advance()
                         self._update_queue_panel()
-                        await self._play_current()
                 except Exception as e:
                     logger.warning(f"Autoplay failed: {e}")
 
@@ -923,10 +941,11 @@ class MainWindow(QMainWindow):
         title = metadata.get("title", "Unknown")
         artist = metadata.get("artist", "Unknown")
         thumbnail_url = metadata.get("thumbnail_url", "")
+        video_id = metadata.get("video_id", "local")
         
         # Set queue to a single local item so queue controls and state work properly
         item = QueueItem(
-            video_id="local",
+            video_id=video_id,
             title=title,
             artist=artist,
             album="Local",
@@ -939,12 +958,12 @@ class MainWindow(QMainWindow):
         self._update_queue_panel()
         
         self._run_async(self._play_current())
-
+ 
     def _play_local_playlist(self, tracks_metadata: list[dict], start_index: int = 0) -> None:
         queue_items = []
         for m in tracks_metadata:
             item = QueueItem(
-                video_id="local",
+                video_id=m.get("video_id", "local"),
                 title=m.get("title", "Unknown"),
                 artist=m.get("artist", "Unknown"),
                 album=m.get("album", "Local"),
@@ -1014,6 +1033,9 @@ class MainWindow(QMainWindow):
 
     def _on_settings_changed(self, settings: AppSettings) -> None:
         self.settings = settings
+        if hasattr(self, 'now_playing_screen'):
+            self.now_playing_screen.settings = settings
+            self.now_playing_screen.update_lyrics_style()
         from pyrolist.config.paths import AppDirs
         settings.save(AppDirs.settings_file)
         if settings.equalizer.enabled:

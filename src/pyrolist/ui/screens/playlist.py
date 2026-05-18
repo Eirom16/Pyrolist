@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea, QPushButton
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QFont, QPixmap
+from PySide6.QtCore import Qt, Signal, QRectF
+from PySide6.QtGui import QFont, QPixmap, QPainter, QPen, QColor
 from functools import partial
 from loguru import logger
 import asyncio
@@ -10,6 +10,35 @@ from pyrolist.ui.design.icons import Icon
 from pyrolist.utils.image_cache import ImageCache
 
 _image_cache = ImageCache()
+
+class CircularProgress(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(24, 24)
+        self._progress = 0.0 # 0.0 to 100.0
+
+    def set_progress(self, progress: float):
+        self._progress = max(0.0, min(100.0, progress))
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        
+        # Draw background circle
+        bg_pen = QPen(QColor(40, 40, 50, 80), 2)
+        painter.setPen(bg_pen)
+        painter.drawEllipse(2, 2, 20, 20)
+        
+        # Draw progress arc (green matching premium theme)
+        from pyrolist.ui.design import tokens
+        accent_color = QColor(tokens.CURRENT.accent)
+        fg_pen = QPen(accent_color, 2.5)
+        fg_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(fg_pen)
+        
+        span_angle = -int(self._progress * 3.6 * 16) # negative for clockwise
+        painter.drawArc(2, 2, 20, 20, 90 * 16, span_angle)
 
 class PlaylistScreen(QWidget):
     download_playlist_requested = Signal(str, str, str) # playlist_id, title, thumbnail_url
@@ -27,6 +56,16 @@ class PlaylistScreen(QWidget):
         self.on_play_local_playlist = on_play_local_playlist
         self._playlist_id = None
         self._build_ui()
+        
+        # Wire up DownloadManager signals for real-time progress update
+        try:
+            from pyrolist.services.download_manager import DownloadManager
+            dm = DownloadManager.get_instance()
+            dm.download_progress.connect(self._on_download_progress)
+            dm.download_completed.connect(self._on_download_completed)
+            dm.download_error.connect(self._on_download_error)
+        except Exception as e:
+            logger.debug(f"Could not connect to DownloadManager signals: {e}")
 
     def _build_ui(self):
         self.layout = QVBoxLayout(self)
@@ -130,6 +169,7 @@ class PlaylistScreen(QWidget):
         self._local_tracks_meta = []
         for t in playlist_tracks:
             track_meta = {
+                "video_id": t.video_id,
                 "title": t.title,
                 "artist": t.artist,
                 "thumbnail_url": t.thumbnail_url,
@@ -140,7 +180,7 @@ class PlaylistScreen(QWidget):
             
             simulated_data["tracks"].append({
                 "title": t.title,
-                "videoId": "local",
+                "videoId": t.video_id,
                 "artists": [{"name": t.artist}],
                 "duration": "",
                 "thumbnails": [{"url": t.thumbnail_url}] if t.thumbnail_url else []
@@ -195,28 +235,72 @@ class PlaylistScreen(QWidget):
         meta_lbl.setObjectName("playlistMeta")
         info_layout.addWidget(meta_lbl)
         
+        # Create a container layout for download actions/badges
+        dl_layout = QHBoxLayout()
+        dl_layout.setSpacing(12)
+        dl_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        dl_layout.setContentsMargins(0, 8, 0, 0)
+        
+        # Create the label in advance so we can show/hide it dynamically
+        from pyrolist.ui.design import tokens
+        self.label_offline_status = QLabel("📥 Disponible sin conexión")
+        self.label_offline_status.setFont(QFont("Inter", 11, QFont.Weight.Bold))
+        self.label_offline_status.setStyleSheet(f"color: {tokens.CURRENT.accent}; background: transparent;")
+        
+        # Circular Progress loader
+        self.progress_circle = CircularProgress()
+        self.progress_circle.hide()
+        
+        # Check if there are active tasks in the manager for this playlist
+        from pyrolist.services.download_manager import DownloadManager
+        dm = DownloadManager.get_instance()
+        active_tasks = [t for t in dm._tasks.values() if t.parent_playlist_id == self._playlist_id]
+        
         if data.get('is_local_playlist', False) or data.get('is_fully_downloaded', False):
-            from pyrolist.ui.design import tokens
-            btn_dl = QLabel("📥 Disponible sin conexión")
-            btn_dl.setFont(QFont("Inter", 11, QFont.Weight.Bold))
-            btn_dl.setStyleSheet(f"color: {tokens.CURRENT.accent}; margin-top: 12px; background: transparent;")
+            self.label_offline_status.show()
+            dl_layout.addWidget(self.label_offline_status)
         else:
+            self.label_offline_status.hide()
+            
             btn_label = " Descargar Playlist"
             if data.get('is_partially_downloaded', False):
                 btn_label = f" Descargar restantes ({data.get('downloaded_count')}/{track_count} completas)"
                 
-            btn_dl = QPushButton(btn_label)
-            btn_dl.setIcon(Icon.icon("download", color="#0A0A14"))
-            self.btn_dl = btn_dl
+            self.btn_dl = QPushButton(btn_label)
+            self.btn_dl.setIcon(Icon.icon("download", color="#0A0A14"))
             self._update_dl_button_style()
-            btn_dl.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn_dl.clicked.connect(lambda: self.download_playlist_requested.emit(
-                self._playlist_id, 
-                data.get('title', 'Unknown'),
-                thumbnail_url
-            ))
-        
-        info_layout.addWidget(btn_dl)
+            self.btn_dl.setCursor(Qt.CursorShape.PointingHandCursor)
+            
+            # Setup clicked handler
+            def on_dl_click():
+                self.btn_dl.setText(" Descargando... 0%")
+                self.btn_dl.setIcon(Icon.icon("hourglass_empty", color="#0A0A14"))
+                self.btn_dl.setEnabled(False)
+                self.progress_circle.set_progress(0.0)
+                self.progress_circle.show()
+                self.download_playlist_requested.emit(
+                    self._playlist_id, 
+                    data.get('title', 'Unknown'),
+                    thumbnail_url
+                )
+                
+            self.btn_dl.clicked.connect(on_dl_click)
+            
+            dl_layout.addWidget(self.btn_dl)
+            dl_layout.addWidget(self.progress_circle)
+            dl_layout.addWidget(self.label_offline_status)
+            
+            # If there are active tasks, show the downloading state immediately!
+            if active_tasks:
+                total_progress = sum(t.progress for t in active_tasks)
+                overall_pct = total_progress / len(active_tasks)
+                self.btn_dl.setText(f" Descargando... {int(overall_pct)}%")
+                self.btn_dl.setIcon(Icon.icon("hourglass_empty", color="#0A0A14"))
+                self.btn_dl.setEnabled(False)
+                self.progress_circle.set_progress(overall_pct)
+                self.progress_circle.show()
+            
+        info_layout.addLayout(dl_layout)
         info_layout.addStretch()
         
         header_layout.addLayout(info_layout)
@@ -305,3 +389,46 @@ class PlaylistScreen(QWidget):
                 finally:
                     self._in_style_change = False
         super().changeEvent(event)
+
+    def _on_download_progress(self, video_id: str, progress: float, speed: str) -> None:
+        self._update_playlist_download_status()
+
+    def _on_download_completed(self, video_id: str, filepath: str) -> None:
+        self._update_playlist_download_status()
+
+    def _on_download_error(self, video_id: str, error_msg: str) -> None:
+        self._update_playlist_download_status()
+
+    def _update_playlist_download_status(self) -> None:
+        if not self._playlist_id:
+            return
+            
+        from pyrolist.services.download_manager import DownloadManager
+        dm = DownloadManager.get_instance()
+        
+        # Get tasks for this playlist
+        playlist_tasks = [t for t in dm._tasks.values() if t.parent_playlist_id == self._playlist_id]
+        if not playlist_tasks:
+            return
+            
+        # Calculate overall progress
+        total_progress = sum(t.progress for t in playlist_tasks)
+        overall_pct = total_progress / len(playlist_tasks)
+        
+        # Update UI
+        if hasattr(self, 'btn_dl') and isinstance(self.btn_dl, QPushButton) and self.btn_dl.isVisible():
+            self.btn_dl.setText(f" Descargando... {int(overall_pct)}%")
+            self.btn_dl.setIcon(Icon.icon("hourglass_empty", color="#0A0A14"))
+            self.btn_dl.setEnabled(False)
+            
+            if hasattr(self, 'progress_circle'):
+                self.progress_circle.set_progress(overall_pct)
+                self.progress_circle.show()
+                
+            # If all completed, hide download button and circle, and show online badge
+            all_done = all(t.status == "completed" for t in playlist_tasks)
+            if all_done:
+                self.btn_dl.hide()
+                self.progress_circle.hide()
+                if hasattr(self, 'label_offline_status'):
+                    self.label_offline_status.show()

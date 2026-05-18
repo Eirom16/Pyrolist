@@ -16,7 +16,7 @@ _image_cache = ImageCache()
 class PlaylistCard(QWidget):
     clicked = Signal()
 
-    def __init__(self, title: str, description: str = "", thumbnail_url: str = ""):
+    def __init__(self, title: str, description: str = "", thumbnail_url: str = "", is_downloaded: bool = False):
         super().__init__()
         self._title = title
         self._description = description
@@ -32,11 +32,37 @@ class PlaylistCard(QWidget):
         self.checkbox.toggled.connect(lambda checked: self.checkbox.setText(Icon.get("check") if checked else ""))
         self.checkbox.hide()
         self.checkbox.move(10, 10)
+
+        # Offline download badge (absolutely positioned inside top-right corner over thumbnail)
+        self.offline_badge = QLabel(self)
+        self.offline_badge.setFixedSize(20, 20)
+        self.offline_badge.setFont(Icon.font(11))
+        self.offline_badge.setText(Icon.get("download_done"))
+        self.offline_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.offline_badge.setStyleSheet("""
+            QLabel {
+                background-color: #1DB954;
+                color: #FFFFFF;
+                border-radius: 10px;
+                border: 1px solid rgba(0, 0, 0, 0.2);
+            }
+        """)
+        self.offline_badge.move(138, 10)
+        if is_downloaded:
+            self.offline_badge.show()
+        else:
+            self.offline_badge.hide()
         
         self._build_ui()
         
         if self._thumbnail_url:
             asyncio.ensure_future(self._load_thumbnail())
+
+    def set_downloaded(self, is_downloaded: bool) -> None:
+        if is_downloaded:
+            self.offline_badge.show()
+        else:
+            self.offline_badge.hide()
 
     async def _load_thumbnail(self) -> None:
         path = await _image_cache.download(self._thumbnail_url)

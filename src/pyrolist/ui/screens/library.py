@@ -151,6 +151,15 @@ class LibraryScreen(QWidget):
         self._clear_content()
         self.content_layout.addWidget(SkeletonListLoader(row_count=7))
 
+        try:
+            from pyrolist.db.repository import DownloadRepository
+            dl_repo = DownloadRepository()
+            downloads = await dl_repo.get_downloads()
+            self.downloaded_playlist_ids = {d.parent_playlist_id for d in downloads if d.parent_playlist_id}
+        except Exception as e:
+            logger.debug(f"Error fetching downloads: {e}")
+            self.downloaded_playlist_ids = set()
+
         if not self.yt or not self.yt.is_authenticated:
             self._clear_content()
             from pyrolist.ui.design import tokens
@@ -330,7 +339,12 @@ class LibraryScreen(QWidget):
                         thumbnail_url = thumbnails[-1].get('url', '') if thumbnails else ''
                         playlist_id = playlist.get('playlistId', '')
                         
-                        card = PlaylistCard(title=title, description=desc, thumbnail_url=thumbnail_url)
+                        card = PlaylistCard(
+                            title=title,
+                            description=desc,
+                            thumbnail_url=thumbnail_url,
+                            is_downloaded=playlist_id in getattr(self, "downloaded_playlist_ids", set())
+                        )
                         if playlist_id and self.on_navigate:
                             card.clicked.connect(partial(self.on_navigate, f"playlist?id={playlist_id}"))
                         

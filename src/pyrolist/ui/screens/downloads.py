@@ -229,6 +229,7 @@ class DownloadItemWidget(QFrame):
     def _on_play(self):
         if self.file_path and self.on_play_local:
             metadata = {
+                "video_id": self.video_id,
                 "title": self.title,
                 "artist": self.artist,
                 "thumbnail_url": self.thumbnail_url
@@ -467,6 +468,7 @@ class DownloadPlaylistItemWidget(QFrame):
             tracks_meta = []
             for t in self.tracks:
                 tracks_meta.append({
+                    "video_id": t.video_id,
                     "title": t.title,
                     "artist": t.artist,
                     "thumbnail_url": t.thumbnail_url,

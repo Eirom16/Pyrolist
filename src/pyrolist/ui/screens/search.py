@@ -361,6 +361,16 @@ class SearchScreen(QWidget):
         try:
             self._clear_results()
             self._results_layout.addWidget(SkeletonListLoader(row_count=6))
+            
+            try:
+                from pyrolist.db.repository import DownloadRepository
+                dl_repo = DownloadRepository()
+                downloads = await dl_repo.get_downloads()
+                self.downloaded_playlist_ids = {d.parent_playlist_id for d in downloads if d.parent_playlist_id}
+            except Exception as e:
+                logger.debug(f"Error fetching downloads: {e}")
+                self.downloaded_playlist_ids = set()
+
             results = await self.yt.search(query, limit=40)
             self._all_results = results
             self._render_filtered()
@@ -498,7 +508,12 @@ class SearchScreen(QWidget):
 
         elif cat == "playlist":
             title = item.get("title", "Unknown")
-            return PlaylistCard(title=title, thumbnail_url=thumb_url)
+            playlist_id = item.get("playlistId", "")
+            return PlaylistCard(
+                title=title,
+                thumbnail_url=thumb_url,
+                is_downloaded=playlist_id in getattr(self, "downloaded_playlist_ids", set())
+            )
 
         return None
 

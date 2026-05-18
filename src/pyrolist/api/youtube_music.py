@@ -394,13 +394,14 @@ class YouTubeMusicClient:
             return {}
 
     async def get_watch_playlist(self, video_id: str = None, limit: int = 25) -> dict:
-        """Get watch playlist - requires auth."""
-        if not self._is_authenticated or not self._ytmusicapi:
+        """Get watch playlist - uses public or authenticated client."""
+        client = self._ytmusicapi or self._ytmusicapi_public
+        if not client:
             return {'tracks': []}
 
         def _get_watch():
             try:
-                return self._ytmusicapi.get_watch_playlist(videoId=video_id, limit=limit)
+                return client.get_watch_playlist(videoId=video_id, limit=limit)
             except Exception as e:
                 logger.error(f"get_watch_playlist error: {e}")
                 return {'tracks': []}

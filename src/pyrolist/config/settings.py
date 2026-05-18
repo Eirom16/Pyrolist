@@ -43,6 +43,17 @@ class IntegrationsSettings(BaseModel):
     discord_rpc_enabled: bool = False
     mpris_enabled: bool = True
 
+class SubtitleSettings(BaseModel):
+    alignment: str = "center"          # "left", "center", "right"
+    font_size: int = 18                # Tamaño de fuente en pt
+    line_spacing: float = 1.5          # Interlineado de párrafos
+    delay_ms: int = 0                  # Retraso/Adelanto manual en milisegundos
+    auto_scroll: bool = True           # Auto-desplazamiento vertical al cantar
+    animation_style: str = "glow"      # "none", "fade", "glow", "slide", "karaoke"
+    glow_effect: bool = True           # Animación de brillo y aumento de escala
+    text_color_active: str = "#FFFFFF"  # Color de la línea cantándose
+    text_color_inactive: str = "#6E6E77" # Color de las líneas previas/siguientes
+
 class AppSettings(BaseModel):
     google_client_id: str = ""
     google_client_secret: str = ""
@@ -51,6 +62,7 @@ class AppSettings(BaseModel):
     equalizer: EqualizerSettings = Field(default_factory=EqualizerSettings)
     network: NetworkSettings = Field(default_factory=NetworkSettings)
     integrations: IntegrationsSettings = Field(default_factory=IntegrationsSettings)
+    subtitles: SubtitleSettings = Field(default_factory=SubtitleSettings)
     language: str = "es"
     last_video_id: str | None = None
 

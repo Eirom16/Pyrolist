@@ -138,6 +138,15 @@ class HomeScreen(QWidget):
         self._clear_content()
         self._create_loading_state()
 
+        try:
+            from pyrolist.db.repository import DownloadRepository
+            dl_repo = DownloadRepository()
+            downloads = await dl_repo.get_downloads()
+            self.downloaded_playlist_ids = {d.parent_playlist_id for d in downloads if d.parent_playlist_id}
+        except Exception as e:
+            logger.debug(f"Error fetching downloaded playlists for badge checks: {e}")
+            self.downloaded_playlist_ids = set()
+
         from loguru import logger
         logger.info(f"Home load: yt={self.yt}, is_auth={getattr(self.yt, 'is_authenticated', False) if self.yt else 'No yt'}")
 
@@ -286,7 +295,12 @@ class HomeScreen(QWidget):
                     )
                     self._connect_card_signals(card)
                 elif playlist_id:
-                    card = PlaylistCard(title=str(title), description=artist_names, thumbnail_url=thumbnail_url)
+                    card = PlaylistCard(
+                        title=str(title),
+                        description=artist_names,
+                        thumbnail_url=thumbnail_url,
+                        is_downloaded=playlist_id in getattr(self, "downloaded_playlist_ids", set())
+                    )
                     if self.on_navigate:
                         card.clicked.connect(partial(self.on_navigate, f"playlist?id={playlist_id}"))
                 elif browse_id:
@@ -330,7 +344,11 @@ class HomeScreen(QWidget):
                     thumbnail_url = thumbnails[-1].get("url", "") if thumbnails else ""
                     playlist_id = playlist.get("playlistId", "")
                     
-                    playlist_card = PlaylistCard(title=title, thumbnail_url=thumbnail_url)
+                    playlist_card = PlaylistCard(
+                        title=title,
+                        thumbnail_url=thumbnail_url,
+                        is_downloaded=playlist_id in getattr(self, "downloaded_playlist_ids", set())
+                    )
                     if playlist_id and self.on_navigate:
                         playlist_card.clicked.connect(partial(self.on_navigate, f"playlist?id={playlist_id}"))
                     grid.addWidget(playlist_card, 0, i)
@@ -489,7 +507,13 @@ class HomeScreen(QWidget):
                     elif "playlist" in content_type.lower():
                         playlist = content.get("playlist", {})
                         title_text = playlist.get("title", "Playlist")
-                        card = PlaylistCard(title=title_text)
+                        playlist_id = playlist.get("playlistId", "")
+                        card = PlaylistCard(
+                            title=title_text,
+                            is_downloaded=playlist_id in getattr(self, "downloaded_playlist_ids", set())
+                        )
+                        if playlist_id and self.on_navigate:
+                            card.clicked.connect(partial(self.on_navigate, f"playlist?id={playlist_id}"))
                         grid.addWidget(card, i // 3, i % 3)
 
                     elif "song" in content_type.lower() or "video" in content_type.lower():

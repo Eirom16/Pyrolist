@@ -11,6 +11,7 @@ from pyrolist.ui.screens.settings.appearance import AppearanceSettingsScreen
 from pyrolist.ui.screens.settings.equalizer import EqualizerSettingsScreen
 from pyrolist.ui.screens.settings.player_settings import PlayerSettingsScreen
 from pyrolist.ui.screens.settings.storage import StorageSettingsScreen
+from pyrolist.ui.screens.settings.subtitles import SubtitlesSettingsScreen
 from pyrolist.ui.widgets.fade_stack import FadeStackedWidget
 
 
@@ -19,6 +20,7 @@ class SettingsScreen(QWidget):
         ("palette", "Apariencia"),
         ("graphic_eq", "Reproductor"),
         ("equalizer", "Ecualizador"),
+        ("lyrics", "Letras y Subtítulos"),
         ("person", "Cuentas"),
         ("storage", "Almacenamiento"),
         ("info", "Acerca de"),
@@ -76,6 +78,7 @@ class SettingsScreen(QWidget):
             AppearanceSettingsScreen(self.settings, self.on_settings_changed),
             PlayerSettingsScreen(self.settings, self.on_settings_changed),
             EqualizerSettingsScreen(self.settings, self.on_settings_changed),
+            SubtitlesSettingsScreen(self.settings, self.on_settings_changed),
             self.accounts_screen,
             StorageSettingsScreen(self.settings),
             AboutScreen(),
