@@ -13,6 +13,7 @@ class HistoryScreen(QWidget):
     add_to_queue_requested = Signal(str, str, str, str)
     like_requested = Signal(str, object)
     add_to_playlist_requested = Signal(str, str)
+    delete_download_requested = Signal(str)
 
     def __init__(self, yt_client, on_play_song):
         super().__init__()
@@ -26,6 +27,7 @@ class HistoryScreen(QWidget):
         card.add_to_queue_requested.connect(lambda *a: self.add_to_queue_requested.emit(*a))
         card.like_requested.connect(lambda *a: self.like_requested.emit(*a))
         card.add_to_playlist_requested.connect(lambda *a: self.add_to_playlist_requested.emit(*a))
+        card.delete_download_requested.connect(lambda *a: self.delete_download_requested.emit(*a))
 
     def _build_ui(self):
         layout = QVBoxLayout(self)

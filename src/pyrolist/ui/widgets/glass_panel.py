@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Property, QEasingCurve, QPoint, Qt, QPropertyAnimation
 from PySide6.QtGui import QBrush, QColor, QLinearGradient, QPainter, QPaintEvent, QPen
-from PySide6.QtWidgets import QGraphicsDropShadowEffect, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QVBoxLayout, QWidget
 
 
 class GlassPanel(QWidget):
@@ -14,14 +14,8 @@ class GlassPanel(QWidget):
         self._blur_radius = blur_radius
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(4)
-
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(40)
-        shadow.setOffset(0, 8)
-        shadow.setColor(QColor(0, 0, 0, 100))
-        self.setGraphicsEffect(shadow)
 
         self._opacity_anim = QPropertyAnimation(self, b"panel_opacity", self)
         self._opacity_anim.setDuration(200)

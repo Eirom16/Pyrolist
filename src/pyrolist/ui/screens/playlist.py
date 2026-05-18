@@ -13,6 +13,12 @@ _image_cache = ImageCache()
 
 class PlaylistScreen(QWidget):
     download_playlist_requested = Signal(str, str, str) # playlist_id, title, thumbnail_url
+    download_requested = Signal(str, str, str, str)
+    play_next_requested = Signal(str, str, str, str)
+    add_to_queue_requested = Signal(str, str, str, str)
+    add_to_playlist_requested = Signal(str, str)
+    like_requested = Signal(str, object)
+    delete_download_requested = Signal(str)
     
     def __init__(self, yt_client, on_play_song, on_play_local_playlist=None):
         super().__init__()
@@ -212,6 +218,12 @@ class PlaylistScreen(QWidget):
                     on_play=partial(self._handle_play, video_id, title, artist_names, i),
                     video_id=video_id
                 )
+                card.download_requested.connect(self.download_requested.emit)
+                card.play_next_requested.connect(self.play_next_requested.emit)
+                card.add_to_queue_requested.connect(self.add_to_queue_requested.emit)
+                card.add_to_playlist_requested.connect(self.add_to_playlist_requested.emit)
+                card.like_requested.connect(self.like_requested.emit)
+                card.delete_download_requested.connect(self.delete_download_requested.emit)
                 self.content_layout.addWidget(card)
                 
         self.content_layout.addStretch()

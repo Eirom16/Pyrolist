@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from PySide6.QtWidgets import QComboBox, QVBoxLayout, QWidget
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QVBoxLayout, QWidget
 
 from pyrolist.ui.screens.settings.components import AccentColorPicker, SettingsRow, SettingsSection, page_title
 from pyrolist.ui.widgets.animated_toggle import AnimatedToggle
+from pyrolist.ui.widgets.glass_combobox import GlassComboBox
 
 
 class AppearanceSettingsScreen(QWidget):
@@ -29,12 +31,12 @@ class AppearanceSettingsScreen(QWidget):
         dynamic.toggled.connect(lambda checked: self._set_appearance("use_dynamic_color", checked))
         theme.add_row(SettingsRow("Color dinámico", "Cambia el acento según el artwork actual", dynamic))
 
-        mode = QComboBox()
+        mode = GlassComboBox()
         mode.addItems(["dark", "light", "system"])
         mode.setCurrentText(self.settings.appearance.theme_mode)
         mode.currentTextChanged.connect(lambda value: self._set_appearance("theme_mode", value))
+        
         self.mode_combo = mode
-        self._update_combo_style()
         theme.add_row(SettingsRow("Tema", "Modo visual preferido", mode))
         layout.addWidget(theme)
 
@@ -59,45 +61,5 @@ class AppearanceSettingsScreen(QWidget):
         setattr(self.settings.appearance, key, value)
         self.on_changed(self.settings)
 
-    def _update_combo_style(self) -> None:
-        if hasattr(self, 'mode_combo') and isinstance(self.mode_combo, QComboBox):
-            from pyrolist.ui.design import tokens
-            self.mode_combo.setStyleSheet(f"""
-                QComboBox {{
-                    background-color: {tokens.CURRENT.bg_elevated};
-                    color: {tokens.CURRENT.text_primary};
-                    border: 1px solid {tokens.CURRENT.border};
-                    border-radius: 8px;
-                    padding: 6px 12px;
-                    font-family: Inter;
-                    font-size: 13px;
-                    min-width: 120px;
-                }}
-                QComboBox:focus {{
-                    border: 1px solid {tokens.CURRENT.accent};
-                }}
-                QComboBox::drop-down {{
-                    border: none;
-                    width: 20px;
-                }}
-                QComboBox QAbstractItemView {{
-                    background-color: {tokens.CURRENT.bg_surface};
-                    color: {tokens.CURRENT.text_primary};
-                    border: 1px solid {tokens.CURRENT.border};
-                    border-radius: 8px;
-                    selection-background-color: {tokens.CURRENT.accent};
-                    selection-color: {tokens.CURRENT.text_on_accent};
-                }}
-            """)
 
-    def changeEvent(self, event) -> None:
-        from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-            if not getattr(self, '_in_style_change', False):
-                self._in_style_change = True
-                try:
-                    self._update_combo_style()
-                finally:
-                    self._in_style_change = False
-        super().changeEvent(event)
 

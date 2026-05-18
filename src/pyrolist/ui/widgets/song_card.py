@@ -16,6 +16,7 @@ class SongCard(QWidget):
     add_to_queue_requested = Signal(str, str, str, str)  # video_id, title, artist, thumbnail_url
     add_to_playlist_requested = Signal(str, str) # video_id, title
     like_requested = Signal(str, object)  # video_id, button_instance
+    delete_download_requested = Signal(str)  # video_id
 
     def __init__(self, title, artist, duration, thumbnail_url="", on_play=None, video_id="", is_liked=False):
         super().__init__()
@@ -225,12 +226,29 @@ class SongCard(QWidget):
         if self._video_id:
             self.add_to_playlist_requested.emit(self._video_id, self._title)
 
+    def _on_delete_download_clicked(self):
+        if self._video_id:
+            self.delete_download_requested.emit(self._video_id)
+
     def _show_context_menu(self):
-        self._current_menu = SongContextMenu(parent=self.window())
-        self._current_menu.download.connect(self._on_download_clicked)
+        asyncio.create_task(self._show_context_menu_async())
+
+    async def _show_context_menu_async(self):
+        from pyrolist.db.repository import DownloadRepository
+        repo = DownloadRepository()
+        existing = await repo.get_download(self._video_id) if self._video_id else None
+        is_downloaded = existing is not None
+        
+        self._current_menu = SongContextMenu(parent=self.window(), is_downloaded=is_downloaded)
         self._current_menu.play_next.connect(self._on_play_next_clicked)
         self._current_menu.add_to_queue.connect(self._on_add_to_queue_clicked)
         self._current_menu.add_to_playlist.connect(self._on_add_to_playlist_clicked)
+        
+        if is_downloaded:
+            self._current_menu.delete_download.connect(self._on_delete_download_clicked)
+        else:
+            self._current_menu.download.connect(self._on_download_clicked)
+            
         pos = self.menu_btn.mapToGlobal(self.menu_btn.rect().bottomLeft())
         self._current_menu.popup_at(pos)
 

@@ -185,6 +185,10 @@ class MainWindow(QMainWindow):
                 screen.download_playlist_requested.connect(self._on_download_playlist_requested)
             if hasattr(screen, 'like_requested'):
                 screen.like_requested.connect(self._on_like_requested)
+            if hasattr(screen, 'delete_download_requested'):
+                screen.delete_download_requested.connect(self._on_delete_download_requested)
+            if hasattr(screen, 'delete_playlist_requested'):
+                screen.delete_playlist_requested.connect(self._on_delete_playlist_requested)
 
         if hasattr(self.now_playing_screen, 'queue_tab'):
             self.now_playing_screen.queue_tab.like_requested.connect(self._on_like_requested)
@@ -267,6 +271,15 @@ class MainWindow(QMainWindow):
 
     def _on_download_requested(self, video_id, title, artist, thumb_url):
         logger.info(f"Download requested: {title} by {artist}")
+        self._run_async(self._on_download_requested_async(video_id, title, artist, thumb_url))
+
+    async def _on_download_requested_async(self, video_id, title, artist, thumb_url):
+        existing = await self.download_manager._repo.get_download(video_id)
+        if existing:
+            self.statusBar().showMessage(f"Ya descargada: {title}", 3000)
+            ToastNotification.show(self, f"Ya descargada: {title}", "success")
+            return
+        
         if self.download_manager.add_download(video_id, title, artist, thumb_url):
             self.statusBar().showMessage(f"Descargando: {title}", 3000)
             ToastNotification.show(self, f"Descargando: {title}", "info")
@@ -289,10 +302,18 @@ class MainWindow(QMainWindow):
             tracks = data.get('tracks', [])
             
             queued = 0
+            already_downloaded = 0
             for track in tracks:
                 vid = track.get('videoId')
                 if not vid:
                     continue
+                
+                # Check if already downloaded
+                existing = await self.download_manager._repo.get_download(vid)
+                if existing:
+                    already_downloaded += 1
+                    continue
+                
                 t_title = track.get('title', 'Unknown')
                 artists = track.get('artists', [])
                 artist_names = ", ".join([a.get('name', '') for a in artists]) if isinstance(artists, list) else str(artists)
@@ -302,7 +323,11 @@ class MainWindow(QMainWindow):
                 if self.download_manager.add_download(vid, t_title, artist_names, track_thumb, playlist_id, title):
                     queued += 1
             
-            self.statusBar().showMessage(f"{queued} canciones añadidas a cola", 4000)
+            if already_downloaded > 0:
+                self.statusBar().showMessage(f"{queued} añadidas a cola • {already_downloaded} ya descargadas", 5000)
+                ToastNotification.show(self, f"{queued} añadidas, {already_downloaded} omitidas (ya descargadas).", "success")
+            else:
+                self.statusBar().showMessage(f"{queued} canciones añadidas a cola", 4000)
         except Exception as e:
             logger.error(f"Error downloading playlist: {e}")
             self.statusBar().showMessage("Error al iniciar descarga de playlist", 4000)
@@ -310,6 +335,70 @@ class MainWindow(QMainWindow):
     def _on_download_error(self, video_id, error):
         self.statusBar().showMessage(f"Error en descarga: {error}", 5000)
         ToastNotification.show(self, f"Error en descarga: {error}", "error")
+
+    def _on_delete_download_requested(self, video_id: str):
+        self._run_async(self._delete_download_async(video_id))
+
+    async def _delete_download_async(self, video_id: str):
+        from pathlib import Path
+        from pyrolist.db.repository import DownloadRepository
+        repo = DownloadRepository()
+        d = await repo.get_download(video_id)
+        if d:
+            title = d.title
+            if d.file_path:
+                try:
+                    p = Path(d.file_path)
+                    if p.exists():
+                        p.unlink()
+                        lrc_path = p.with_suffix(".lrc")
+                        if lrc_path.exists():
+                            lrc_path.unlink()
+                except Exception as e:
+                    logger.error(f"Error deleting file {d.file_path}: {e}")
+            await repo.remove_download(video_id)
+            self.statusBar().showMessage(f"Descarga eliminada: {title}", 3000)
+            ToastNotification.show(self, f"Descarga eliminada: {title}", "info")
+            
+            # Reload current screen
+            current_screen = self.stack.currentWidget()
+            if current_screen == self.downloads_screen:
+                await self.downloads_screen.load()
+            elif current_screen == self.playlist_screen:
+                await self.playlist_screen.load(self.playlist_screen._playlist_id)
+            elif current_screen == self.library_screen:
+                await self.library_screen.load()
+
+    def _on_delete_playlist_requested(self, playlist_id: str):
+        self._run_async(self._delete_playlist_async(playlist_id))
+
+    async def _delete_playlist_async(self, playlist_id: str):
+        from pathlib import Path
+        from pyrolist.db.repository import DownloadRepository
+        repo = DownloadRepository()
+        downloads = await repo.get_downloads()
+        
+        count = 0
+        playlist_title = ""
+        for d in downloads:
+            if d.parent_playlist_id == playlist_id:
+                playlist_title = d.parent_playlist_title or playlist_title
+                if d.file_path:
+                    try:
+                        p = Path(d.file_path)
+                        if p.exists():
+                            p.unlink()
+                            lrc_path = p.with_suffix(".lrc")
+                            if lrc_path.exists():
+                                lrc_path.unlink()
+                    except Exception as e:
+                        logger.error(f"Error deleting file {d.file_path}: {e}")
+                await repo.remove_download(d.video_id)
+                count += 1
+                
+        self.statusBar().showMessage(f"Playlist eliminada: {playlist_title or playlist_id} ({count} canciones)", 4000)
+        ToastNotification.show(self, f"Playlist local eliminada", "info")
+        await self._navigate("downloads")
 
     def _on_play_next_requested(self, video_id, title, artist, thumb_url):
         item = QueueItem(
@@ -585,6 +674,7 @@ class MainWindow(QMainWindow):
             "library": self.library_screen,
             "history": self.history_screen,
             "search": self.search_screen,
+            "downloads": self.downloads_screen,
         }
         screen = screens.get(route)
         if screen and hasattr(screen, "load"):

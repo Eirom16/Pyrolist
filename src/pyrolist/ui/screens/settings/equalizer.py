@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QComboBox, QFrame, QHBoxLayout, QLabel, QSlider, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QSlider, QVBoxLayout, QWidget
 
 from pyrolist.config.themes import EQ_BAND_LABELS, EQ_PRESETS
 from pyrolist.ui.design.fonts import AppFont
 from pyrolist.ui.screens.settings.components import SettingsRow, SettingsSection, page_title
 from pyrolist.ui.widgets.animated_toggle import AnimatedToggle
 from pyrolist.ui.widgets.ripple_button import RippleButton
+from pyrolist.ui.widgets.glass_combobox import GlassComboBox
 
 
 class EqBandSlider(QWidget):
@@ -92,10 +93,11 @@ class EqualizerSettingsScreen(QWidget):
         enabled.toggled.connect(self._on_enabled_changed)
         controls.add_row(SettingsRow("Activado", "Aplica el ecualizador de 10 bandas", enabled))
 
-        self.preset_combo = QComboBox()
+        self.preset_combo = GlassComboBox()
         self.preset_combo.addItems(list(EQ_PRESETS.keys()))
         self.preset_combo.setCurrentText(self.settings.equalizer.preset_name)
         self.preset_combo.currentTextChanged.connect(self._on_preset_changed)
+        
         controls.add_row(SettingsRow("Preset", "Curva base para ajustar rapido", self.preset_combo))
         layout.addWidget(controls)
 
@@ -149,36 +151,7 @@ class EqualizerSettingsScreen(QWidget):
                     border: 1px solid rgba({r},{g},{b},0.08);
                 }}
             """)
-            
-        # 2. Preset ComboBox styles
-        if hasattr(self, "preset_combo") and self.preset_combo:
-            self.preset_combo.setStyleSheet(f"""
-                QComboBox {{
-                    background-color: {tokens.CURRENT.bg_elevated};
-                    color: {tokens.CURRENT.text_primary};
-                    border: 1px solid {tokens.CURRENT.border};
-                    border-radius: 8px;
-                    padding: 6px 12px;
-                    font-family: Inter;
-                    font-size: 13px;
-                    min-width: 120px;
-                }}
-                QComboBox:focus {{
-                    border: 1px solid {tokens.CURRENT.accent};
-                }}
-                QComboBox::drop-down {{
-                    border: none;
-                    width: 20px;
-                }}
-                QComboBox QAbstractItemView {{
-                    background-color: {tokens.CURRENT.bg_surface};
-                    color: {tokens.CURRENT.text_primary};
-                    border: 1px solid {tokens.CURRENT.border};
-                    border-radius: 8px;
-                    selection-background-color: {tokens.CURRENT.accent};
-                    selection-color: {tokens.CURRENT.text_on_accent};
-                }}
-            """)
+
             
         # 3. Preamp value text color
         if hasattr(self, "preamp_value") and self.preamp_value:

@@ -13,6 +13,13 @@ from pyrolist.ui.widgets.animated_progress import AnimatedProgressBar
 _image_cache = ImageCache()
 
 class NowPlayingScreen(QWidget):
+    download_requested = Signal(str, str, str, str)
+    play_next_requested = Signal(str, str, str, str)
+    add_to_queue_requested = Signal(str, str, str, str)
+    like_requested = Signal(str, object)
+    add_to_playlist_requested = Signal(str, str)
+    delete_download_requested = Signal(str)
+
     def __init__(self, player, queue, yt_client, play_queue_item_cb):
         super().__init__()
         self.player = player
@@ -427,6 +434,12 @@ class NowPlayingScreen(QWidget):
                     on_play=on_play,
                     video_id=video_id,
                 )
+                card.download_requested.connect(lambda *a: self.download_requested.emit(*a))
+                card.play_next_requested.connect(lambda *a: self.play_next_requested.emit(*a))
+                card.add_to_queue_requested.connect(lambda *a: self.add_to_queue_requested.emit(*a))
+                card.like_requested.connect(lambda *a: self.like_requested.emit(*a))
+                card.add_to_playlist_requested.connect(lambda *a: self.add_to_playlist_requested.emit(*a))
+                card.delete_download_requested.connect(lambda *a: self.delete_download_requested.emit(*a))
                 self.related_layout.addWidget(card)
 
         self.related_layout.addStretch()

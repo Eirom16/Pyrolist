@@ -13,17 +13,11 @@ class SongContextMenu(GlassPanel):
     add_to_queue = Signal()
     add_to_playlist = Signal()
     download = Signal()
+    delete_download = Signal()
 
-    ACTIONS = [
-        ("play_arrow", "Reproducir a continuacion", "play_next"),
-        ("queue_music", "Anadir a la cola", "add_to_queue"),
-        ("playlist_add", "Anadir a playlist", "add_to_playlist"),
-        None,
-        ("download", "Descargar", "download"),
-    ]
-
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, is_downloaded: bool = False):
         super().__init__(parent)
+        self.is_downloaded = is_downloaded
         self.setMinimumWidth(250)
         self._build()
 
@@ -32,7 +26,19 @@ class SongContextMenu(GlassPanel):
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(2)
 
-        for action in self.ACTIONS:
+        actions = [
+            ("play_arrow", "Reproducir a continuacion", "play_next"),
+            ("queue_music", "Anadir a la cola", "add_to_queue"),
+            ("playlist_add", "Anadir a playlist", "add_to_playlist"),
+            None,
+        ]
+        
+        if self.is_downloaded:
+            actions.append(("delete", "Borrar descarga", "delete_download"))
+        else:
+            actions.append(("download", "Descargar", "download"))
+
+        for action in actions:
             if action is None:
                 sep = QFrame()
                 sep.setFrameShape(QFrame.Shape.HLine)
@@ -46,25 +52,48 @@ class SongContextMenu(GlassPanel):
         button = QPushButton()
         button.setFixedHeight(40)
         button.setCursor(Qt.CursorShape.PointingHandCursor)
-        button.setStyleSheet("""
-            QPushButton {
-                background: transparent;
-                border: none;
-                border-radius: 10px;
-                text-align: left;
-                padding: 0;
-            }
-            QPushButton:hover {
-                background: rgba(167,139,250,0.10);
-            }
-        """)
+        
+        if icon_name == "delete":
+            button.setStyleSheet("""
+                QPushButton {
+                    background: transparent;
+                    border: none;
+                    border-radius: 10px;
+                    text-align: left;
+                    padding: 0;
+                }
+                QPushButton:hover {
+                    background: rgba(239, 68, 68, 0.15);
+                }
+            """)
+        else:
+            button.setStyleSheet("""
+                QPushButton {
+                    background: transparent;
+                    border: none;
+                    border-radius: 10px;
+                    text-align: left;
+                    padding: 0;
+                }
+                QPushButton:hover {
+                    background: rgba(167,139,250,0.10);
+                }
+            """)
+            
         row = QHBoxLayout(button)
         row.setContentsMargins(10, 0, 10, 0)
         row.setSpacing(12)
-        icon = Icon.label(icon_name, 16, "#9B9BC0")
+        
         text = QLabel(label)
         text.setFont(AppFont.body(13))
-        text.setStyleSheet("color: #F1F0FF; background: transparent;")
+        
+        if icon_name == "delete":
+            icon = Icon.label(icon_name, 16, "#EF4444")
+            text.setStyleSheet("color: #EF4444; background: transparent;")
+        else:
+            icon = Icon.label(icon_name, 16, "#9B9BC0")
+            text.setStyleSheet("color: #F1F0FF; background: transparent;")
+            
         icon.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         text.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         row.addWidget(icon)

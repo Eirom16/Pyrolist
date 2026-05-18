@@ -4,7 +4,7 @@ import asyncio
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFontMetrics, QPixmap
-from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget, QPushButton
 
 from pyrolist.ui.design.fonts import AppFont
 from pyrolist.ui.design.icons import Icon
@@ -21,7 +21,20 @@ class PlaylistCard(QWidget):
         self._title = title
         self._description = description
         self._thumbnail_url = thumbnail_url
+        
+        # Selection mode checkbox (absolutely positioned inside top-left corner)
+        self.checkbox = QPushButton(self)
+        self.checkbox.setFixedSize(24, 24)
+        self.checkbox.setCheckable(True)
+        self.checkbox.setChecked(False)
+        self.checkbox.setFont(Icon.font(14))
+        self.checkbox.setText("")
+        self.checkbox.toggled.connect(lambda checked: self.checkbox.setText(Icon.get("check") if checked else ""))
+        self.checkbox.hide()
+        self.checkbox.move(10, 10)
+        
         self._build_ui()
+        
         if self._thumbnail_url:
             asyncio.ensure_future(self._load_thumbnail())
 
@@ -103,13 +116,38 @@ class PlaylistCard(QWidget):
         self.title_label.setStyleSheet(f"color: {text_primary}; background: transparent;")
         if hasattr(self, 'desc_label'):
             self.desc_label.setStyleSheet(f"color: {text_secondary}; background: transparent;")
+            
+        self.checkbox.setStyleSheet(f"""
+            QPushButton {{
+                background-color: rgba(30, 30, 40, 0.8);
+                border: 2px solid {border_color};
+                border-radius: 12px;
+                color: #FFFFFF;
+            }}
+            QPushButton:checked {{
+                background-color: {accent};
+                border-color: {accent};
+                color: #FFFFFF;
+            }}
+        """)
 
     def _elide(self, text: str, width: int) -> str:
         return QFontMetrics(AppFont.label(10)).elidedText(text, Qt.TextElideMode.ElideRight, width)
 
+    def set_selection_mode(self, enabled: bool) -> None:
+        self.selection_mode = enabled
+        if enabled:
+            self.checkbox.show()
+        else:
+            self.checkbox.hide()
+            self.checkbox.setChecked(False)
+
     def mousePressEvent(self, event) -> None:
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.clicked.emit()
+        if getattr(self, "selection_mode", False):
+            self.checkbox.setChecked(not self.checkbox.isChecked())
+        else:
+            if event.button() == Qt.MouseButton.LeftButton:
+                self.clicked.emit()
         super().mousePressEvent(event)
 
     def changeEvent(self, event) -> None:

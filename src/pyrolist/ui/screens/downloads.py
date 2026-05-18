@@ -14,6 +14,7 @@ from pyrolist.db.repository import DownloadRepository
 
 class DownloadItemWidget(QFrame):
     like_requested = Signal(str, object)
+    delete_requested = Signal(str)
 
     def __init__(self, video_id, title, artist, thumbnail_url, parent_playlist_title=None, on_play_local=None):
         super().__init__()
@@ -34,6 +35,17 @@ class DownloadItemWidget(QFrame):
         
         layout = QHBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
+        
+        # Checkbox for selection mode
+        self.checkbox = QPushButton()
+        self.checkbox.setFixedSize(20, 20)
+        self.checkbox.setCheckable(True)
+        self.checkbox.setChecked(False)
+        self.checkbox.setFont(Icon.font(12))
+        self.checkbox.setText("")
+        self.checkbox.toggled.connect(lambda checked: self.checkbox.setText(Icon.get("check") if checked else ""))
+        self.checkbox.hide()
+        layout.addWidget(self.checkbox)
         
         self.thumb = QLabel()
         self.thumb.setFixedSize(48, 48)
@@ -81,6 +93,15 @@ class DownloadItemWidget(QFrame):
         self.play_btn.hide()
         layout.addWidget(self.play_btn)
         
+        # Delete button
+        self.btn_delete = IconButton(size=36, active_color="#EF4444")
+        self.btn_delete.setText(Icon.get("delete"))
+        self.btn_delete.setFont(Icon.font(20))
+        self.btn_delete.setFixedSize(36, 36)
+        self.btn_delete.clicked.connect(self._on_delete)
+        self.btn_delete.hide()
+        layout.addWidget(self.btn_delete)
+        
         self._update_item_styles()
 
     def _update_item_styles(self) -> None:
@@ -113,6 +134,20 @@ class DownloadItemWidget(QFrame):
         self.artist_lbl.setStyleSheet(f"color: {text_secondary}; font-size: 12px; background: transparent; border: none;")
         self.status_lbl.setStyleSheet(f"color: {text_secondary}; font-size: 12px; background: transparent; border: none;")
         
+        self.checkbox.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent;
+                border: 2px solid {border};
+                border-radius: 10px;
+                color: #FFFFFF;
+            }}
+            QPushButton:checked {{
+                background-color: {accent};
+                border-color: {accent};
+                color: #FFFFFF;
+            }}
+        """)
+        
         is_liked = getattr(self.btn_like, '_active', False)
         if is_liked:
             self.btn_like.setStyleSheet("QPushButton { color: #F472B6; background: transparent; border: none; }")
@@ -131,6 +166,19 @@ class DownloadItemWidget(QFrame):
             """)
             
         self.play_btn.setStyleSheet(f"background: transparent; color: {text_primary}; border: none;")
+        if hasattr(self, 'btn_delete'):
+            self.btn_delete.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: transparent;
+                    color: {text_secondary};
+                    border: none;
+                    border-radius: 18px;
+                }}
+                QPushButton:hover {{
+                    background-color: rgba(239, 68, 68, 0.15);
+                    color: #EF4444;
+                }}
+            """)
         self.progress_bar.setStyleSheet(f"""
             QProgressBar {{ background: {bg_high}; border-radius: 2px; }}
             QProgressBar::chunk {{ background: {accent}; border-radius: 2px; }}
@@ -157,6 +205,7 @@ class DownloadItemWidget(QFrame):
         self.progress_bar.show()
         self.status_lbl.setText("Descargando...")
         self.play_btn.hide()
+        self.btn_delete.hide()
 
     def update_progress(self, percent, speed):
         self.progress_bar.setValue(int(percent))
@@ -168,12 +217,14 @@ class DownloadItemWidget(QFrame):
         self.status_lbl.setText("Completado")
         self.status_lbl.hide()
         self.play_btn.show()
+        self.btn_delete.show()
 
     def set_error(self, msg):
         self.progress_bar.hide()
         self.status_lbl.setText("Error")
         self.status_lbl.setStyleSheet("color: #EF4444; font-size: 12px; background: transparent; border: none;")
         self.play_btn.hide()
+        self.btn_delete.show()
 
     def _on_play(self):
         if self.file_path and self.on_play_local:
@@ -183,6 +234,9 @@ class DownloadItemWidget(QFrame):
                 "thumbnail_url": self.thumbnail_url
             }
             self.on_play_local(self.file_path, metadata)
+
+    def _on_delete(self):
+        self.delete_requested.emit(self.video_id)
 
     async def _load_thumbnail(self, url: str):
         from pyrolist.utils.image_cache import ImageCache
@@ -205,6 +259,28 @@ class DownloadItemWidget(QFrame):
                 finally:
                     self._in_style_change = False
         super().changeEvent(event)
+
+    def set_selection_mode(self, enabled: bool):
+        self.selection_mode = enabled
+        if enabled:
+            self.checkbox.show()
+            self.btn_like.hide()
+            self.play_btn.hide()
+            self.btn_delete.hide()
+        else:
+            self.checkbox.hide()
+            self.checkbox.setChecked(False)
+            self.btn_like.show()
+            if self.file_path:
+                self.play_btn.show()
+                self.btn_delete.show()
+
+    def mousePressEvent(self, event) -> None:
+        if getattr(self, "selection_mode", False):
+            self.checkbox.setChecked(not self.checkbox.isChecked())
+            event.accept()
+        else:
+            super().mousePressEvent(event)
 
 class DownloadPlaylistItemWidget(QFrame):
     def __init__(self, playlist_id, title, tracks, on_play_local=None, on_play_local_playlist=None):
@@ -423,6 +499,7 @@ class DownloadPlaylistItemWidget(QFrame):
 
 class DownloadsScreen(QWidget):
     like_requested = Signal(str, object)
+    delete_download_requested = Signal(str)
 
     def __init__(self, extractor, on_play_local, on_play_local_playlist=None, on_navigate=None):
         super().__init__()
@@ -431,21 +508,68 @@ class DownloadsScreen(QWidget):
         self.on_play_local_playlist = on_play_local_playlist
         self.on_navigate = on_navigate
         self._current_tab = "songs"
+        self._selection_mode = False
         self._items = {} # video_id -> DownloadItemWidget
+        self._playlist_cards = {} # playlist_id -> PlaylistCard
         self._repo = DownloadRepository()
         self._build_ui()
         self._connect_manager()
 
+
     def _build_ui(self):
+        from pyrolist.ui.design.fonts import AppFont
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 16, 24, 16)
         layout.setSpacing(20)
 
         from pyrolist.ui.design import tokens
+        
+        # Header Row
+        self.header_row = QWidget()
+        header_row_layout = QHBoxLayout(self.header_row)
+        header_row_layout.setContentsMargins(0, 0, 0, 0)
+        
         self.header = QLabel("Descargas")
         self.header.setFont(QFont("Inter", 24, QFont.Weight.Bold))
         self.header.setStyleSheet(f"color: {tokens.CURRENT.text_primary};")
-        layout.addWidget(self.header)
+        header_row_layout.addWidget(self.header)
+        header_row_layout.addStretch()
+        
+        # Action Toolbar (Selection Mode actions)
+        self.selection_toolbar = QWidget()
+        self.selection_toolbar_layout = QHBoxLayout(self.selection_toolbar)
+        self.selection_toolbar_layout.setContentsMargins(0, 0, 0, 0)
+        self.selection_toolbar_layout.setSpacing(10)
+        
+        self.btn_select_all = QPushButton("Seleccionar Todo")
+        self.btn_select_all.setFont(AppFont.body(12))
+        self.btn_select_all.setFixedHeight(34)
+        self.btn_select_all.clicked.connect(self._select_all_items)
+        self.selection_toolbar_layout.addWidget(self.btn_select_all)
+        
+        self.btn_delete_selected = QPushButton("Borrar Seleccionados")
+        self.btn_delete_selected.setFont(AppFont.body(12))
+        self.btn_delete_selected.setFixedHeight(34)
+        self.btn_delete_selected.clicked.connect(self._delete_selected_items)
+        self.selection_toolbar_layout.addWidget(self.btn_delete_selected)
+        
+        self.btn_delete_all = QPushButton("Borrar Todo")
+        self.btn_delete_all.setFont(AppFont.body(12))
+        self.btn_delete_all.setFixedHeight(34)
+        self.btn_delete_all.clicked.connect(self._delete_all_items)
+        self.selection_toolbar_layout.addWidget(self.btn_delete_all)
+        
+        self.selection_toolbar.hide()
+        header_row_layout.addWidget(self.selection_toolbar)
+        
+        # Main action button (Enter/Exit selection)
+        self.btn_select = QPushButton("Seleccionar")
+        self.btn_select.setFont(AppFont.body(12))
+        self.btn_select.setFixedHeight(34)
+        self.btn_select.clicked.connect(self._toggle_selection_mode)
+        header_row_layout.addWidget(self.btn_select)
+        
+        layout.addWidget(self.header_row)
 
         # Tabs
         self.tabs = QWidget()
@@ -468,6 +592,8 @@ class DownloadsScreen(QWidget):
         
         tabs_layout.addStretch()
         layout.addWidget(self.tabs)
+        
+        self._update_toolbar_styles()
 
         self.content_area = QScrollArea()
         self.content_area.setWidgetResizable(True)
@@ -516,6 +642,8 @@ class DownloadsScreen(QWidget):
         """
 
     def _switch_tab(self, key):
+        if getattr(self, "_selection_mode", False):
+            self._toggle_selection_mode()
         self._current_tab = key
         for k, btn in self.tab_btns.items():
             btn.setStyleSheet(self._tab_style(k == key))
@@ -557,85 +685,97 @@ class DownloadsScreen(QWidget):
             return
         widget = DownloadItemWidget(vid, title, artist, thumb_url, parent_playlist_title, self.on_play_local)
         widget.like_requested.connect(self.like_requested.emit)
+        widget.delete_requested.connect(self.delete_download_requested.emit)
+        widget.checkbox.toggled.connect(self._update_selected_count)
+        widget.set_selection_mode(getattr(self, "_selection_mode", False))
         self.content_layout.insertWidget(0, widget)
         self._items[vid] = widget
 
     async def load(self):
-        while self.content_layout.count() > 1:
-            item = self.content_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-        self._items.clear()
+        if getattr(self, "_is_loading", False):
+            return
+        self._is_loading = True
+        try:
+            while self.content_layout.count() > 1:
+                item = self.content_layout.takeAt(0)
+                if item.widget():
+                    item.widget().deleteLater()
+            self._items.clear()
 
-        downloads = await self._repo.get_downloads()
-        
-        if self._current_tab == "playlists":
-            # Group downloaded items by parent_playlist_id
-            playlist_groups = {}
-            for d in downloads:
-                if d.parent_playlist_id:
-                    pid = d.parent_playlist_id
-                    if pid not in playlist_groups:
-                        playlist_groups[pid] = {
-                            "title": d.parent_playlist_title or "Playlist Local",
-                            "tracks": []
-                        }
-                    playlist_groups[pid]["tracks"].append(d)
+            downloads = await self._repo.get_downloads()
             
-            if not playlist_groups:
-                msg = QLabel("No hay playlists descargadas.")
-                msg.setStyleSheet("color: #888899; font-size: 16px; padding: 40px;")
-                msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                self.content_layout.insertWidget(0, msg)
-            else:
-                from pyrolist.ui.widgets.playlist_card import PlaylistCard
-                grid_widget = QWidget()
-                grid_layout = QGridLayout(grid_widget)
-                grid_layout.setSpacing(24)
-                grid_layout.setContentsMargins(0, 0, 0, 0)
-                grid_layout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+            if self._current_tab == "playlists":
+                # Group downloaded items by parent_playlist_id
+                playlist_groups = {}
+                for d in downloads:
+                    if d.parent_playlist_id:
+                        pid = d.parent_playlist_id
+                        if pid not in playlist_groups:
+                            playlist_groups[pid] = {
+                                "title": d.parent_playlist_title or "Playlist Local",
+                                "tracks": []
+                            }
+                        playlist_groups[pid]["tracks"].append(d)
                 
-                columns = 4
-                for index, (pid, info) in enumerate(playlist_groups.items()):
-                    row = index // columns
-                    col = index % columns
+                if not playlist_groups:
+                    msg = QLabel("No hay playlists descargadas.")
+                    msg.setStyleSheet("color: #888899; font-size: 16px; padding: 40px;")
+                    msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                    self.content_layout.insertWidget(0, msg)
+                else:
+                    from pyrolist.ui.widgets.playlist_card import PlaylistCard
+                    grid_widget = QWidget()
+                    grid_layout = QGridLayout(grid_widget)
+                    grid_layout.setSpacing(24)
+                    grid_layout.setContentsMargins(0, 0, 0, 0)
+                    grid_layout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
                     
-                    tracks = info["tracks"]
-                    first_thumb = tracks[0].thumbnail_url if tracks else ""
-                    
-                    card = PlaylistCard(
-                        title=info["title"],
-                        description=f"{len(tracks)} canciones",
-                        thumbnail_url=first_thumb
-                    )
-                    if self.on_navigate:
-                        card.clicked.connect(lambda p=pid: self.on_navigate(f"playlist?id=local_{p}"))
+                    columns = 4
+                    for index, (pid, info) in enumerate(playlist_groups.items()):
+                        row = index // columns
+                        col = index % columns
                         
-                    grid_layout.addWidget(card, row, col)
+                        tracks = info["tracks"]
+                        first_thumb = tracks[0].thumbnail_url if tracks else ""
+                        
+                        card = PlaylistCard(
+                            title=info["title"],
+                            description=f"{len(tracks)} canciones",
+                            thumbnail_url=first_thumb
+                        )
+                        card.checkbox.toggled.connect(self._update_selected_count)
+                        card.set_selection_mode(getattr(self, "_selection_mode", False))
+                        self._playlist_cards[pid] = card
+                        if self.on_navigate:
+                            card.clicked.connect(lambda p=pid: self.on_navigate(f"playlist?id=local_{p}"))
+                            
+                        grid_layout.addWidget(card, row, col)
+                    
+                    self.content_layout.insertWidget(0, grid_widget)
+            else:
+                # "songs" tab: Show all downloads individually (both completed and active)
+                if not downloads:
+                    msg = QLabel("No hay descargas aquí.")
+                    msg.setStyleSheet("color: #888899; font-size: 16px; padding: 40px;")
+                    msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                    self.content_layout.insertWidget(0, msg)
                 
-                self.content_layout.insertWidget(0, grid_widget)
-        else:
-            # "songs" tab: Show all downloads individually (both completed and active)
-            if not downloads:
-                msg = QLabel("No hay descargas aquí.")
-                msg.setStyleSheet("color: #888899; font-size: 16px; padding: 40px;")
-                msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                self.content_layout.insertWidget(0, msg)
-            
-            for d in reversed(downloads):
-                self._add_item_to_ui(d.video_id, d.title, d.artist, d.thumbnail_url, d.parent_playlist_title)
-                if d.video_id in self._items:
-                    self._items[d.video_id].set_completed(d.file_path)
-                
-            # Add active downloads from manager
-            mgr = DownloadManager.get_instance()
-            for vid, task in mgr._tasks.items():
-                if vid not in self._items:
-                    self._add_item_to_ui(task.video_id, task.title, task.artist, task.thumbnail_url, task.parent_playlist_title)
-                    if task.status == "downloading":
-                        self._items[vid].set_downloading()
-                    elif task.status == "error":
-                        self._items[vid].set_error("Error")
+                for d in reversed(downloads):
+                    self._add_item_to_ui(d.video_id, d.title, d.artist, d.thumbnail_url, d.parent_playlist_title)
+                    if d.video_id in self._items:
+                        self._items[d.video_id].set_completed(d.file_path)
+                    
+                # Add active downloads from manager
+                mgr = DownloadManager.get_instance()
+                for vid, task in mgr._tasks.items():
+                    if vid not in self._items:
+                        self._add_item_to_ui(task.video_id, task.title, task.artist, task.thumbnail_url, task.parent_playlist_title)
+                        if task.status == "downloading":
+                            self._items[vid].set_downloading()
+                        elif task.status == "error":
+                            self._items[vid].set_error("Error")
+        finally:
+            self._is_loading = False
 
     def _update_downloads_styles(self) -> None:
         from pyrolist.ui.design import tokens
@@ -648,6 +788,9 @@ class DownloadsScreen(QWidget):
         for label in self.findChildren(QLabel):
             if label != getattr(self, "header", None) and label.parent() == getattr(self, "scroll_content", None):
                 label.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; font-size: 16px; padding: 40px; background: transparent; border: none;")
+        
+        if hasattr(self, "btn_select"):
+            self._update_toolbar_styles()
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
@@ -659,3 +802,237 @@ class DownloadsScreen(QWidget):
                 finally:
                     self._in_style_change = False
         super().changeEvent(event)
+
+    def _update_toolbar_styles(self) -> None:
+        from pyrolist.ui.design import tokens
+        accent = tokens.CURRENT.accent
+        accent_dim = tokens.CURRENT.accent_dim
+        text_primary = tokens.CURRENT.text_primary
+        bg_elevated = tokens.CURRENT.bg_elevated
+        bg_surface = tokens.CURRENT.bg_surface
+        border = tokens.CURRENT.border
+        
+        btn_style = f"""
+            QPushButton {{
+                background-color: {bg_surface};
+                color: {text_primary};
+                border: 1px solid {border};
+                border-radius: 17px;
+                padding: 0 16px;
+            }}
+            QPushButton:hover {{
+                background-color: {bg_elevated};
+                border-color: {accent}55;
+            }}
+        """
+        
+        accent_btn_style = f"""
+            QPushButton {{
+                background-color: {accent_dim};
+                color: {accent};
+                border: 1px solid {accent}33;
+                border-radius: 17px;
+                padding: 0 16px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: {accent}22;
+            }}
+        """
+        
+        delete_btn_style = f"""
+            QPushButton {{
+                background-color: rgba(239, 68, 68, 0.1);
+                color: #EF4444;
+                border: 1px solid rgba(239, 68, 68, 0.3);
+                border-radius: 17px;
+                padding: 0 16px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: rgba(239, 68, 68, 0.2);
+            }}
+        """
+        
+        self.btn_select.setStyleSheet(btn_style if not getattr(self, "_selection_mode", False) else accent_btn_style)
+        self.btn_select_all.setStyleSheet(btn_style)
+        self.btn_delete_selected.setStyleSheet(delete_btn_style)
+        self.btn_delete_all.setStyleSheet(delete_btn_style)
+
+    def _toggle_selection_mode(self) -> None:
+        self._selection_mode = not getattr(self, "_selection_mode", False)
+        
+        if self._selection_mode:
+            self.btn_select.setText("Cancelar")
+            self.selection_toolbar.show()
+            self._update_selected_count()
+        else:
+            self.btn_select.setText("Seleccionar")
+            self.selection_toolbar.hide()
+            
+            if self._current_tab == "songs":
+                for vid, widget in self._items.items():
+                    widget.checkbox.setChecked(False)
+            elif self._current_tab == "playlists":
+                for pid, card in getattr(self, "_playlist_cards", {}).items():
+                    card.checkbox.setChecked(False)
+                    
+        self._update_toolbar_styles()
+        
+        if self._current_tab == "songs":
+            for vid, widget in self._items.items():
+                widget.set_selection_mode(self._selection_mode)
+        elif self._current_tab == "playlists":
+            for pid, card in getattr(self, "_playlist_cards", {}).items():
+                card.set_selection_mode(self._selection_mode)
+
+    def _update_selected_count(self) -> None:
+        count = 0
+        if self._current_tab == "songs":
+            for vid, widget in self._items.items():
+                if widget.checkbox.isChecked():
+                    count += 1
+        elif self._current_tab == "playlists":
+            for pid, card in getattr(self, "_playlist_cards", {}).items():
+                if card.checkbox.isChecked():
+                    count += 1
+        
+        self.btn_delete_selected.setText(f"Borrar Seleccionados ({count})")
+
+    def _select_all_items(self) -> None:
+        all_checked = True
+        if self._current_tab == "songs":
+            for vid, widget in self._items.items():
+                if not widget.checkbox.isChecked():
+                    all_checked = False
+                    break
+            for vid, widget in self._items.items():
+                widget.checkbox.setChecked(not all_checked)
+        elif self._current_tab == "playlists":
+            for pid, card in getattr(self, "_playlist_cards", {}).items():
+                if not card.checkbox.isChecked():
+                    all_checked = False
+                    break
+            for pid, card in getattr(self, "_playlist_cards", {}).items():
+                card.checkbox.setChecked(not all_checked)
+
+    def _delete_selected_items(self) -> None:
+        selected_ids = []
+        if self._current_tab == "songs":
+            for vid, widget in self._items.items():
+                if widget.checkbox.isChecked():
+                    selected_ids.append(vid)
+        elif self._current_tab == "playlists":
+            for pid, card in getattr(self, "_playlist_cards", {}).items():
+                if card.checkbox.isChecked():
+                    selected_ids.append(pid)
+                    
+        if not selected_ids:
+            return
+            
+        from PySide6.QtWidgets import QMessageBox
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Confirmar Eliminación")
+        if self._current_tab == "songs":
+            msg_box.setText(f"¿Estás seguro de que deseas eliminar las {len(selected_ids)} descargas seleccionadas?")
+        else:
+            msg_box.setText(f"¿Estás seguro de que deseas eliminar las {len(selected_ids)} playlists seleccionadas junto con todas sus canciones descargadas?")
+            
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        msg_box.setDefaultButton(QMessageBox.StandardButton.No)
+        
+        from pyrolist.ui.design import tokens
+        msg_box.setStyleSheet(f"""
+            QMessageBox {{
+                background-color: {tokens.CURRENT.bg_surface};
+                color: {tokens.CURRENT.text_primary};
+            }}
+            QLabel {{
+                color: {tokens.CURRENT.text_primary};
+            }}
+            QPushButton {{
+                background-color: {tokens.CURRENT.bg_elevated};
+                color: {tokens.CURRENT.text_primary};
+                border: 1px solid {tokens.CURRENT.border};
+                border-radius: 6px;
+                padding: 6px 16px;
+                min-width: 80px;
+            }}
+            QPushButton:hover {{
+                background-color: {tokens.CURRENT.accent_dim};
+                color: {tokens.CURRENT.accent};
+            }}
+        """)
+        
+        if msg_box.exec() == QMessageBox.StandardButton.Yes:
+            asyncio.ensure_future(self._delete_items_async(selected_ids))
+
+    async def _delete_items_async(self, ids: list[str]) -> None:
+        self._toggle_selection_mode()
+        
+        main_win = self.window()
+        if hasattr(main_win, "_delete_download_async"):
+            if self._current_tab == "songs":
+                for vid in ids:
+                    await main_win._delete_download_async(vid)
+            elif self._current_tab == "playlists":
+                downloads = await self._repo.get_downloads()
+                for pid in ids:
+                    playlist_songs = [d.video_id for d in downloads if d.parent_playlist_id == pid]
+                    for vid in playlist_songs:
+                        await main_win._delete_download_async(vid)
+            await self.load()
+
+    def _delete_all_items(self) -> None:
+        from PySide6.QtWidgets import QMessageBox
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Confirmar Eliminación Masiva")
+        if self._current_tab == "songs":
+            msg_box.setText("¿Estás seguro de que deseas eliminar TODAS las canciones descargadas?")
+        else:
+            msg_box.setText("¿Estás seguro de que deseas eliminar TODAS las playlists descargadas junto con todas sus canciones?")
+            
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        msg_box.setDefaultButton(QMessageBox.StandardButton.No)
+        
+        from pyrolist.ui.design import tokens
+        msg_box.setStyleSheet(f"""
+            QMessageBox {{
+                background-color: {tokens.CURRENT.bg_surface};
+                color: {tokens.CURRENT.text_primary};
+            }}
+            QLabel {{
+                color: {tokens.CURRENT.text_primary};
+            }}
+            QPushButton {{
+                background-color: {tokens.CURRENT.bg_elevated};
+                color: {tokens.CURRENT.text_primary};
+                border: 1px solid {tokens.CURRENT.border};
+                border-radius: 6px;
+                padding: 6px 16px;
+                min-width: 80px;
+            }}
+            QPushButton:hover {{
+                background-color: {tokens.CURRENT.accent_dim};
+                color: {tokens.CURRENT.accent};
+            }}
+        """)
+        
+        if msg_box.exec() == QMessageBox.StandardButton.Yes:
+            asyncio.ensure_future(self._delete_all_items_async())
+
+    async def _delete_all_items_async(self) -> None:
+        if getattr(self, "_selection_mode", False):
+            self._toggle_selection_mode()
+            
+        main_win = self.window()
+        if hasattr(main_win, "_delete_download_async"):
+            downloads = await self._repo.get_downloads()
+            if self._current_tab == "songs":
+                for d in downloads:
+                    await main_win._delete_download_async(d.video_id)
+            elif self._current_tab == "playlists":
+                playlist_songs = [d.video_id for d in downloads if d.parent_playlist_id]
+                for vid in playlist_songs:
+                    await main_win._delete_download_async(vid)
+            await self.load()
