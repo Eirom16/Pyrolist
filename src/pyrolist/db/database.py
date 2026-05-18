@@ -31,6 +31,16 @@ async def init_db():
     engine = get_engine()
     async with engine.begin() as conn:
         await conn.run_sync(models.Base.metadata.create_all)
+    
+    # Safely alter table to add the new column for existing databases
+    from sqlalchemy import text
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("ALTER TABLE downloads ADD COLUMN parent_playlist_thumbnail_url TEXT"))
+        logger.info("Added parent_playlist_thumbnail_url column to downloads table")
+    except Exception:
+        pass
+    
     logger.info("Database initialized")
 
 from contextlib import asynccontextmanager

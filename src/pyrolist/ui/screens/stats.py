@@ -363,16 +363,32 @@ class StatsScreen(QWidget):
         song_counter = Counter([(entry.video_id, entry.title, entry.artist) for entry in all_history])
         top_songs = song_counter.most_common(5)
 
+        song_repo = SongRepository()
+        from pyrolist.db.repository import DownloadRepository
+        dl_repo = DownloadRepository()
+
         for (video_id, title, artist), count in top_songs:
             # Suffix/badge text for play counts
             count_suffix = f" — 🔥 {count} veces" if count > 1 else " — 1 vez"
+            
+            # Retrieve thumbnail url from database
+            thumbnail_url = ""
+            db_song = await song_repo.get_song(video_id)
+            if db_song and db_song.thumbnail_url:
+                thumbnail_url = db_song.thumbnail_url
+            else:
+                db_download = await dl_repo.get_download(video_id)
+                if db_download and db_download.thumbnail_url:
+                    thumbnail_url = db_download.thumbnail_url
+            
             card = SongCard(
                 title=title,
                 artist=artist + count_suffix,
                 duration="",
-                on_play=lambda v=video_id, t=title, a=artist: self._handle_play(v, t, a),
+                on_play=lambda v=video_id, t=title, a=artist, th=thumbnail_url: self._handle_play(v, t, a, th),
                 video_id=video_id,
                 is_liked=video_id in liked_ids,
+                thumbnail_url=thumbnail_url
             )
             self._connect_card_signals(card)
             self.songs_container.addWidget(card)

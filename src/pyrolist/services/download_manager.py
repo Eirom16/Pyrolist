@@ -9,13 +9,14 @@ from pyrolist.config.paths import AppDirs
 from pyrolist.db.repository import DownloadRepository
 
 class DownloadTask:
-    def __init__(self, video_id: str, title: str, artist: str, thumbnail_url: str, parent_playlist_id: str = None, parent_playlist_title: str = None):
+    def __init__(self, video_id: str, title: str, artist: str, thumbnail_url: str, parent_playlist_id: str = None, parent_playlist_title: str = None, parent_playlist_thumbnail_url: str = None):
         self.video_id = video_id
         self.title = title
         self.artist = artist
         self.thumbnail_url = thumbnail_url
         self.parent_playlist_id = parent_playlist_id
         self.parent_playlist_title = parent_playlist_title
+        self.parent_playlist_thumbnail_url = parent_playlist_thumbnail_url
         self.status = "queued" # queued, downloading, completed, error
         self.progress = 0.0
         self.speed = ""
@@ -61,11 +62,11 @@ class DownloadManager(QObject):
             worker.cancel()
         self._workers.clear()
 
-    def add_download(self, video_id: str, title: str, artist: str, thumbnail_url: str, parent_playlist_id: str = None, parent_playlist_title: str = None) -> bool:
+    def add_download(self, video_id: str, title: str, artist: str, thumbnail_url: str, parent_playlist_id: str = None, parent_playlist_title: str = None, parent_playlist_thumbnail_url: str = None) -> bool:
         if video_id in self._tasks:
             return False # already queued/downloading
         
-        task = DownloadTask(video_id, title, artist, thumbnail_url, parent_playlist_id, parent_playlist_title)
+        task = DownloadTask(video_id, title, artist, thumbnail_url, parent_playlist_id, parent_playlist_title, parent_playlist_thumbnail_url)
         self._tasks[video_id] = task
         self.download_queued.emit(task)
         self._queue.put_nowait(task)
@@ -192,7 +193,8 @@ class DownloadManager(QObject):
                 thumbnail_url=task.thumbnail_url,
                 duration_ms=0,
                 parent_playlist_id=task.parent_playlist_id,
-                parent_playlist_title=task.parent_playlist_title
+                parent_playlist_title=task.parent_playlist_title,
+                parent_playlist_thumbnail_url=task.parent_playlist_thumbnail_url
             )
             
             self.download_completed.emit(task.video_id, filepath)

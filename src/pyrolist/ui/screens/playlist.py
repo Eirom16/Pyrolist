@@ -50,6 +50,16 @@ class PlaylistScreen(QWidget):
             item = self.content_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
+            elif item.layout():
+                self._clear_layout(item.layout())
+
+    def _clear_layout(self, layout):
+        while layout.count():
+            child = layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+            elif child.layout():
+                self._clear_layout(child.layout())
 
     async def load(self, playlist_id: str):
         if not playlist_id:
@@ -68,6 +78,22 @@ class PlaylistScreen(QWidget):
         
         try:
             data = await self.yt.get_playlist(playlist_id)
+            
+            # Check which tracks are already downloaded in the database
+            from pyrolist.db.repository import DownloadRepository
+            repo = DownloadRepository()
+            downloads = await repo.get_downloads()
+            downloaded_vids = {d.video_id for d in downloads}
+            
+            tracks = data.get('tracks', [])
+            if tracks:
+                downloaded_count = sum(1 for t in tracks if t.get('videoId') in downloaded_vids)
+                if downloaded_count == len(tracks):
+                    data['is_fully_downloaded'] = True
+                elif downloaded_count > 0:
+                    data['is_partially_downloaded'] = True
+                    data['downloaded_count'] = downloaded_count
+            
             self._display_playlist(data)
         except Exception as e:
             logger.error(f"Error loading playlist: {e}")
@@ -90,13 +116,13 @@ class PlaylistScreen(QWidget):
             return
             
         playlist_title = playlist_tracks[0].parent_playlist_title or "Playlist Local"
-        first_thumb = playlist_tracks[0].thumbnail_url
+        playlist_thumb = getattr(playlist_tracks[0], "parent_playlist_thumbnail_url", "") or playlist_tracks[0].thumbnail_url
         
         simulated_data = {
             "title": playlist_title,
             "author": "Biblioteca Local",
             "trackCount": len(playlist_tracks),
-            "thumbnails": [{"url": first_thumb}] if first_thumb else [],
+            "thumbnails": [{"url": playlist_thumb}] if playlist_thumb else [],
             "is_local_playlist": True,
             "tracks": []
         }
@@ -169,13 +195,17 @@ class PlaylistScreen(QWidget):
         meta_lbl.setObjectName("playlistMeta")
         info_layout.addWidget(meta_lbl)
         
-        if data.get('is_local_playlist', False):
+        if data.get('is_local_playlist', False) or data.get('is_fully_downloaded', False):
             from pyrolist.ui.design import tokens
             btn_dl = QLabel("📥 Disponible sin conexión")
             btn_dl.setFont(QFont("Inter", 11, QFont.Weight.Bold))
             btn_dl.setStyleSheet(f"color: {tokens.CURRENT.accent}; margin-top: 12px; background: transparent;")
         else:
-            btn_dl = QPushButton(" Descargar Playlist")
+            btn_label = " Descargar Playlist"
+            if data.get('is_partially_downloaded', False):
+                btn_label = f" Descargar restantes ({data.get('downloaded_count')}/{track_count} completas)"
+                
+            btn_dl = QPushButton(btn_label)
             btn_dl.setIcon(Icon.icon("download", color="#0A0A14"))
             self.btn_dl = btn_dl
             self._update_dl_button_style()

@@ -736,12 +736,14 @@ class DownloadsScreen(QWidget):
                         col = index % columns
                         
                         tracks = info["tracks"]
-                        first_thumb = tracks[0].thumbnail_url if tracks else ""
+                        playlist_thumb = ""
+                        if tracks:
+                            playlist_thumb = getattr(tracks[0], "parent_playlist_thumbnail_url", "") or tracks[0].thumbnail_url
                         
                         card = PlaylistCard(
                             title=info["title"],
                             description=f"{len(tracks)} canciones",
-                            thumbnail_url=first_thumb
+                            thumbnail_url=playlist_thumb
                         )
                         card.checkbox.toggled.connect(self._update_selected_count)
                         card.set_selection_mode(getattr(self, "_selection_mode", False))

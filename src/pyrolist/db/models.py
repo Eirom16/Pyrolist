@@ -78,6 +78,7 @@ class Download(Base):
     downloaded_at = Column(DateTime, default=datetime.utcnow)
     parent_playlist_id = Column(String, nullable=True)
     parent_playlist_title = Column(String, nullable=True)
+    parent_playlist_thumbnail_url = Column(String, nullable=True)
 
 
 class CachedArtwork(Base):

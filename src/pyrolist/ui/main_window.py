@@ -330,7 +330,7 @@ class MainWindow(QMainWindow):
                 track_thumbnails = track.get('thumbnails', [])
                 track_thumb = track_thumbnails[-1].get('url', '') if track_thumbnails else ''
                 
-                if self.download_manager.add_download(vid, t_title, artist_names, track_thumb, playlist_id, title):
+                if self.download_manager.add_download(vid, t_title, artist_names, track_thumb, playlist_id, title, thumbnail_url):
                     queued += 1
             
             if already_downloaded > 0:
