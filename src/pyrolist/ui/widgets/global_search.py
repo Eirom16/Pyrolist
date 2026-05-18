@@ -301,7 +301,31 @@ class GlobalSearchBar(QWidget):
         self._clear_btn.setVisible(False)
         bar_layout.addWidget(self._clear_btn)
 
+        # Notification Button & Dropdown
+        from pyrolist.ui.widgets.notification_button import NotificationButton
+        from pyrolist.ui.widgets.notification_dropdown import NotificationDropdown
+
+        self.notif_btn = NotificationButton(self)
+        self.notif_dropdown = NotificationDropdown(self)
+        self.notif_dropdown.unread_changed.connect(self.notif_btn.set_unread)
+        self.notif_btn.clicked.connect(self._toggle_notifications)
+        bar_layout.addWidget(self.notif_btn)
+
         layout.addWidget(self.bar_widget)
+
+    def _toggle_notifications(self):
+        if self.notif_dropdown.isVisible():
+            self.notif_dropdown.dismiss()
+        else:
+            # Position below the notification button, aligning right edges
+            btn_bottom_right = self.notif_btn.mapToGlobal(QPoint(self.notif_btn.width(), self.notif_btn.height()))
+            dropdown_width = self.notif_dropdown.width()
+            popup_pos = QPoint(btn_bottom_right.x() - dropdown_width, btn_bottom_right.y() + 6)
+            
+            # Dismiss search dropdown if visible
+            self._hide_dropdown()
+            
+            self.notif_dropdown.popup_at(popup_pos)
 
     # ---- Dropdown lifecycle ----
     def _ensure_dropdown(self):
@@ -311,6 +335,10 @@ class GlobalSearchBar(QWidget):
         return self._dropdown
 
     def _show_dropdown(self):
+        # Dismiss notification dropdown if visible when search dropdown opens
+        if hasattr(self, "notif_dropdown") and self.notif_dropdown.isVisible():
+            self.notif_dropdown.dismiss()
+
         dd = self._ensure_dropdown()
 
         # Position below the search bar, aligned to the input
@@ -570,6 +598,11 @@ class GlobalSearchBar(QWidget):
                     background: rgba({c.red()},{c.green()},{c.blue()},0.08);
                 }}
             """)
+
+        if hasattr(self, 'notif_btn') and self.notif_btn:
+            self.notif_btn._update_styles()
+        if hasattr(self, 'notif_dropdown') and self.notif_dropdown:
+            self.notif_dropdown._update_styles()
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
