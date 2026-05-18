@@ -111,8 +111,10 @@ class AccentColorPicker(QWidget):
         return button
 
     def _style_swatch(self, button: QPushButton, color: str) -> None:
+        from pyrolist.ui.design import tokens
         active = color.lower() == self._current.lower()
-        border = "#F1F0FF" if active else "transparent"
+        border = tokens.CURRENT.text_primary if active else "transparent"
+        hover_border = tokens.CURRENT.text_secondary
         button.setStyleSheet(f"""
             QPushButton {{
                 background-color: {color};
@@ -120,7 +122,7 @@ class AccentColorPicker(QWidget):
                 border: 2px solid {border};
             }}
             QPushButton:hover {{
-                border: 2px solid #FFFFFF;
+                border: 2px solid {hover_border};
             }}
         """)
 
@@ -147,7 +149,7 @@ class AccentColorPicker(QWidget):
                 QPushButton {{
                     border: 2px dashed rgba({r},{g},{b},0.4);
                     border-radius: 14px;
-                    color: #9B9BC0;
+                    color: {tokens.CURRENT.text_secondary};
                     background: transparent;
                 }}
                 QPushButton:hover {{
@@ -160,6 +162,8 @@ class AccentColorPicker(QWidget):
         from PySide6.QtCore import QEvent
         if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
             self._update_custom_button_style()
+            for button, preset in zip(self._buttons, self.PRESETS, strict=False):
+                self._style_swatch(button, preset)
         super().changeEvent(event)
 
 

@@ -24,54 +24,45 @@ class EqBandSlider(QWidget):
         self.value_label = QLabel("0 dB")
         self.value_label.setFont(AppFont.caption(10))
         self.value_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.value_label.setStyleSheet("color: #6B6B9B; background: transparent;")
         layout.addWidget(self.value_label)
 
         self.slider = QSlider(Qt.Orientation.Vertical)
         self.slider.setRange(-120, 120)
         self.slider.setFixedSize(28, 180)
-        self.slider.setStyleSheet("""
-            QSlider::groove:vertical {
-                border: none;
-                width: 6px;
-                background: #1E1E38;
-                border-radius: 3px;
-            }
-            QSlider::add-page:vertical {
-                background: #1E1E38;
-                border-radius: 3px;
-            }
-            QSlider::sub-page:vertical {
-                background: #A78BFA;
-                border-radius: 3px;
-            }
-            QSlider::handle:vertical {
-                background: #FFFFFF;
-                border: 2px solid #A78BFA;
-                width: 14px;
-                height: 14px;
-                margin: 0 -4px;
-                border-radius: 7px;
-            }
-            QSlider::handle:vertical:hover {
-                background: #A78BFA;
-                border-color: #FFFFFF;
-            }
-        """)
         self.slider.valueChanged.connect(self._on_value)
         layout.addWidget(self.slider, alignment=Qt.AlignmentFlag.AlignHCenter)
 
-        freq = QLabel(label)
-        freq.setFont(AppFont.caption(9))
-        freq.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        freq.setStyleSheet("color: #4A4A6A; background: transparent;")
-        layout.addWidget(freq)
+        self._freq_label = QLabel(label)
+        self._freq_label.setFont(AppFont.caption(9))
+        self._freq_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self._freq_label)
+
+        self._update_band_styles()
 
     def _on_value(self, value: int) -> None:
         db = value / 10.0
         self.value_label.setText(f"{'+' if db > 0 else ''}{db:.1f} dB")
-        self.value_label.setStyleSheet(f"color: {'#A78BFA' if db else '#6B6B9B'}; background: transparent;")
+        self._update_band_styles()
         self.value_changed.emit(self.band_index, db)
+
+    def _update_band_styles(self) -> None:
+        from pyrolist.ui.design import tokens
+        db = self.slider.value() / 10.0
+        color = tokens.CURRENT.accent if db != 0 else tokens.CURRENT.text_secondary
+        self.value_label.setStyleSheet(f"color: {color}; background: transparent;")
+        if hasattr(self, "_freq_label") and self._freq_label:
+            self._freq_label.setStyleSheet(f"color: {tokens.CURRENT.text_disabled}; background: transparent;")
+
+    def changeEvent(self, event) -> None:
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
+            if not getattr(self, '_in_style_change', False):
+                self._in_style_change = True
+                try:
+                    self._update_band_styles()
+                finally:
+                    self._in_style_change = False
+        super().changeEvent(event)
 
     def set_value(self, db: float) -> None:
         self.slider.blockSignals(True)
@@ -101,38 +92,11 @@ class EqualizerSettingsScreen(QWidget):
         enabled.toggled.connect(self._on_enabled_changed)
         controls.add_row(SettingsRow("Activado", "Aplica el ecualizador de 10 bandas", enabled))
 
-        preset = QComboBox()
-        preset.addItems(list(EQ_PRESETS.keys()))
-        preset.setCurrentText(self.settings.equalizer.preset_name)
-        preset.currentTextChanged.connect(self._on_preset_changed)
-        preset.setStyleSheet("""
-            QComboBox {
-                background-color: #1E1E38;
-                color: #F1F0FF;
-                border: 1px solid #2A2A4E;
-                border-radius: 8px;
-                padding: 6px 12px;
-                font-family: Inter;
-                font-size: 13px;
-                min-width: 120px;
-            }
-            QComboBox:focus {
-                border: 1px solid #A78BFA;
-            }
-            QComboBox::drop-down {
-                border: none;
-                width: 20px;
-            }
-            QComboBox QAbstractItemView {
-                background-color: #1A1A2E;
-                color: #F1F0FF;
-                border: 1px solid #2A2A4E;
-                border-radius: 8px;
-                selection-background-color: #A78BFA;
-                selection-color: #10101E;
-            }
-        """)
-        controls.add_row(SettingsRow("Preset", "Curva base para ajustar rapido", preset))
+        self.preset_combo = QComboBox()
+        self.preset_combo.addItems(list(EQ_PRESETS.keys()))
+        self.preset_combo.setCurrentText(self.settings.equalizer.preset_name)
+        self.preset_combo.currentTextChanged.connect(self._on_preset_changed)
+        controls.add_row(SettingsRow("Preset", "Curva base para ajustar rapido", self.preset_combo))
         layout.addWidget(controls)
 
         preamp_section = SettingsSection("Ganancia")
@@ -142,49 +106,17 @@ class EqualizerSettingsScreen(QWidget):
         row.setSpacing(10)
         self.preamp_slider = QSlider(Qt.Orientation.Horizontal)
         self.preamp_slider.setRange(-120, 120)
-        self.preamp_slider.setStyleSheet("""
-            QSlider::groove:horizontal {
-                border: none;
-                height: 6px;
-                background: #1E1E38;
-                border-radius: 3px;
-            }
-            QSlider::sub-page:horizontal {
-                background: #A78BFA;
-                border-radius: 3px;
-            }
-            QSlider::handle:horizontal {
-                background: #FFFFFF;
-                border: 2px solid #A78BFA;
-                width: 14px;
-                height: 14px;
-                margin: -4px 0;
-                border-radius: 7px;
-            }
-            QSlider::handle:horizontal:hover {
-                background: #A78BFA;
-                border-color: #FFFFFF;
-            }
-        """)
         self.preamp_slider.valueChanged.connect(lambda value: (self._update_preamp_label(value), self._emit_eq()))
         self.preamp_value = QLabel("0.0 dB")
         self.preamp_value.setFont(AppFont.mono(12))
-        self.preamp_value.setStyleSheet("color: #A78BFA; min-width: 60px; background: transparent;")
         row.addWidget(self.preamp_slider)
         row.addWidget(self.preamp_value)
         preamp_section.add_row(SettingsRow("Preamp", "Nivel general antes de las bandas", preamp_row))
         layout.addWidget(preamp_section)
 
-        card = QFrame()
-        card.setObjectName("eqCard")
-        card.setStyleSheet("""
-            QFrame#eqCard {
-                background: #16162A;
-                border-radius: 18px;
-                border: 1px solid rgba(167,139,250,0.08);
-            }
-        """)
-        band_layout = QHBoxLayout(card)
+        self.eq_card = QFrame()
+        self.eq_card.setObjectName("eqCard")
+        band_layout = QHBoxLayout(self.eq_card)
         band_layout.setContentsMargins(24, 20, 24, 20)
         band_layout.setSpacing(12)
         for i, label in enumerate(EQ_BAND_LABELS):
@@ -192,12 +124,76 @@ class EqualizerSettingsScreen(QWidget):
             slider.value_changed.connect(lambda index, db: self._emit_eq())
             self.band_sliders.append(slider)
             band_layout.addWidget(slider)
-        layout.addWidget(card)
+        layout.addWidget(self.eq_card)
 
         reset = RippleButton("Reiniciar", "ghost")
         reset.clicked.connect(self._reset)
         layout.addWidget(reset, alignment=Qt.AlignmentFlag.AlignRight)
         layout.addStretch()
+
+        self._update_eq_styles()
+
+    def _update_eq_styles(self) -> None:
+        from pyrolist.ui.design import tokens
+        from PySide6.QtGui import QColor
+        accent = tokens.CURRENT.accent
+        c = QColor(accent)
+        r, g, b = c.red(), c.green(), c.blue()
+        
+        # 1. Card styles
+        if hasattr(self, "eq_card") and self.eq_card:
+            self.eq_card.setStyleSheet(f"""
+                QFrame#eqCard {{
+                    background: {tokens.CURRENT.bg_elevated};
+                    border-radius: 18px;
+                    border: 1px solid rgba({r},{g},{b},0.08);
+                }}
+            """)
+            
+        # 2. Preset ComboBox styles
+        if hasattr(self, "preset_combo") and self.preset_combo:
+            self.preset_combo.setStyleSheet(f"""
+                QComboBox {{
+                    background-color: {tokens.CURRENT.bg_elevated};
+                    color: {tokens.CURRENT.text_primary};
+                    border: 1px solid {tokens.CURRENT.border};
+                    border-radius: 8px;
+                    padding: 6px 12px;
+                    font-family: Inter;
+                    font-size: 13px;
+                    min-width: 120px;
+                }}
+                QComboBox:focus {{
+                    border: 1px solid {tokens.CURRENT.accent};
+                }}
+                QComboBox::drop-down {{
+                    border: none;
+                    width: 20px;
+                }}
+                QComboBox QAbstractItemView {{
+                    background-color: {tokens.CURRENT.bg_surface};
+                    color: {tokens.CURRENT.text_primary};
+                    border: 1px solid {tokens.CURRENT.border};
+                    border-radius: 8px;
+                    selection-background-color: {tokens.CURRENT.accent};
+                    selection-color: {tokens.CURRENT.text_on_accent};
+                }}
+            """)
+            
+        # 3. Preamp value text color
+        if hasattr(self, "preamp_value") and self.preamp_value:
+            self.preamp_value.setStyleSheet(f"color: {tokens.CURRENT.accent}; min-width: 60px; background: transparent;")
+
+    def changeEvent(self, event) -> None:
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
+            if not getattr(self, '_in_style_change', False):
+                self._in_style_change = True
+                try:
+                    self._update_eq_styles()
+                finally:
+                    self._in_style_change = False
+        super().changeEvent(event)
 
     def _load_from_settings(self) -> None:
         eq = self.settings.equalizer

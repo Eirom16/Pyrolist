@@ -29,18 +29,26 @@ class SkeletonBlock(QWidget):
     shimmer = Property(float, _get_shimmer, _set_shimmer)
 
     def paintEvent(self, event: QPaintEvent) -> None:
+        from pyrolist.ui.design import tokens
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(QColor(30, 30, 56)))
+        
+        base_color = QColor(tokens.CURRENT.bg_high)
+        painter.setBrush(QBrush(base_color))
         painter.drawRoundedRect(self.rect(), self._radius, self._radius)
+        
         w = self.width()
         shimmer_w = w * 0.4
         x = self._shimmer_pos * (w + shimmer_w) - shimmer_w
         gradient = QLinearGradient(x, 0, x + shimmer_w, 0)
         gradient.setColorAt(0.0, QColor(0, 0, 0, 0))
-        gradient.setColorAt(0.5, QColor(167, 139, 250, 32))
+        
+        accent_color = QColor(tokens.CURRENT.accent)
+        shimmer_color = QColor(accent_color.red(), accent_color.green(), accent_color.blue(), 32)
+        gradient.setColorAt(0.5, shimmer_color)
         gradient.setColorAt(1.0, QColor(0, 0, 0, 0))
+        
         painter.setBrush(QBrush(gradient))
         painter.drawRoundedRect(self.rect(), self._radius, self._radius)
         painter.end()
