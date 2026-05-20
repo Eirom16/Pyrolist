@@ -45,8 +45,8 @@ jobs:
           mkdir -p vlc_libs/plugins
           # Buscar e incorporar libvlc.so
           find /usr/lib -name "libvlc.so*" -exec cp {} ./vlc_libs/ \; || true
-          # Buscar e incorporar todos los plugins de VLC necesarios para decodificación
-          find /usr/lib/x86_64-linux-gnu/vlc -name "*.so" -exec cp -r {} ./vlc_libs/plugins/ \; || true
+          # Copiar de forma recursiva los plugins de VLC manteniendo su estructura de directorios
+          cp -r /usr/lib/x86_64-linux-gnu/vlc/plugins/* ./vlc_libs/plugins/ 2>/dev/null || cp -r /usr/lib/vlc/plugins/* ./vlc_libs/plugins/ || true
 
       - name: Build PyInstaller folder
         run: |
@@ -87,9 +87,12 @@ jobs:
           curl -Lo appimagetool https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage
           chmod +x appimagetool
           
+          # Extraer el AppImage para evitar problemas con FUSE en entornos virtuales de GitHub Actions
+          ./appimagetool --appimage-extract
+          
           # appimagetool requiere ARCH definida en el entorno
           export ARCH=x86_64
-          ./appimagetool AppDir Pyrolist-x86_64.AppImage
+          ./squashfs-root/AppRun AppDir Pyrolist-x86_64.AppImage
 
       - name: Upload AppImage Artifact
         uses: actions/upload-artifact@v4
