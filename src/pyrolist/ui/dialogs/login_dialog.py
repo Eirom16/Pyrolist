@@ -114,24 +114,32 @@ class WebLoginDialog(QDialog):
         if self._login_detected:
             return
 
+        # Only target the specific profile avatar button — not generic images
         js = """
         (() => {
             let img = document.querySelector('ytmusic-settings-button img') ||
-                      document.querySelector('#avatar-btn img') ||
-                      document.querySelector('img.yt-core-image--loaded[alt]');
-            if (!img || !img.src) return '';
+                      document.querySelector('#avatar-btn img');
+            if (!img || !img.src) return JSON.stringify({avatar: '', name: ''});
             let src = img.src;
-            // Reject data: URIs and placeholder images
-            if (src.startsWith('data:')) return '';
-            if (!src.startsWith('http')) return '';
-            return src;
+            if (src.startsWith('data:') || !src.startsWith('http')) return JSON.stringify({avatar: '', name: ''});
+            let name = img.alt || '';
+            return JSON.stringify({avatar: src, name: name});
         })()
         """
-        self.view.page().runJavaScript(js, self._on_avatar_result)
+        self.view.page().runJavaScript(js, self._on_login_result)
 
-    def _on_avatar_result(self, avatar_url):
+    def _on_login_result(self, result_str):
         if self._login_detected:
             return
+
+        try:
+            res = json.loads(result_str) if isinstance(result_str, str) else {}
+        except Exception:
+            return
+
+        avatar_url = res.get("avatar", "")
+        user_name = res.get("name", "")
+
         if not avatar_url:
             return
 
@@ -142,35 +150,8 @@ class WebLoginDialog(QDialog):
         if has_session:
             self._login_detected = True
             self._poll_timer.stop()
-            logger.info(f"Login detected. Avatar: {avatar_url}")
-            # Now extract the user name by opening the account menu briefly
-            self._detected_avatar = avatar_url
-            self._extract_user_name()
-
-    def _extract_user_name(self):
-        """Click the settings button to reveal the account menu, read the name, then close it."""
-        js = """
-        new Promise((resolve) => {
-            let btn = document.querySelector('ytmusic-settings-button');
-            if (!btn) { resolve(''); return; }
-            btn.click();
-            setTimeout(() => {
-                let nameEl = document.querySelector('ytmusic-active-account-header-renderer #name') ||
-                             document.querySelector('#account-name') ||
-                             document.querySelector('yt-formatted-string.ytd-active-account-header-renderer');
-                let name = nameEl ? nameEl.textContent.trim() : '';
-                // Close the menu
-                btn.click();
-                resolve(name);
-            }, 400);
-        });
-        """
-        self.view.page().runJavaScript(js, self._on_name_result)
-
-    def _on_name_result(self, name):
-        user_name = name if isinstance(name, str) else ""
-        logger.info(f"User name extracted: '{user_name}'")
-        self._save_cookies_and_close(avatar_url=self._detected_avatar, name=user_name)
+            logger.info(f"Login detected. Name: '{user_name}', Avatar: {avatar_url}")
+            self._save_cookies_and_close(avatar_url=avatar_url, name=user_name)
 
     def _save_cookies_and_close(self, avatar_url="", name=""):
         # Build cookie string

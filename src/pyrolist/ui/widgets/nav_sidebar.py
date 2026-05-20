@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 
 from PySide6.QtCore import QEasingCurve, QSize, Qt, QPropertyAnimation, Signal
-from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtGui import QIcon, QPixmap, QPainter, QPainterPath, QColor
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from pyrolist.ui.design.fonts import AppFont
@@ -266,16 +266,34 @@ class NavSidebar(QWidget):
                     if path:
                         pixmap = QPixmap(str(path))
                         if not pixmap.isNull():
+                            # Scale and crop to circle
+                            size = 24
                             scaled = pixmap.scaled(
-                                24, 24,
+                                size, size,
                                 Qt.AspectRatioMode.KeepAspectRatioByExpanding,
                                 Qt.TransformationMode.SmoothTransformation,
                             )
-                            self._profile_btn.setIcon(QIcon(scaled))
+                            # Center crop
+                            x = (scaled.width() - size) // 2
+                            y = (scaled.height() - size) // 2
+                            cropped = scaled.copy(x, y, size, size)
+                            # Clip to circle
+                            from PySide6.QtCore import QRectF
+                            circular = QPixmap(size, size)
+                            circular.fill(Qt.GlobalColor.transparent)
+                            painter = QPainter(circular)
+                            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+                            path_clip = QPainterPath()
+                            path_clip.addEllipse(QRectF(0, 0, size, size))
+                            painter.setClipPath(path_clip)
+                            painter.drawPixmap(0, 0, cropped)
+                            painter.end()
+                            self._profile_btn.setIcon(QIcon(circular))
                             self._profile_btn.setText(text)
                             return
-                except Exception:
-                    pass
+                except Exception as e:
+                    from loguru import logger
+                    logger.error(f"Avatar load failed: {e}")
                 # Fallback: use person icon as text
                 icon_char = Icon.get("person")
                 if text:
@@ -295,7 +313,7 @@ class NavSidebar(QWidget):
             else:
                 self._profile_btn.setText(f"  {display_text}")
                 # Create a pixmap icon from the material font for the person icon
-                from PySide6.QtGui import QPainter, QColor, QFont as QFontClass
+                from PySide6.QtGui import QFont as QFontClass
                 pix = QPixmap(24, 24)
                 pix.fill(Qt.GlobalColor.transparent)
                 painter = QPainter(pix)

@@ -114,15 +114,31 @@ class MainWindow(QMainWindow):
             import json
             name = "YouTube Music"
             avatar = ""
-            profile_file = AppDirs.config / "user_profile.json"
-            if profile_file.exists():
-                try:
-                    with open(profile_file, "r") as f:
-                        data = json.load(f)
-                        name = data.get("name", "YouTube Music") or "YouTube Music"
-                        avatar = data.get("avatar_url", "")
-                except Exception:
-                    pass
+            
+            # Try fresh account info from API
+            try:
+                if hasattr(self.yt, '_ytmusicapi') and self.yt._ytmusicapi:
+                    account_info = self.yt._ytmusicapi.get_account_info()
+                    name = account_info.get("accountName", "") or name
+                    avatar = account_info.get("accountPhotoUrl", "")
+                    # Update saved profile
+                    profile_file = AppDirs.config / "user_profile.json"
+                    with open(profile_file, "w") as f:
+                        json.dump({"name": name, "avatar_url": avatar}, f, indent=4)
+            except Exception:
+                pass
+            
+            # Fallback: read from saved profile
+            if name == "YouTube Music":
+                profile_file = AppDirs.config / "user_profile.json"
+                if profile_file.exists():
+                    try:
+                        with open(profile_file, "r") as f:
+                            data = json.load(f)
+                            name = data.get("name", "YouTube Music") or "YouTube Music"
+                            avatar = data.get("avatar_url", "")
+                    except Exception:
+                        pass
             self.sidebar.update_auth_state(True, name, avatar)
         h_layout.addWidget(self.sidebar)
 
@@ -642,16 +658,33 @@ class MainWindow(QMainWindow):
             from pyrolist.config.paths import AppDirs
             import json
             name = "YouTube Music"
-            profile_file = AppDirs.config / "user_profile.json"
-            if profile_file.exists():
-                try:
-                    with open(profile_file, "r") as f:
-                        data = json.load(f)
-                        name = data.get("name", "YouTube Music") or "YouTube Music"
-                        if not avatar_url:
-                            avatar_url = data.get("avatar_url", "")
-                except Exception:
-                    pass
+            
+            # Try to get account info from ytmusicapi
+            try:
+                if self.yt.is_authenticated and hasattr(self.yt, '_ytmusicapi') and self.yt._ytmusicapi:
+                    account_info = self.yt._ytmusicapi.get_account_info()
+                    name = account_info.get("accountName", "") or name
+                    if not avatar_url:
+                        avatar_url = account_info.get("accountPhotoUrl", "")
+                    # Save updated profile
+                    profile_file = AppDirs.config / "user_profile.json"
+                    with open(profile_file, "w") as f:
+                        json.dump({"name": name, "avatar_url": avatar_url}, f, indent=4)
+            except Exception as e:
+                logger.debug(f"Could not fetch account info: {e}")
+            
+            # Fallback: read from saved profile
+            if name == "YouTube Music":
+                profile_file = AppDirs.config / "user_profile.json"
+                if profile_file.exists():
+                    try:
+                        with open(profile_file, "r") as f:
+                            data = json.load(f)
+                            name = data.get("name", "YouTube Music") or "YouTube Music"
+                            if not avatar_url:
+                                avatar_url = data.get("avatar_url", "")
+                    except Exception:
+                        pass
             
             self.sidebar.update_auth_state(True, name, avatar_url)
             logger.info(f"Post-login: yt client propagated, name={name}, avatar={avatar_url}")
