@@ -32,6 +32,9 @@ class ImageCache:
         return None
 
     async def download(self, url: str) -> Path | None:
+        if not url or not url.startswith(("http://", "https://")):
+            return None
+
         async with self._lock:
             existing = self.get(url)
             if existing:

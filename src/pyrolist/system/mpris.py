@@ -73,10 +73,25 @@ class MprisPlayer:
     def update_playback_status(self, is_playing: bool) -> None:
         if not self._active:
             return
+        try:
+            if not self._bus:
+                return
+            obj = self._bus.get_object("org.freedesktop.DBus.Properties", OBJECT_PATH)
+            props = dbus.Interface(obj, "org.freedesktop.DBus.Properties")
+            status = "Playing" if is_playing else "Paused"
+            props.Set(PLAYER_IFACE, "PlaybackStatus", status)
+        except dbus.exceptions.DBusException:
+            pass
+        except Exception as e:
+            logger.debug(f"MPRIS2 playback status update failed: {e}")
 
     def update_position(self, position_ms: int) -> None:
         if not self._active:
             return
+        # MPRIS2 position is in microseconds
+        # Position updates are typically done via Seeked signal, not polling
+        # We store it for property queries
+        self._position_us = position_ms * 1000
 
     def stop(self) -> None:
         if not self._active:

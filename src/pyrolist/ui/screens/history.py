@@ -89,7 +89,8 @@ class HistoryScreen(QWidget):
 
         header = QLabel("Reproducido recientemente")
         header.setFont(QFont("Inter", 16, QFont.Weight.Bold))
-        header.setStyleSheet("color: #F1F0FF;")
+        from pyrolist.ui.design import tokens
+        header.setStyleSheet(f"color: {tokens.CURRENT.text_primary};")
 
         has_items = False
         

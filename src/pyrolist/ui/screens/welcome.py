@@ -4,6 +4,7 @@ from PySide6.QtGui import QFont
 from qasync import asyncSlot
 import asyncio
 from pyrolist.ui.widgets.ripple_button import RippleButton
+from pyrolist.ui.design import tokens
 
 
 class WelcomeScreen(QWidget):
@@ -26,10 +27,9 @@ class WelcomeScreen(QWidget):
         from pyrolist.config.paths import AppDirs
         logo_path = AppDirs.root / "assets" / "logo.png"
         
-        title = QLabel("Pyrolist")
-        title.setFont(QFont("Inter", 32, QFont.Weight.Bold))
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("color: #BB86FC;")
+        self._title = QLabel("Pyrolist")
+        self._title.setFont(QFont("Inter", 32, QFont.Weight.Bold))
+        self._title.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         if logo_path.exists():
             logo = QLabel()
@@ -38,37 +38,28 @@ class WelcomeScreen(QWidget):
             logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
             layout.addWidget(logo)
 
-        subtitle = QLabel("Cliente de YouTube Music para Linux")
-        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        subtitle.setStyleSheet("color: #888899; font-size: 14px;")
+        self._subtitle = QLabel("Cliente de YouTube Music para Linux")
+        self._subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        layout.addWidget(title)
-        layout.addWidget(subtitle)
+        layout.addWidget(self._title)
+        layout.addWidget(self._subtitle)
         layout.addSpacing(20)
 
-        card = QFrame()
-        card.setStyleSheet("""
-            background-color: #1A1A2E;
-            border-radius: 16px;
-            border: 1px solid #2A2A3E;
-            padding: 32px;
-        """)
-        card_layout = QVBoxLayout(card)
+        self._card = QFrame()
+        card_layout = QVBoxLayout(self._card)
         card_layout.setSpacing(20)
         card_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        welcome_text = QLabel("Bienvenido a Pyrolist")
-        welcome_text.setFont(QFont("Inter", 18, QFont.Weight.Bold))
-        welcome_text.setStyleSheet("color: #FFFFFF;")
-        welcome_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        card_layout.addWidget(welcome_text)
+        self._welcome_text = QLabel("Bienvenido a Pyrolist")
+        self._welcome_text.setFont(QFont("Inter", 18, QFont.Weight.Bold))
+        self._welcome_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        card_layout.addWidget(self._welcome_text)
 
-        desc_text = QLabel(
+        self._desc_text = QLabel(
             "Para escuchar tu música favorita necesitas\niniciar sesión con tu cuenta de Google."
         )
-        desc_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        desc_text.setStyleSheet("color: #B0B0C0; font-size: 14px;")
-        card_layout.addWidget(desc_text)
+        self._desc_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        card_layout.addWidget(self._desc_text)
 
         self._login_btn = RippleButton("Iniciar sesión con Google", "primary")
         self._login_btn.setMinimumHeight(56)
@@ -77,18 +68,44 @@ class WelcomeScreen(QWidget):
 
         self._status_label = QLabel("")
         self._status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._status_label.setStyleSheet("color: #888899; font-size: 13px;")
         card_layout.addWidget(self._status_label)
 
         self._progress = QLabel("")
         self._progress.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._progress.setStyleSheet("color: #666688; font-size: 12px;")
         card_layout.addWidget(self._progress)
 
         card_layout.addStretch()
 
-        layout.addWidget(card)
+        layout.addWidget(self._card)
         layout.addStretch()
+
+        self._apply_theme_styles()
+
+    def _apply_theme_styles(self) -> None:
+        t = tokens.CURRENT
+        self._title.setStyleSheet(f"color: {t.accent}; background: transparent;")
+        self._subtitle.setStyleSheet(f"color: {t.text_secondary}; font-size: 14px; background: transparent;")
+        self._card.setStyleSheet(f"""
+            background-color: {t.bg_elevated};
+            border-radius: 16px;
+            border: 1px solid {t.border};
+            padding: 32px;
+        """)
+        self._welcome_text.setStyleSheet(f"color: {t.text_primary}; background: transparent;")
+        self._desc_text.setStyleSheet(f"color: {t.text_secondary}; font-size: 14px; background: transparent;")
+        self._status_label.setStyleSheet(f"color: {t.text_secondary}; font-size: 13px; background: transparent;")
+        self._progress.setStyleSheet(f"color: {t.text_disabled}; font-size: 12px; background: transparent;")
+
+    def changeEvent(self, event) -> None:
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
+            if not getattr(self, '_in_style_change', False):
+                self._in_style_change = True
+                try:
+                    self._apply_theme_styles()
+                finally:
+                    self._in_style_change = False
+        super().changeEvent(event)
 
     @asyncSlot()
     async def _on_login_clicked(self) -> None:

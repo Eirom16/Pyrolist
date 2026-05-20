@@ -35,7 +35,12 @@ class AboutScreen(QWidget):
         self._update_about_styles()
         layout.addWidget(self.name)
 
-        self.version = QLabel("Version 1.0.0")
+        try:
+            from importlib.metadata import version as pkg_version
+            ver = pkg_version("pyrolist")
+        except Exception:
+            ver = "1.0.0"
+        self.version = QLabel(f"Version {ver}")
         self.version.setFont(AppFont.body(14))
         layout.addWidget(self.version)
 
@@ -48,6 +53,7 @@ class AboutScreen(QWidget):
         layout.addWidget(self.description)
 
         github = RippleButton("Ver proyecto", "secondary")
+        github.clicked.connect(lambda: __import__('webbrowser').open("https://github.com/eirom/Pyrolist"))
         layout.addWidget(github)
         layout.addStretch()
         

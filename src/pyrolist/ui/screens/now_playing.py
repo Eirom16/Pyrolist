@@ -134,6 +134,7 @@ class NowPlayingScreen(QWidget):
 
         self.btn_shuffle = self._make_btn("shuffle", 22, "#6B6B9B", 40)
         self.btn_shuffle.setObjectName("nowPlayingShuffleBtn")
+        self.btn_shuffle.clicked.connect(self._on_shuffle)
         controls.addWidget(self.btn_shuffle)
 
         self.btn_prev = self._make_btn("skip_previous", 30, "#F1F0FF", 48)
@@ -152,6 +153,7 @@ class NowPlayingScreen(QWidget):
 
         self.btn_repeat = self._make_btn("repeat", 22, "#6B6B9B", 40)
         self.btn_repeat.setObjectName("nowPlayingRepeatBtn")
+        self.btn_repeat.clicked.connect(self._on_repeat)
         controls.addWidget(self.btn_repeat)
 
         left_layout.addLayout(controls)
@@ -243,6 +245,44 @@ class NowPlayingScreen(QWidget):
         if main and self.player.status.duration_ms > 0:
             ms = int(pct * self.player.status.duration_ms)
             main._on_seek(ms)
+
+    def _on_shuffle(self):
+        from pyrolist.ui.design import tokens
+        from pyrolist.audio.queue import RepeatMode
+        is_shuffled = self.queue.toggle_shuffle()
+        color = tokens.CURRENT.accent if is_shuffled else tokens.CURRENT.text_disabled
+        self.btn_shuffle.setStyleSheet(f"QPushButton {{ color: {color}; border: none; background: transparent; }}")
+
+    def _on_repeat(self):
+        from pyrolist.ui.design import tokens
+        from pyrolist.audio.queue import RepeatMode
+        mode = self.queue.toggle_repeat()
+        if mode == RepeatMode.OFF:
+            self.btn_repeat.setText(Icon.get("repeat"))
+            self.btn_repeat.setStyleSheet(f"QPushButton {{ color: {tokens.CURRENT.text_disabled}; border: none; background: transparent; }}")
+        elif mode == RepeatMode.ALL:
+            self.btn_repeat.setText(Icon.get("repeat"))
+            self.btn_repeat.setStyleSheet(f"QPushButton {{ color: {tokens.CURRENT.accent}; border: none; background: transparent; }}")
+        elif mode == RepeatMode.ONE:
+            self.btn_repeat.setText(Icon.get("repeat_one"))
+            self.btn_repeat.setStyleSheet(f"QPushButton {{ color: {tokens.CURRENT.accent}; border: none; background: transparent; }}")
+
+    def update_shuffle_repeat_state(self):
+        """Sync button visuals with current queue state."""
+        from pyrolist.ui.design import tokens
+        from pyrolist.audio.queue import RepeatMode
+        color = tokens.CURRENT.accent if self.queue.shuffle_enabled else tokens.CURRENT.text_disabled
+        self.btn_shuffle.setStyleSheet(f"QPushButton {{ color: {color}; border: none; background: transparent; }}")
+        mode = self.queue.repeat_mode
+        if mode == RepeatMode.OFF:
+            self.btn_repeat.setText(Icon.get("repeat"))
+            self.btn_repeat.setStyleSheet(f"QPushButton {{ color: {tokens.CURRENT.text_disabled}; border: none; background: transparent; }}")
+        elif mode == RepeatMode.ALL:
+            self.btn_repeat.setText(Icon.get("repeat"))
+            self.btn_repeat.setStyleSheet(f"QPushButton {{ color: {tokens.CURRENT.accent}; border: none; background: transparent; }}")
+        elif mode == RepeatMode.ONE:
+            self.btn_repeat.setText(Icon.get("repeat_one"))
+            self.btn_repeat.setStyleSheet(f"QPushButton {{ color: {tokens.CURRENT.accent}; border: none; background: transparent; }}")
 
     def _find_main_window(self):
         w = self.parent()
@@ -491,10 +531,28 @@ class NowPlayingScreen(QWidget):
         if path:
             pixmap = QPixmap(str(path))
             if not pixmap.isNull():
-                pixmap = pixmap.scaled(360, 360, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
-                self.artwork.setPixmap(pixmap)
+                size = 360
+                radius = 24
+                pixmap = pixmap.scaled(size, size, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
+                # Center crop
+                x = (pixmap.width() - size) // 2
+                y = (pixmap.height() - size) // 2
+                pixmap = pixmap.copy(x, y, size, size)
+                # Apply rounded rect clip
+                from PySide6.QtGui import QPainter, QPainterPath
+                from PySide6.QtCore import QRectF
+                rounded = QPixmap(size, size)
+                rounded.fill(Qt.GlobalColor.transparent)
+                painter = QPainter(rounded)
+                painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+                clip_path = QPainterPath()
+                clip_path.addRoundedRect(QRectF(0, 0, size, size), radius, radius)
+                painter.setClipPath(clip_path)
+                painter.drawPixmap(0, 0, pixmap)
+                painter.end()
+                self.artwork.setPixmap(rounded)
                 self.artwork.setText("")
-                self.artwork.setStyleSheet("background: transparent; border-radius: 24px;")
+                self.artwork.setStyleSheet("background: transparent;")
 
     def set_related(self, tracks, play_callback):
         """Populate the SIMILARES tab with related songs."""

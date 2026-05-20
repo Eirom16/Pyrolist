@@ -10,6 +10,7 @@ import asyncio
 from pyrolist.utils.image_cache import ImageCache
 from pyrolist.ui.design.fonts import AppFont
 from pyrolist.ui.design.icons import Icon
+from pyrolist.ui.design import tokens
 from pyrolist.ui.widgets.animated_progress import AnimatedProgressBar
 from pyrolist.ui.widgets.icon_button import IconButton
 from pyrolist.ui.widgets.scrolling_label import ScrollingLabel
@@ -89,7 +90,7 @@ class MiniPlayerWidget(QWidget):
 
         self.artist = QLabel("")
         self.artist.setFont(AppFont.label(10))
-        self.artist.setStyleSheet("color: #9B9BC0;")
+        self.artist.setStyleSheet(f"color: {tokens.CURRENT.text_secondary};")
         self.artist.setMaximumWidth(220)
         info_layout.addWidget(self.artist)
 
@@ -104,7 +105,7 @@ class MiniPlayerWidget(QWidget):
 
         self.time_current = QLabel("0:00")
         self.time_current.setFont(AppFont.mono(10))
-        self.time_current.setStyleSheet("color: #6B6B9B;")
+        self.time_current.setStyleSheet(f"color: {tokens.CURRENT.text_disabled};")
         self.time_current.setFixedWidth(36)
         self.time_current.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         progress_layout.addWidget(self.time_current)
@@ -116,7 +117,7 @@ class MiniPlayerWidget(QWidget):
 
         self.time_total = QLabel("0:00")
         self.time_total.setFont(AppFont.mono(10))
-        self.time_total.setStyleSheet("color: #6B6B9B;")
+        self.time_total.setStyleSheet(f"color: {tokens.CURRENT.text_disabled};")
         self.time_total.setFixedWidth(36)
         self.time_total.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         progress_layout.addWidget(self.time_total)
@@ -202,13 +203,32 @@ class MiniPlayerWidget(QWidget):
         if path:
             pixmap = QPixmap(str(path))
             if not pixmap.isNull():
+                # Clip artwork to rounded rect
+                size = 60
+                radius = 10
+                from PySide6.QtGui import QPainter, QPainterPath
+                from PySide6.QtCore import QRectF
+                scaled = pixmap.scaled(size, size, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
+                x = (scaled.width() - size) // 2
+                y = (scaled.height() - size) // 2
+                cropped = scaled.copy(x, y, size, size)
+                rounded = QPixmap(size, size)
+                rounded.fill(Qt.GlobalColor.transparent)
+                painter = QPainter(rounded)
+                painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+                clip_path = QPainterPath()
+                clip_path.addRoundedRect(QRectF(0, 0, size, size), radius, radius)
+                painter.setClipPath(clip_path)
+                painter.drawPixmap(0, 0, cropped)
+                painter.end()
+
                 # Fade-in transition for the new artwork
                 effect = QGraphicsOpacityEffect(self.artwork)
                 self.artwork.setGraphicsEffect(effect)
                 
-                self.artwork.setPixmap(pixmap)
+                self.artwork.setPixmap(rounded)
                 self.artwork.setText("")
-                self.artwork.setStyleSheet("background: transparent; border-radius: 10px;")
+                self.artwork.setStyleSheet("background: transparent;")
                 
                 fade = QPropertyAnimation(effect, b"opacity", self)
                 fade.setDuration(250)

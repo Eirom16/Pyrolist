@@ -93,10 +93,11 @@ class HomeScreen(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 16, 24, 16)
 
-        header = QLabel("Inicio")
-        header.setFont(AppFont.display(24))
-        header.setStyleSheet("color: #F1F0FF;")
-        layout.addWidget(header)
+        from pyrolist.ui.design import tokens as _tokens
+        self._header = QLabel("Inicio")
+        self._header.setFont(AppFont.display(24))
+        self._header.setStyleSheet(f"color: {_tokens.CURRENT.text_primary};")
+        layout.addWidget(self._header)
 
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
@@ -184,9 +185,10 @@ class HomeScreen(QWidget):
 
             if contents:
                 self._clear_content()
+                from pyrolist.ui.design import tokens
                 title = QLabel("Para ti")
                 title.setFont(AppFont.display(24))
-                title.setStyleSheet("color: #F1F0FF;")
+                title.setStyleSheet(f"color: {tokens.CURRENT.text_primary};")
                 self.content_layout.addWidget(title)
                 
                 # Fetch liked video IDs for heart state
@@ -206,9 +208,10 @@ class HomeScreen(QWidget):
 
                 if has_charts:
                     self._clear_content()
+                    from pyrolist.ui.design import tokens
                     title = QLabel("Top Charts")
                     title.setFont(AppFont.display(24))
-                    title.setStyleSheet("color: #F1F0FF;")
+                    title.setStyleSheet(f"color: {tokens.CURRENT.text_primary};")
                     self.content_layout.addWidget(title)
                     
                     self._display_charts(charts_data)
@@ -237,9 +240,10 @@ class HomeScreen(QWidget):
             if isinstance(section_title, dict):
                 section_title = section_title.get('text', 'Sección')
             
+            from pyrolist.ui.design import tokens
             header = QLabel(str(section_title))
             header.setFont(AppFont.heading(16))
-            header.setStyleSheet("color: #F1F0FF;")
+            header.setStyleSheet(f"color: {tokens.CURRENT.text_primary};")
             section_layout.addWidget(header)
             
             # Items can be in 'contents' or direct in section
@@ -404,9 +408,10 @@ class HomeScreen(QWidget):
 
 
     def _load_genres_view(self):
+        from pyrolist.ui.design import tokens
         title = QLabel("Explorar por género")
         title.setFont(AppFont.display(24))
-        title.setStyleSheet("color: #F1F0FF;")
+        title.setStyleSheet(f"color: {tokens.CURRENT.text_primary};")
         self.content_layout.addWidget(title)
 
         genres_section = QWidget()
@@ -425,11 +430,11 @@ class HomeScreen(QWidget):
 
         header = QLabel("Sugerencias")
         header.setFont(AppFont.heading(18))
-        header.setStyleSheet("color: #F1F0FF;")
+        header.setStyleSheet(f"color: {tokens.CURRENT.text_primary};")
         section_layout.addWidget(header)
 
         hint = QLabel("Haz clic en un genero para buscar")
-        hint.setStyleSheet("color: #888899; font-size: 14px; padding: 10px;")
+        hint.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; font-size: 14px; padding: 10px;")
         section_layout.addWidget(hint)
 
         self.content_layout.addWidget(section)
