@@ -8,6 +8,9 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWi
 
 from pyrolist.ui.design.fonts import AppFont
 from pyrolist.ui.design.icons import Icon
+from pyrolist.utils.image_cache import ImageCache
+
+_image_cache = ImageCache()
 
 
 NAV_ITEMS = [
@@ -113,6 +116,7 @@ class NavSidebar(QWidget):
         self._user_avatar = ""
         self._user_name = ""
         self._nav_buttons: dict[str, NavButton] = {}
+        self._avatar_task: asyncio.Task | None = None
 
         self.setObjectName("navSidebar")
         self.setFixedWidth(self.EXPANDED_WIDTH)
@@ -258,11 +262,15 @@ class NavSidebar(QWidget):
             }}
         """)
 
+        # Cancel any active avatar loading task first
+        if self._avatar_task and not self._avatar_task.done():
+            self._avatar_task.cancel()
+            self._avatar_task = None
+
         if self._is_authenticated and self._user_avatar:
             async def load_avatar() -> None:
                 try:
-                    from pyrolist.utils.image_cache import ImageCache
-                    path = await ImageCache().download(self._user_avatar)
+                    path = await _image_cache.download(self._user_avatar)
                     if path:
                         pixmap = QPixmap(str(path))
                         if not pixmap.isNull():
@@ -292,39 +300,20 @@ class NavSidebar(QWidget):
                             self._profile_btn.setIcon(QIcon(circular))
                             self._profile_btn.setText(text)
                             return
+                except asyncio.CancelledError:
+                    return
                 except Exception as e:
                     from loguru import logger
                     logger.error(f"Avatar load failed: {e}")
-                # Fallback: use person icon as text
-                icon_char = Icon.get("person")
-                if text:
-                    self._profile_btn.setText(f"  {text}")
-                    self._profile_btn.setIcon(QIcon())
-                else:
-                    self._profile_btn.setText(icon_char)
-                    self._profile_btn.setFont(Icon.font(22))
+                # Fallback: use person icon
+                self._profile_btn.setIcon(Icon.icon("person", tokens.CURRENT.text_secondary, 20 if not self._collapsed else 22))
+                self._profile_btn.setText(text)
 
-            asyncio.create_task(load_avatar())
+            self._avatar_task = asyncio.create_task(load_avatar())
         else:
             # Not authenticated or no avatar — show icon + text
-            icon_char = Icon.get("person")
-            if self._collapsed:
-                self._profile_btn.setText(icon_char)
-                self._profile_btn.setFont(Icon.font(22))
-            else:
-                self._profile_btn.setText(f"  {display_text}")
-                # Create a pixmap icon from the material font for the person icon
-                from PySide6.QtGui import QFont as QFontClass
-                pix = QPixmap(24, 24)
-                pix.fill(Qt.GlobalColor.transparent)
-                painter = QPainter()
-                if painter.begin(pix):
-                    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-                    painter.setPen(QColor(tokens.CURRENT.text_secondary))
-                    painter.setFont(Icon.font(20))
-                    painter.drawText(pix.rect(), Qt.AlignmentFlag.AlignCenter, icon_char)
-                    painter.end()
-                self._profile_btn.setIcon(QIcon(pix))
+            self._profile_btn.setIcon(Icon.icon("person", tokens.CURRENT.text_secondary, 20 if not self._collapsed else 22))
+            self._profile_btn.setText(text)
 
     def _on_profile_clicked(self) -> None:
         if self._is_authenticated:

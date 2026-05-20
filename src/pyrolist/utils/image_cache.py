@@ -16,10 +16,23 @@ class ImageCache:
         self._memory_cache: dict[str, str] = {}
         self._lock = asyncio.Lock()
 
+    def _is_valid_url(self, url: str) -> bool:
+        if not isinstance(url, str):
+            return False
+        if not url:
+            return False
+        if url.startswith("data:"):
+            return False
+        if not url.startswith(("http://", "https://")):
+            return False
+        return True
+
     def _get_filename(self, url: str) -> str:
         return hashlib.md5(url.encode()).hexdigest() + ".jpg"
 
     def get(self, url: str) -> Path | None:
+        if not self._is_valid_url(url):
+            return None
         filename = self._get_filename(url)
         if url in self._memory_cache:
             path = Path(self._memory_cache[url])
@@ -32,7 +45,7 @@ class ImageCache:
         return None
 
     async def download(self, url: str) -> Path | None:
-        if not url or not url.startswith(("http://", "https://")):
+        if not self._is_valid_url(url):
             return None
 
         async with self._lock:

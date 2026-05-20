@@ -159,8 +159,9 @@ class AlbumScreen(QWidget):
         back_row = QHBoxLayout()
         back_row.setContentsMargins(0, 0, 0, 8)
         btn_back = QPushButton()
-        btn_back.setText(f"{Icon.get('arrow_back')}  Volver")
-        btn_back.setFont(QFont("Inter", 12))
+        btn_back.setIcon(Icon.icon("arrow_back", tokens.CURRENT.text_secondary, 16))
+        btn_back.setText("Volver")
+        btn_back.setFont(QFont("Inter", 11, QFont.Weight.Medium))
         btn_back.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_back.setStyleSheet(f"""
             QPushButton {{
