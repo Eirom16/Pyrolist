@@ -30,6 +30,7 @@ venv.bak/
 # Project Specific
 vlc-portable/
 Metrolist/
+vlc_libs/
 headers_auth.json
 oauth.json
 *.json
@@ -51,3 +52,7 @@ headers.txt
 # OS
 .DS_Store
 Thumbs.db
+
+# Ignore other markdown files except README.md
+*.md
+!README.md
