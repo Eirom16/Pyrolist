@@ -581,10 +581,11 @@ class MainWindow(QMainWindow):
         from PySide6.QtWidgets import QDialog, QVBoxLayout, QPushButton, QLabel, QScrollArea, QWidget
         from pyrolist.ui.design.fonts import AppFont
         
+        from pyrolist.ui.design import tokens
         dialog = QDialog(self)
         dialog.setWindowTitle("Añadir a Playlist")
         dialog.setFixedWidth(400)
-        dialog.setStyleSheet("background-color: #10101E; color: #F1F0FF;")
+        dialog.setStyleSheet(f"background-color: {tokens.CURRENT.bg_surface}; color: {tokens.CURRENT.text_primary};")
         
         layout = QVBoxLayout(dialog)
         layout.setContentsMargins(16, 16, 16, 16)
@@ -608,11 +609,11 @@ class MainWindow(QMainWindow):
                 continue
                 
             btn = QPushButton(p_title)
-            btn.setStyleSheet("""
-                QPushButton {
-                    background: #1E1E38; color: #F1F0FF; border: none; border-radius: 8px; padding: 12px; text-align: left;
-                }
-                QPushButton:hover { background: #2A2A4A; }
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background: {tokens.CURRENT.bg_high}; color: {tokens.CURRENT.text_primary}; border: none; border-radius: 8px; padding: 12px; text-align: left;
+                }}
+                QPushButton:hover {{ background: {tokens.CURRENT.accent_dim}; }}
             """)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             

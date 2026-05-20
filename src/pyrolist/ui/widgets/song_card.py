@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QToolButton
-from PySide6.QtCore import Signal, Qt
+from PySide6.QtCore import Signal, Qt, Property, QPropertyAnimation, QEasingCurve
 from PySide6.QtGui import QFont, QPixmap
 import asyncio
 from pyrolist.utils.image_cache import ImageCache
@@ -27,6 +27,12 @@ class SongCard(QWidget):
         self._on_play = on_play
         self._video_id = video_id
         self._is_liked = is_liked
+        
+        self._bg_opacity = 0.0
+        self._bg_anim = QPropertyAnimation(self, b"bg_opacity", self)
+        self._bg_anim.setDuration(150)
+        self._bg_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        
         self._build_ui()
         if self._thumbnail_url:
             asyncio.ensure_future(self._load_thumbnail())
@@ -125,19 +131,20 @@ class SongCard(QWidget):
 
     def _update_card_styles(self) -> None:
         from pyrolist.ui.design import tokens
+        from PySide6.QtGui import QColor
         accent = tokens.CURRENT.accent
         text_primary = tokens.CURRENT.text_primary
         text_secondary = tokens.CURRENT.text_secondary
         bg_high = tokens.CURRENT.bg_high
         
+        c = QColor(accent)
+        r, g, b = c.red(), c.green(), c.blue()
+        
         self.setStyleSheet(f"""
             #songCard {{
-                background-color: transparent;
+                background-color: rgba({r}, {g}, {b}, {self._bg_opacity * 0.08});
                 border-radius: 12px;
                 padding: 6px;
-            }}
-            #songCard:hover {{
-                background-color: {accent}14;
             }}
         """)
         
@@ -267,3 +274,37 @@ class SongCard(QWidget):
                 finally:
                     self._in_style_change = False
         super().changeEvent(event)
+
+    def _get_bg_opacity(self) -> float:
+        return self._bg_opacity
+
+    def _set_bg_opacity(self, value: float) -> None:
+        self._bg_opacity = value
+        from pyrolist.ui.design import tokens
+        from PySide6.QtGui import QColor
+        accent = tokens.CURRENT.accent
+        c = QColor(accent)
+        r, g, b = c.red(), c.green(), c.blue()
+        self.setStyleSheet(f"""
+            #songCard {{
+                background-color: rgba({r}, {g}, {b}, {value * 0.08});
+                border-radius: 12px;
+                padding: 6px;
+            }}
+        """)
+
+    bg_opacity = Property(float, _get_bg_opacity, _set_bg_opacity)
+
+    def enterEvent(self, event) -> None:
+        self._bg_anim.stop()
+        self._bg_anim.setStartValue(self._bg_opacity)
+        self._bg_anim.setEndValue(1.0)
+        self._bg_anim.start()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event) -> None:
+        self._bg_anim.stop()
+        self._bg_anim.setStartValue(self._bg_opacity)
+        self._bg_anim.setEndValue(0.0)
+        self._bg_anim.start()
+        super().leaveEvent(event)

@@ -38,11 +38,14 @@ class RippleButton(QPushButton):
         bright_hex = c.lighter(125).name()
         dark_hex = c.darker(120).name()
 
+        err_c = QColor(tokens.CURRENT.error)
+        err_r, err_g, err_b = err_c.red(), err_c.green(), err_c.blue()
+
         styles = {
             "primary": f"""
                 QPushButton {{
                     background-color: {accent};
-                    color: #0A0A14;
+                    color: {tokens.CURRENT.text_on_accent};
                     border: none;
                     border-radius: 20px;
                     padding: 10px 26px;
@@ -52,7 +55,7 @@ class RippleButton(QPushButton):
                 }}
                 QPushButton:hover {{ background-color: {bright_hex}; }}
                 QPushButton:pressed {{ background-color: {dark_hex}; }}
-                QPushButton:disabled {{ background-color: #2A2A4A; color: #4A4A6A; }}
+                QPushButton:disabled {{ background-color: {tokens.CURRENT.bg_high}; color: {tokens.CURRENT.text_disabled}; }}
             """,
             "secondary": f"""
                 QPushButton {{
@@ -70,30 +73,30 @@ class RippleButton(QPushButton):
                     border-color: rgba({r},{g},{b},0.6);
                 }}
             """,
-            "ghost": """
-                QPushButton {
+            "ghost": f"""
+                QPushButton {{
                     background-color: transparent;
-                    color: #9B9BC0;
+                    color: {tokens.CURRENT.text_secondary};
                     border: none;
                     border-radius: 20px;
                     padding: 10px 20px;
                     font-family: 'Inter';
                     font-size: 14px;
-                }
-                QPushButton:hover { background-color: rgba(255,255,255,0.06); color: #F1F0FF; }
+                }}
+                QPushButton:hover {{ background-color: {tokens.CURRENT.bg_elevated}; color: {tokens.CURRENT.text_primary}; }}
             """,
-            "danger": """
-                QPushButton {
-                    background-color: rgba(248,113,113,0.12);
-                    color: #F87171;
-                    border: 1px solid rgba(248,113,113,0.3);
+            "danger": f"""
+                QPushButton {{
+                    background-color: rgba({err_r},{err_g},{err_b},0.12);
+                    color: {tokens.CURRENT.error};
+                    border: 1px solid rgba({err_r},{err_g},{err_b},0.3);
                     border-radius: 20px;
                     padding: 10px 24px;
                     font-family: 'Nunito';
                     font-size: 14px;
                     font-weight: 600;
-                }
-                QPushButton:hover { background-color: rgba(248,113,113,0.2); }
+                }}
+                QPushButton:hover {{ background-color: rgba({err_r},{err_g},{err_b},0.2); }}
             """,
         }
         self.setStyleSheet(styles.get(self.variant, styles["primary"]))

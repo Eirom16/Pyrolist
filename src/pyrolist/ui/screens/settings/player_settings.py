@@ -42,7 +42,33 @@ class PlayerSettingsScreen(QWidget):
 
         audio.add_row(self._toggle_row("Normalizar volumen", "Iguala el volumen entre canciones", "normalize_audio"))
         audio.add_row(self._toggle_row("Saltar silencios", "Omite fragmentos silenciosos", "skip_silence"))
-        audio.add_row(self._toggle_row("Crossfade", "Transicion suave entre canciones", "crossfade_enabled"))
+        # Crossfade toggle row
+        self.crossfade_toggle = AnimatedToggle()
+        self.crossfade_toggle.setChecked(self.settings.player.crossfade_enabled)
+        self.crossfade_toggle.toggled.connect(self._on_crossfade_toggled)
+        audio.add_row(SettingsRow("Crossfade", "Transicion suave entre canciones", self.crossfade_toggle))
+
+        # Crossfade duration slider
+        self.crossfade_duration_value = QLabel(f"{self.settings.player.crossfade_duration_sec} s")
+        self.crossfade_duration_value.setFont(AppFont.mono(12))
+        
+        self.crossfade_duration = QSlider(Qt.Orientation.Horizontal)
+        self.crossfade_duration.setRange(1, 15)
+        self.crossfade_duration.setValue(self.settings.player.crossfade_duration_sec)
+        self.crossfade_duration.setMinimumWidth(180)
+        self.crossfade_duration.setEnabled(self.settings.player.crossfade_enabled)
+        self.crossfade_duration.valueChanged.connect(self._on_crossfade_duration_changed)
+
+        crossfade_row_widget = QWidget()
+        from PySide6.QtWidgets import QHBoxLayout
+        crossfade_row_layout = QHBoxLayout(crossfade_row_widget)
+        crossfade_row_layout.setContentsMargins(0, 0, 0, 0)
+        crossfade_row_layout.setSpacing(10)
+        crossfade_row_layout.addWidget(self.crossfade_duration)
+        crossfade_row_layout.addWidget(self.crossfade_duration_value)
+        self.crossfade_duration_row = SettingsRow("Duracion de Crossfade", "Tiempo de transicion entre canciones", crossfade_row_widget)
+        audio.add_row(self.crossfade_duration_row)
+
         audio.add_row(self._toggle_row("Reproduccion sin gaps", "Evita pausas entre canciones compatibles", "gapless_playback"))
         audio.add_row(self._toggle_row("Reanudar al iniciar", "Continua la ultima sesion al abrir la app", "resume_on_startup"))
         audio.add_row(self._toggle_row("Parar al cerrar", "Detiene la reproduccion al cerrar Pyrolist", "stop_on_close"))
@@ -82,6 +108,14 @@ class PlayerSettingsScreen(QWidget):
         mins = self.sleep_timer_reverse_map.get(text, 0)
         self._set_player("sleep_timer_minutes", mins)
 
+    def _on_crossfade_toggled(self, checked: bool) -> None:
+        self._set_player("crossfade_enabled", checked)
+        self.crossfade_duration.setEnabled(checked)
+
+    def _on_crossfade_duration_changed(self, value: int) -> None:
+        self.crossfade_duration_value.setText(f"{value} s")
+        self._set_player("crossfade_duration_sec", value)
+
     def update_fields(self) -> None:
         current_min = getattr(self.settings.player, "sleep_timer_minutes", 0)
         self.sleep_timer_combo.blockSignals(True)
@@ -94,6 +128,19 @@ class PlayerSettingsScreen(QWidget):
         self.volume_value.setText(f"{self.settings.player.volume}%")
         self.volume.blockSignals(False)
 
+        # Re-read crossfade setting
+        if hasattr(self, "crossfade_toggle"):
+            self.crossfade_toggle.blockSignals(True)
+            self.crossfade_toggle.setChecked(self.settings.player.crossfade_enabled)
+            self.crossfade_toggle.blockSignals(False)
+
+        if hasattr(self, "crossfade_duration"):
+            self.crossfade_duration.blockSignals(True)
+            self.crossfade_duration.setValue(self.settings.player.crossfade_duration_sec)
+            self.crossfade_duration_value.setText(f"{self.settings.player.crossfade_duration_sec} s")
+            self.crossfade_duration.setEnabled(self.settings.player.crossfade_enabled)
+            self.crossfade_duration.blockSignals(False)
+
     def _toggle_row(self, title: str, description: str, key: str) -> SettingsRow:
         toggle = AnimatedToggle()
         toggle.setChecked(getattr(self.settings.player, key))
@@ -104,6 +151,8 @@ class PlayerSettingsScreen(QWidget):
         from pyrolist.ui.design import tokens
         if hasattr(self, "volume_value") and self.volume_value:
             self.volume_value.setStyleSheet(f"color: {tokens.CURRENT.accent}; min-width: 48px; background: transparent;")
+        if hasattr(self, "crossfade_duration_value") and self.crossfade_duration_value:
+            self.crossfade_duration_value.setStyleSheet(f"color: {tokens.CURRENT.accent}; min-width: 48px; background: transparent;")
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent

@@ -78,7 +78,8 @@ class DownloadItemWidget(QFrame):
         layout.addWidget(self.status_lbl)
         
         # Like button
-        self.btn_like = IconButton(size=36, active_color="#F472B6")
+        from pyrolist.ui.design import tokens
+        self.btn_like = IconButton(size=36, active_color=tokens.CURRENT.like_color)
         self.btn_like.setText(Icon.get("favorite"))
         self.btn_like.setFont(Icon.font(20, filled=False))
         self.btn_like.setFixedSize(36, 36)
@@ -94,7 +95,7 @@ class DownloadItemWidget(QFrame):
         layout.addWidget(self.play_btn)
         
         # Delete button
-        self.btn_delete = IconButton(size=36, active_color="#EF4444")
+        self.btn_delete = IconButton(size=36, active_color=tokens.CURRENT.error)
         self.btn_delete.setText(Icon.get("delete"))
         self.btn_delete.setFont(Icon.font(20))
         self.btn_delete.setFixedSize(36, 36)
@@ -106,6 +107,7 @@ class DownloadItemWidget(QFrame):
 
     def _update_item_styles(self) -> None:
         from pyrolist.ui.design import tokens
+        from PySide6.QtGui import QColor
         accent = tokens.CURRENT.accent
         text_primary = tokens.CURRENT.text_primary
         text_secondary = tokens.CURRENT.text_secondary
@@ -113,6 +115,13 @@ class DownloadItemWidget(QFrame):
         bg_elevated = tokens.CURRENT.bg_elevated
         bg_high = tokens.CURRENT.bg_high
         border = tokens.CURRENT.border
+        text_on_accent = tokens.CURRENT.text_on_accent
+        
+        like_c = QColor(tokens.CURRENT.like_color)
+        like_r, like_g, like_b = like_c.red(), like_c.green(), like_c.blue()
+        
+        err_c = QColor(tokens.CURRENT.error)
+        err_r, err_g, err_b = err_c.red(), err_c.green(), err_c.blue()
         
         self.setStyleSheet(f"""
             QFrame#downloadCard {{
@@ -139,18 +148,18 @@ class DownloadItemWidget(QFrame):
                 background-color: transparent;
                 border: 2px solid {border};
                 border-radius: 10px;
-                color: #FFFFFF;
+                color: {text_primary};
             }}
             QPushButton:checked {{
                 background-color: {accent};
                 border-color: {accent};
-                color: #FFFFFF;
+                color: {text_on_accent};
             }}
         """)
         
         is_liked = getattr(self.btn_like, '_active', False)
         if is_liked:
-            self.btn_like.setStyleSheet("QPushButton { color: #F472B6; background: transparent; border: none; }")
+            self.btn_like.setStyleSheet(f"QPushButton {{ color: {tokens.CURRENT.like_color}; background: transparent; border: none; }}")
         else:
             self.btn_like.setStyleSheet(f"""
                 QPushButton {{
@@ -160,8 +169,8 @@ class DownloadItemWidget(QFrame):
                     border-radius: 18px;
                 }}
                 QPushButton:hover {{
-                    background-color: rgba(244,114,182,0.15);
-                    color: #F472B6;
+                    background-color: rgba({like_r},{like_g},{like_b},0.15);
+                    color: {tokens.CURRENT.like_color};
                 }}
             """)
             
@@ -175,8 +184,8 @@ class DownloadItemWidget(QFrame):
                     border-radius: 18px;
                 }}
                 QPushButton:hover {{
-                    background-color: rgba(239, 68, 68, 0.15);
-                    color: #EF4444;
+                    background-color: rgba({err_r}, {err_g}, {err_b}, 0.15);
+                    color: {tokens.CURRENT.error};
                 }}
             """)
         self.progress_bar.setStyleSheet(f"""
@@ -220,9 +229,10 @@ class DownloadItemWidget(QFrame):
         self.btn_delete.show()
 
     def set_error(self, msg):
+        from pyrolist.ui.design import tokens
         self.progress_bar.hide()
         self.status_lbl.setText("Error")
-        self.status_lbl.setStyleSheet("color: #EF4444; font-size: 12px; background: transparent; border: none;")
+        self.status_lbl.setStyleSheet(f"color: {tokens.CURRENT.error}; font-size: 12px; background: transparent; border: none;")
         self.play_btn.hide()
         self.btn_delete.show()
 
@@ -820,12 +830,16 @@ class DownloadsScreen(QWidget):
 
     def _update_toolbar_styles(self) -> None:
         from pyrolist.ui.design import tokens
+        from PySide6.QtGui import QColor
         accent = tokens.CURRENT.accent
         accent_dim = tokens.CURRENT.accent_dim
         text_primary = tokens.CURRENT.text_primary
         bg_elevated = tokens.CURRENT.bg_elevated
         bg_surface = tokens.CURRENT.bg_surface
         border = tokens.CURRENT.border
+        
+        err_c = QColor(tokens.CURRENT.error)
+        err_r, err_g, err_b = err_c.red(), err_c.green(), err_c.blue()
         
         btn_style = f"""
             QPushButton {{
@@ -857,15 +871,15 @@ class DownloadsScreen(QWidget):
         
         delete_btn_style = f"""
             QPushButton {{
-                background-color: rgba(239, 68, 68, 0.1);
-                color: #EF4444;
-                border: 1px solid rgba(239, 68, 68, 0.3);
+                background-color: rgba({err_r}, {err_g}, {err_b}, 0.1);
+                color: {tokens.CURRENT.error};
+                border: 1px solid rgba({err_r}, {err_g}, {err_b}, 0.3);
                 border-radius: 17px;
                 padding: 0 16px;
                 font-weight: bold;
             }}
             QPushButton:hover {{
-                background-color: rgba(239, 68, 68, 0.2);
+                background-color: rgba({err_r}, {err_g}, {err_b}, 0.2);
             }}
         """
         

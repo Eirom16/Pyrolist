@@ -84,7 +84,7 @@ class MiniPlayerWidget(QWidget):
 
         self.title = ScrollingLabel("Sin reproduccion")
         self.title.setFont(AppFont.title(13))
-        self.title.setColor("#F1F0FF")
+        self.title.setColor(tokens.CURRENT.text_primary)
         self.title.setFixedWidth(220)
         info_layout.addWidget(self.title)
 
@@ -129,21 +129,21 @@ class MiniPlayerWidget(QWidget):
         controls.setSpacing(4)
         controls.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
-        self.btn_prev = self._make_control_btn("skip_previous", size=26, color="#F1F0FF", btn_size=40)
+        self.btn_prev = self._make_control_btn("skip_previous", size=26, color=tokens.CURRENT.text_primary, btn_size=40)
         self.btn_prev.clicked.connect(lambda: self.on_prev.emit())
         controls.addWidget(self.btn_prev)
 
-        self.btn_play = self._make_control_btn("play_arrow", size=34, color="#0A0A14", btn_size=52, primary=True)
+        self.btn_play = self._make_control_btn("play_arrow", size=34, color=tokens.CURRENT.text_on_accent, btn_size=52, primary=True)
         self.btn_play.clicked.connect(lambda: self.on_play_pause.emit())
         controls.addWidget(self.btn_play)
 
-        self.btn_next = self._make_control_btn("skip_next", size=26, color="#F1F0FF", btn_size=40)
+        self.btn_next = self._make_control_btn("skip_next", size=26, color=tokens.CURRENT.text_primary, btn_size=40)
         self.btn_next.clicked.connect(lambda: self.on_next.emit())
         controls.addWidget(self.btn_next)
 
         controls.addSpacing(8)
 
-        self.btn_expand = self._make_control_btn("expand_less", size=22, color="#9B9BC0", btn_size=36)
+        self.btn_expand = self._make_control_btn("expand_less", size=22, color=tokens.CURRENT.text_secondary, btn_size=36)
         self.btn_expand.clicked.connect(lambda: self.on_expand.emit())
         controls.addWidget(self.btn_expand)
 
@@ -155,6 +155,7 @@ class MiniPlayerWidget(QWidget):
     @staticmethod
     def _make_control_btn(icon_name, size=24, color="#FFFFFF", btn_size=40, primary=False):
         from PySide6.QtWidgets import QPushButton
+        from pyrolist.ui.design import tokens
         if primary:
             btn = QPushButton()
             btn.setText(Icon.get(icon_name))
@@ -166,7 +167,7 @@ class MiniPlayerWidget(QWidget):
             btn.setStyleSheet(f"QPushButton#primaryPlayBtn {{ border-radius: {radius}px; }}")
             return btn
             
-        btn = IconButton(size=btn_size, active_color="rgba(255,255,255,0.2)")
+        btn = IconButton(size=btn_size, active_color=tokens.CURRENT.accent_dim)
         btn.setText(Icon.get(icon_name))
         btn.setFont(Icon.font(size))
         btn.setFixedSize(btn_size, btn_size)

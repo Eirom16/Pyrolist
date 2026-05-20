@@ -60,6 +60,9 @@ class FullPlayerDialog(QDialog):
 
         # Close button
         close_row = QHBoxLayout()
+        close_btn = IconButton(size=36)
+        close_btn.setText(Icon.get("expand_less"))
+        close_btn.setFont(Icon.font(24))
         close_btn.setObjectName("fullPlayerCloseBtn")
         close_btn.setStyleSheet("QPushButton { border: none; background: transparent; }")
         close_btn.clicked.connect(self._close_animated)
@@ -119,25 +122,25 @@ class FullPlayerDialog(QDialog):
         controls.setSpacing(12)
         controls.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self.btn_shuffle = self._make_btn("shuffle", 20, "#6B6B9B", 36)
+        self.btn_shuffle = self._make_btn("shuffle", 20, tokens.CURRENT.text_secondary, 36)
         self.btn_shuffle.setObjectName("fullPlayerShuffleBtn")
         controls.addWidget(self.btn_shuffle)
 
-        self.btn_prev = self._make_btn("skip_previous", 28, "#F1F0FF", 44)
+        self.btn_prev = self._make_btn("skip_previous", 28, tokens.CURRENT.text_primary, 44)
         self.btn_prev.setObjectName("fullPlayerPrevBtn")
         self.btn_prev.clicked.connect(self._on_prev)
         controls.addWidget(self.btn_prev)
 
-        self.btn_play = self._make_btn("play_arrow", 36, "#0A0A14", 56, primary=True)
+        self.btn_play = self._make_btn("play_arrow", 36, tokens.CURRENT.text_on_accent, 56, primary=True)
         self.btn_play.clicked.connect(self._on_play_pause)
         controls.addWidget(self.btn_play)
 
-        self.btn_next = self._make_btn("skip_next", 28, "#F1F0FF", 44)
+        self.btn_next = self._make_btn("skip_next", 28, tokens.CURRENT.text_primary, 44)
         self.btn_next.setObjectName("fullPlayerNextBtn")
         self.btn_next.clicked.connect(self._on_next)
         controls.addWidget(self.btn_next)
 
-        self.btn_repeat = self._make_btn("repeat", 20, "#6B6B9B", 36)
+        self.btn_repeat = self._make_btn("repeat", 20, tokens.CURRENT.text_secondary, 36)
         self.btn_repeat.setObjectName("fullPlayerRepeatBtn")
         controls.addWidget(self.btn_repeat)
 
@@ -189,6 +192,7 @@ class FullPlayerDialog(QDialog):
     @staticmethod
     def _make_btn(icon_name, size=24, color="#FFFFFF", btn_size=40, primary=False):
         from PySide6.QtWidgets import QPushButton
+        from pyrolist.ui.design import tokens
         if primary:
             btn = QPushButton()
             btn.setText(Icon.get(icon_name))
@@ -200,12 +204,12 @@ class FullPlayerDialog(QDialog):
             btn.setStyleSheet(f"QPushButton#primaryPlayBtn {{ border-radius: {radius}px; }}")
             return btn
             
-        btn = IconButton(size=btn_size, active_color="rgba(255,255,255,0.2)")
+        btn = IconButton(size=btn_size, active_color=tokens.CURRENT.accent_dim)
         btn.setText(Icon.get(icon_name))
         btn.setFont(Icon.font(size))
         btn.setFixedSize(btn_size, btn_size)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn.setStyleSheet("QPushButton { border: none; background: transparent; }")
+        btn.setStyleSheet(f"QPushButton {{ color: {color}; border: none; background: transparent; }}")
         return btn
 
     def _connect_signals(self):
