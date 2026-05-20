@@ -1,0 +1,181 @@
+name: Multiplatform Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    name: Build Linux (AppImage)
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            vlc \
+            libvlc-dev \
+            libvlc5 \
+            libdbus-1-dev \
+            python3-dev \
+            fuse \
+            libfuse2
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Copy native VLC libraries
+        run: |
+          mkdir -p vlc_libs/plugins
+          # Buscar e incorporar libvlc.so
+          find /usr/lib -name "libvlc.so*" -exec cp {} ./vlc_libs/ \; || true
+          # Buscar e incorporar todos los plugins de VLC necesarios para decodificación
+          find /usr/lib/x86_64-linux-gnu/vlc -name "*.so" -exec cp -r {} ./vlc_libs/plugins/ \; || true
+
+      - name: Build PyInstaller folder
+        run: |
+          pyinstaller pyrolist.spec
+
+      - name: Generate AppImage
+        run: |
+          # 1. Crear estructura AppDir para empaquetado de AppImage
+          mkdir -p AppDir
+          cp -r dist/Pyrolist/* AppDir/
+          
+          # 2. Agregar metadatos e icono al root de AppDir
+          cp assets/icon.png AppDir/pyrolist.png
+          
+          # 3. Crear archivo de escritorio (Desktop Entry)
+          cat << 'EOF' > AppDir/pyrolist.desktop
+          [Desktop Entry]
+          Name=Pyrolist
+          Exec=Pyrolist
+          Icon=pyrolist
+          Type=Application
+          Categories=AudioVideo;Player;
+          Comment=YouTube Music Desktop Client
+          Terminal=false
+          EOF
+          
+          # 4. Crear script de arranque AppRun que expone las variables de VLC
+          cat << 'EOF' > AppDir/AppRun
+          #!/bin/sh
+          SELF=$(dirname "$(readlink -f "$0")")
+          export LD_LIBRARY_PATH="$SELF/vlc_libs:$LD_LIBRARY_PATH"
+          export VLC_PLUGIN_PATH="$SELF/vlc_libs/plugins"
+          exec "$SELF/Pyrolist" "$@"
+          EOF
+          chmod +x AppDir/AppRun
+          
+          # 5. Descargar appimagetool oficial y generar el binario portable
+          curl -Lo appimagetool https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+          
+          # appimagetool requiere ARCH definida en el entorno
+          export ARCH=x86_64
+          ./appimagetool AppDir Pyrolist-x86_64.AppImage
+
+      - name: Upload AppImage Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pyrolist-linux-appimage
+          path: Pyrolist-x86_64.AppImage
+          if-no-files-found: error
+
+  build-windows:
+    name: Build Windows (.exe)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install VLC via Chocolatey
+        run: |
+          choco install vlc --yes
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Copy native VLC DLLs
+        shell: cmd
+        run: |
+          mkdir vlc_libs
+          mkdir vlc_libs\plugins
+          xcopy "C:\Program Files\VideoLAN\VLC\libvlc.dll" .\vlc_libs\ /Y
+          xcopy "C:\Program Files\VideoLAN\VLC\libvlccore.dll" .\vlc_libs\ /Y
+          xcopy "C:\Program Files\VideoLAN\VLC\plugins\" .\vlc_libs\plugins\ /E /Y
+
+      - name: Build PyInstaller Standalone EXE
+        run: |
+          pyinstaller pyrolist.spec
+
+      - name: Upload Windows EXE Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pyrolist-windows-exe
+          path: dist/Pyrolist.exe
+          if-no-files-found: error
+
+  publish-release:
+    name: Publish Release on GitHub
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist-artifacts
+
+      - name: Organize files for release
+        run: |
+          mkdir -p release-files
+          # Copiar de forma plana todos los binarios descargados al directorio temporal de publicación
+          find dist-artifacts/ -type f -exec cp {} release-files/ \;
+          echo "Files to upload:"
+          ls -lh release-files/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-files/*
+          draft: false
+          prerelease: false
+          name: Release ${{ github.ref_name }}
+          body: |
+            ## Pyrolist ${{ github.ref_name }}
+            
+            ¡Nueva versión multiplataforma compilada automáticamente de Pyrolist!
+            
+            ### Binarios Incluidos
+            - **Linux**: `Pyrolist-x86_64.AppImage` (portable, ejecutable en Arch, Fedora y Debian).
+            - **Windows**: `Pyrolist.exe` (ejecutable standalone portable con soporte de VLC integrado).
+            
+            ---
+            *Compilado automáticamente mediante GitHub Actions.*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

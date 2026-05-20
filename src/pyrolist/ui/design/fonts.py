@@ -10,6 +10,13 @@ _LOADED = False
 
 
 def _font_dirs() -> list[Path]:
+    import sys
+    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+        bundle_root = Path(sys._MEIPASS)
+        return [
+            bundle_root / "pyrolist" / "assets" / "fonts",
+            bundle_root / "assets" / "fonts",
+        ]
     root = Path(__file__).resolve().parents[4]
     package = Path(__file__).resolve().parents[2]
     return [

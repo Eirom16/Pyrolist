@@ -8,6 +8,9 @@ class _AppDirs:
     @property
     def root(self) -> Path:
         """Project root directory."""
+        import sys
+        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+            return Path(sys._MEIPASS)
         return Path(__file__).parent.parent.parent.parent
 
     @property
