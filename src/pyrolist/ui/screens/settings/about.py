@@ -53,7 +53,7 @@ class AboutScreen(QWidget):
         layout.addWidget(self.description)
 
         github = RippleButton("Ver proyecto", "secondary")
-        github.clicked.connect(lambda: __import__('webbrowser').open("https://github.com/eirom/Pyrolist"))
+        github.clicked.connect(lambda: __import__('webbrowser').open("https://github.com/Eirom16/Pyrolist"))
         layout.addWidget(github)
         layout.addStretch()
         
