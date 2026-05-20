@@ -9,11 +9,12 @@ from pyrolist.ui.widgets.ripple_button import RippleButton
 
 
 class AccountsSettingsScreen(QWidget):
-    def __init__(self, yt_client, settings, on_changed):
+    def __init__(self, yt_client, settings, on_changed, on_auth_changed=None):
         super().__init__()
         self._yt = yt_client
         self.settings = settings
         self.on_changed = on_changed
+        self.on_auth_changed = on_auth_changed
         self._build_ui()
 
     @property
@@ -118,16 +119,31 @@ class AccountsSettingsScreen(QWidget):
     def _handle_login_success(self, avatar_url: str = "") -> None:
         if self._yt:
             self._yt.reload_auth()
-            self._update_yt_row()
+        self._update_yt_row()
+        if self.on_auth_changed:
+            self.on_auth_changed(True, avatar_url)
 
     def _on_logout(self) -> None:
+        try:
+            from PySide6.QtWebEngineCore import QWebEngineProfile
+            QWebEngineProfile.defaultProfile().cookieStore().deleteAllCookies()
+        except Exception:
+            pass
+
         auth_file = AppDirs.config / "headers_auth.json"
         if auth_file.exists():
             auth_file.unlink()
+            
+        profile_file = AppDirs.config / "user_profile.json"
+        if profile_file.exists():
+            profile_file.unlink()
+            
         if self._yt:
             self._yt.reload_auth()
         self._update_yt_row()
         self.on_changed(self.settings)
+        if self.on_auth_changed:
+            self.on_auth_changed(False, "")
 
     def _set_integration(self, key: str, value) -> None:
         setattr(self.settings.integrations, key, value)

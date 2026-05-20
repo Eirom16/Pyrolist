@@ -26,11 +26,12 @@ class SettingsScreen(QWidget):
         ("info", "Acerca de"),
     ]
 
-    def __init__(self, yt_client, settings, on_settings_changed):
+    def __init__(self, yt_client, settings, on_settings_changed, on_auth_changed=None):
         super().__init__()
         self._yt = yt_client
         self.settings = settings
         self.on_settings_changed = on_settings_changed
+        self.on_auth_changed = on_auth_changed
         self._cat_buttons: list[QPushButton] = []
         self._build_ui()
 
@@ -73,7 +74,7 @@ class SettingsScreen(QWidget):
         self.stack.setStyleSheet("#settingsStack { background: transparent; }")
         root.addWidget(self.stack)
 
-        self.accounts_screen = AccountsSettingsScreen(self.yt, self.settings, self.on_settings_changed)
+        self.accounts_screen = AccountsSettingsScreen(self.yt, self.settings, self.on_settings_changed, on_auth_changed=self.on_auth_changed)
         pages = [
             AppearanceSettingsScreen(self.settings, self.on_settings_changed),
             PlayerSettingsScreen(self.settings, self.on_settings_changed),

@@ -44,6 +44,7 @@ class MainWindow(QMainWindow):
         self.settings = settings
         self._loop = event_loop
         self._pending_tasks: set[asyncio.Task] = set()
+        self._current_play_id = 0
 
         self.yt = YouTubeMusicClient(settings)
         self.extractor = StreamExtractor(settings)
@@ -160,7 +161,8 @@ class MainWindow(QMainWindow):
         self.settings_screen = SettingsScreen(
             self.yt,
             self.settings,
-            on_settings_changed=self._on_settings_changed
+            on_settings_changed=self._on_settings_changed,
+            on_auth_changed=self._on_auth_changed
         )
         self.playlist_screen = PlaylistScreen(self.yt, self._play_song_sync, self._play_local_playlist)
         self.album_screen = AlbumScreen(self.yt, self._play_song_sync)
@@ -629,9 +631,14 @@ class MainWindow(QMainWindow):
             self._run_async(self._navigate("settings"))
 
     def _on_web_login_success(self, avatar_url: str) -> None:
-        self.yt = YouTubeMusicClient(self.settings)
-        self._update_screens_yt_client()
-        if self.yt.is_authenticated:
+        self._on_auth_changed(True, avatar_url)
+        self._run_async(self._navigate("home"))
+
+    def _on_auth_changed(self, is_authenticated: bool, avatar_url: str = "") -> None:
+        if is_authenticated:
+            self.yt = YouTubeMusicClient(self.settings)
+            self._update_screens_yt_client()
+            
             from pyrolist.config.paths import AppDirs
             import json
             name = "YouTube Music"
@@ -641,23 +648,27 @@ class MainWindow(QMainWindow):
                     with open(profile_file, "r") as f:
                         data = json.load(f)
                         name = data.get("name", "YouTube Music") or "YouTube Music"
+                        if not avatar_url:
+                            avatar_url = data.get("avatar_url", "")
                 except Exception:
                     pass
+            
             self.sidebar.update_auth_state(True, name, avatar_url)
             logger.info(f"Post-login: yt client propagated, name={name}, avatar={avatar_url}")
-        self._run_async(self._navigate("home"))
-
-    def _on_auth_changed(self, is_authenticated: bool) -> None:
-        if is_authenticated:
-            self.yt = YouTubeMusicClient(self.settings)
-            self._update_screens_yt_client()
-            # The sidebar should already have the avatar if it triggered the login
-            logger.info("Auth changed: yt client propagated to all screens")
             
             # Auto-refresh home and library if we just logged in
             self.home_screen.force_reload()
             self._run_async(self.library_screen.load())
         else:
+            # Delete user profile file on logout so it's clean
+            from pyrolist.config.paths import AppDirs
+            profile_file = AppDirs.config / "user_profile.json"
+            if profile_file.exists():
+                try:
+                    profile_file.unlink()
+                except Exception:
+                    pass
+            
             self.yt = YouTubeMusicClient(self.settings)
             self._update_screens_yt_client()
             self.sidebar.update_auth_state(False, "", "")
@@ -752,11 +763,14 @@ class MainWindow(QMainWindow):
             item.title, item.artist, item.thumbnail_url
         )
 
+        self._current_play_id += 1
+        play_id = self._current_play_id
+
         # Immediate visual feedback for lyrics and related suggestions
         self.now_playing_screen.set_lyrics_loading()
         self.now_playing_screen.set_related([], None)
-        self._run_async(self._load_lyrics(item))
-        self._run_async(self._load_related(item))
+        self._run_async(self._load_lyrics(item, play_id))
+        self._run_async(self._load_related(item, play_id))
 
         if item.is_local:
             logger.info(f"Playing local track: {item.title}")
@@ -830,8 +844,7 @@ class MainWindow(QMainWindow):
         except Exception as e:
             logger.error(f"Failed to play {item.video_id}: {e}")
 
-    async def _load_lyrics(self, item: QueueItem) -> None:
-        self._current_lyrics_video_id = item.video_id
+    async def _load_lyrics(self, item: QueueItem, play_id: int) -> None:
         self.now_playing_screen.set_lyrics_loading()
         try:
             lyrics = None
@@ -851,33 +864,52 @@ class MainWindow(QMainWindow):
                     item.title, item.artist, item.album
                 )
             
-            if getattr(self, "_current_lyrics_video_id", None) == item.video_id:
+            if self._current_play_id == play_id:
                 self.now_playing_screen.set_lyrics(lyrics)
             else:
                 logger.info(f"Discarded stale lyrics for {item.title} (current song changed)")
         except Exception as e:
             logger.error(f"Error loading lyrics: {e}")
-            if getattr(self, "_current_lyrics_video_id", None) == item.video_id:
+            if self._current_play_id == play_id:
                 self.now_playing_screen.set_lyrics(None)
 
-    async def _load_related(self, item: QueueItem) -> None:
+    async def _load_related(self, item: QueueItem, play_id: int) -> None:
         """Load related/similar tracks for the SIMILARES tab."""
-        self._current_related_video_id = item.video_id
         try:
-            if self.yt and item.video_id and item.video_id != "local":
-                watch_data = await self.yt.get_watch_playlist(video_id=item.video_id, limit=15)
-                tracks = watch_data.get('tracks', [])
-                # Skip the first track (it's the current song)
-                related = [t for t in tracks if t.get('videoId') != item.video_id]
-                
-                if getattr(self, "_current_related_video_id", None) == item.video_id:
-                    self.now_playing_screen.set_related(related, self._play_song_sync)
-            else:
-                if getattr(self, "_current_related_video_id", None) == item.video_id:
-                    self.now_playing_screen.set_related([], None)
+            video_id = item.video_id
+            
+            # If it's a local/imported track or we don't have a valid ID, search for it
+            if not video_id or video_id == "local" or len(video_id) < 5:
+                if self.yt and item.title and item.artist:
+                    logger.info(f"Local track: searching YTM for similar tracks using query: {item.title} - {item.artist}")
+                    search_results = await self.yt.search(f"{item.title} {item.artist}", filter="songs", limit=1)
+                    if search_results:
+                        video_id = search_results[0].get("videoId")
+            
+            related = []
+            if self.yt and video_id and video_id != "local" and len(video_id) >= 5:
+                try:
+                    watch_data = await self.yt.get_watch_playlist(video_id=video_id, limit=15)
+                    tracks = watch_data.get('tracks', [])
+                    # Skip the current song
+                    related = [t for t in tracks if t.get('videoId') != video_id]
+                except Exception as e:
+                    logger.warning(f"Failed to load related tracks with direct video_id: {e}")
+                    # Try search fallback as last resort
+                    if item.title and item.artist:
+                        search_results = await self.yt.search(f"{item.title} {item.artist}", filter="songs", limit=1)
+                        if search_results:
+                            fallback_id = search_results[0].get("videoId")
+                            if fallback_id and fallback_id != video_id:
+                                watch_data = await self.yt.get_watch_playlist(video_id=fallback_id, limit=15)
+                                tracks = watch_data.get('tracks', [])
+                                related = [t for t in tracks if t.get('videoId') != fallback_id]
+            
+            if self._current_play_id == play_id:
+                self.now_playing_screen.set_related(related, self._play_song_sync)
         except Exception as e:
             logger.error(f"Error loading related: {e}")
-            if getattr(self, "_current_related_video_id", None) == item.video_id:
+            if self._current_play_id == play_id:
                 self.now_playing_screen.set_related([], None)
 
     async def _save_play_history(self, item: QueueItem) -> None:

@@ -278,6 +278,7 @@ class NowPlayingScreen(QWidget):
         self._highlight_lyric(position_ms)
         
     def set_lyrics_loading(self):
+        self.lyrics_scroll.verticalScrollBar().setValue(0)
         while self.lyrics_layout.count():
             item = self.lyrics_layout.takeAt(0)
             if item.widget():
@@ -294,6 +295,7 @@ class NowPlayingScreen(QWidget):
         self.lyrics_layout.addWidget(loading_lbl)
 
     def set_lyrics(self, lyrics):
+        self.lyrics_scroll.verticalScrollBar().setValue(0)
         while self.lyrics_layout.count():
             item = self.lyrics_layout.takeAt(0)
             if item.widget():
@@ -499,6 +501,7 @@ class NowPlayingScreen(QWidget):
         from functools import partial
         from pyrolist.ui.widgets.song_card import SongCard
         
+        self.related_scroll.verticalScrollBar().setValue(0)
         while self.related_layout.count():
             item = self.related_layout.takeAt(0)
             if item.widget():
