@@ -264,6 +264,10 @@ class MainWindow(QMainWindow):
     def _on_state_changed_callback(self, status) -> None:
         self.mini_player.update_state(status)
         self.now_playing_screen.update_state(status)
+        if self.mpris:
+            from pyrolist.audio.player import PlayerState
+            is_playing = status.state == PlayerState.PLAYING
+            self.mpris.update_playback_status(is_playing)
 
     def _on_position_changed_callback(self, status) -> None:
         self.mini_player.update_position(
@@ -272,10 +276,38 @@ class MainWindow(QMainWindow):
         self.now_playing_screen.update_position(
             status.position_ms, status.duration_ms
         )
+        if self.mpris:
+            self.mpris.update_position(status.position_ms)
+            self.mpris.update_volume(status.volume)
 
     def _setup_integrations(self) -> None:
+        # Initialize player parameters from settings
+        self.player.set_volume(self.settings.player.volume)
+        if self.settings.equalizer.enabled:
+            self.player.apply_equalizer(
+                self.settings.equalizer.preamp,
+                self.settings.equalizer.bands,
+            )
+        else:
+            self.player.reset_equalizer()
+
         if self.settings.integrations.mpris_enabled:
+            # Wire MPRIS2 callbacks
+            self.mpris.on_play_pause = self._on_play_pause
+            self.mpris.on_play = lambda: self._run_async(self.player.resume())
+            self.mpris.on_pause = lambda: self._run_async(self.player.pause())
+            self.mpris.on_stop = lambda: self._run_async(self.player.stop())
+            self.mpris.on_next = self._on_next
+            self.mpris.on_prev = self._on_prev
+            self.mpris.on_seek = lambda offset_us: self._on_seek(int(offset_us / 1000))
+            self.mpris.on_set_position = lambda track_id, position_us: self._on_seek(int(position_us / 1000))
+            self.mpris.on_set_volume = lambda vol: (self.player.set_volume(int(vol * 100)), self._on_mpris_volume_changed(int(vol * 100)))
+            self.mpris.on_set_shuffle = lambda shuffle: self._toggle_shuffle_from_mpris(shuffle)
+            self.mpris.on_raise = lambda: (self.show(), self.raise_(), self.activateWindow())
+            self.mpris.on_quit = self.close
             self.mpris.start()
+            self.mpris.update_shuffle(self.queue.shuffle_enabled)
+
         if self.settings.integrations.lastfm_enabled:
             self.scrobbler = LastFmScrobbler(
                 self.settings.integrations.lastfm_api_key,
@@ -285,6 +317,25 @@ class MainWindow(QMainWindow):
         if self.settings.integrations.discord_rpc_enabled:
             self.discord = DiscordRPC()
             task = self._run_async(self.discord.connect())
+
+    def _on_mpris_volume_changed(self, volume: int) -> None:
+        self.settings.player.volume = volume
+        self._on_settings_changed(self.settings)
+        try:
+            from pyrolist.ui.screens.settings.player_settings import PlayerSettingsScreen
+            player_settings_page = self.settings_screen.stack.findChild(PlayerSettingsScreen)
+            if player_settings_page:
+                player_settings_page.update_fields()
+        except Exception:
+            pass
+
+    def _toggle_shuffle_from_mpris(self, enable: bool) -> None:
+        if self.queue.shuffle_enabled != enable:
+            self.queue.toggle_shuffle()
+            if hasattr(self, 'now_playing_screen'):
+                self.now_playing_screen.update_shuffle_repeat_state()
+            if self.mpris:
+                self.mpris.update_shuffle(enable)
 
     def _track_task(self, task: asyncio.Task) -> None:
         self._pending_tasks.add(task)
@@ -618,9 +669,13 @@ class MainWindow(QMainWindow):
         
         from pyrolist.ui.design import tokens
         from pyrolist.ui.design.icons import Icon
+        from PySide6.QtGui import QColor
+        like_c = QColor(tokens.CURRENT.like_color)
+        lr, lg, lb = like_c.red(), like_c.green(), like_c.blue()
+
         btn_like.setText(Icon.get("favorite"))
         if liked:
-            btn_like.setStyleSheet("QPushButton { color: #F472B6; background: transparent; border: none; }")
+            btn_like.setStyleSheet(f"QPushButton {{ color: {tokens.CURRENT.like_color}; background: transparent; border: none; }}")
             btn_like.setFont(Icon.font(20, filled=True))
             btn_like.set_active(True)
             self.statusBar().showMessage("Añadido a Favoritas", 2000)
@@ -633,8 +688,8 @@ class MainWindow(QMainWindow):
                     border-radius: 18px;
                 }}
                 QPushButton:hover {{
-                    background-color: rgba(244,114,182,0.15);
-                    color: #F472B6;
+                    background-color: rgba({lr},{lg},{lb},0.15);
+                    color: {tokens.CURRENT.like_color};
                 }}
             """)
             btn_like.setFont(Icon.font(20, filled=False))
@@ -1210,11 +1265,19 @@ class MainWindow(QMainWindow):
             self.now_playing_screen.update_lyrics_style()
         from pyrolist.config.paths import AppDirs
         settings.save(AppDirs.settings_file)
+        
+        # Update player volume
+        if hasattr(self, 'player'):
+            self.player.set_volume(settings.player.volume)
+            
+        # Update player equalizer
         if settings.equalizer.enabled:
             self.player.apply_equalizer(
                 settings.equalizer.preamp,
                 settings.equalizer.bands,
             )
+        else:
+            self.player.reset_equalizer()
         
         # Update crossfade settings dynamically
         if hasattr(self, 'crossfade_manager'):

@@ -10,7 +10,8 @@ class ScrollingLabel(QWidget):
         super().__init__(parent)
         self._text = text
         self._offset = 0.0
-        self._color = QColor("#F1F0FF")
+        from pyrolist.ui.design import tokens
+        self._color = QColor(tokens.CURRENT.text_primary)
         self._font = QFont("Nunito", 14, QFont.Weight.Bold)
         self._scrolling = False
         self.setFixedHeight(24)

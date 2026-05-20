@@ -89,7 +89,8 @@ class SongCard(QWidget):
         layout.addWidget(self.duration_label)
 
         # Like button
-        self.btn_like = IconButton(size=36, active_color="#F472B6")
+        from pyrolist.ui.design import tokens
+        self.btn_like = IconButton(size=36, active_color=tokens.CURRENT.like_color)
         self.btn_like.setText(Icon.get("favorite"))
         self.btn_like.setFont(Icon.font(20, filled=self._is_liked))
         self.btn_like.setFixedSize(36, 36)
@@ -149,8 +150,12 @@ class SongCard(QWidget):
         self.artist_label.setStyleSheet(f"color: {text_secondary}; background: transparent;")
         self.duration_label.setStyleSheet(f"color: {text_secondary}; background: transparent;")
         
+        from PySide6.QtGui import QColor
+        like_c = QColor(tokens.CURRENT.like_color)
+        lr, lg, lb = like_c.red(), like_c.green(), like_c.blue()
+        
         if self._is_liked:
-            self.btn_like.setStyleSheet("QPushButton { color: #F472B6; background: transparent; border: none; }")
+            self.btn_like.setStyleSheet(f"QPushButton {{ color: {tokens.CURRENT.like_color}; background: transparent; border: none; }}")
         else:
             self.btn_like.setStyleSheet(f"""
                 QPushButton {{
@@ -160,8 +165,8 @@ class SongCard(QWidget):
                     border-radius: 18px;
                 }}
                 QPushButton:hover {{
-                    background-color: rgba(244,114,182,0.15);
-                    color: #F472B6;
+                    background-color: rgba({lr},{lg},{lb},0.15);
+                    color: {tokens.CURRENT.like_color};
                 }}
             """)
             

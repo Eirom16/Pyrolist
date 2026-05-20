@@ -40,44 +40,54 @@ class SongContextMenu(GlassPanel):
 
         for action in actions:
             if action is None:
+                from pyrolist.ui.design import tokens
                 sep = QFrame()
                 sep.setFrameShape(QFrame.Shape.HLine)
-                sep.setStyleSheet("color: rgba(167,139,250,0.08); max-height: 1px; margin: 4px 8px;")
+                sep.setStyleSheet(f"background-color: {tokens.CURRENT.border}; max-height: 1px; margin: 4px 8px;")
                 layout.addWidget(sep)
                 continue
             icon_name, label, signal_name = action
             layout.addWidget(self._action_button(icon_name, label, signal_name))
 
     def _action_button(self, icon_name: str, label: str, signal_name: str) -> QPushButton:
+        from pyrolist.ui.design import tokens
+        from PySide6.QtGui import QColor
+        
+        accent_c = QColor(tokens.CURRENT.accent)
+        ar, ag, ab = accent_c.red(), accent_c.green(), accent_c.blue()
+        
+        err_c = QColor(tokens.CURRENT.error)
+        er, eg, eb = err_c.red(), err_c.green(), err_c.blue()
+
         button = QPushButton()
         button.setFixedHeight(40)
         button.setCursor(Qt.CursorShape.PointingHandCursor)
         
         if icon_name == "delete":
-            button.setStyleSheet("""
-                QPushButton {
+            button.setStyleSheet(f"""
+                QPushButton {{
                     background: transparent;
                     border: none;
                     border-radius: 10px;
                     text-align: left;
                     padding: 0;
-                }
-                QPushButton:hover {
-                    background: rgba(239, 68, 68, 0.15);
-                }
+                }}
+                QPushButton:hover {{
+                    background: rgba({er}, {eg}, {eb}, 0.15);
+                }}
             """)
         else:
-            button.setStyleSheet("""
-                QPushButton {
+            button.setStyleSheet(f"""
+                QPushButton {{
                     background: transparent;
                     border: none;
                     border-radius: 10px;
                     text-align: left;
                     padding: 0;
-                }
-                QPushButton:hover {
-                    background: rgba(167,139,250,0.10);
-                }
+                }}
+                QPushButton:hover {{
+                    background: rgba({ar}, {ag}, {ab}, 0.10);
+                }}
             """)
             
         row = QHBoxLayout(button)
@@ -88,11 +98,11 @@ class SongContextMenu(GlassPanel):
         text.setFont(AppFont.body(13))
         
         if icon_name == "delete":
-            icon = Icon.label(icon_name, 16, "#EF4444")
-            text.setStyleSheet("color: #EF4444; background: transparent;")
+            icon = Icon.label(icon_name, 16, tokens.CURRENT.error)
+            text.setStyleSheet(f"color: {tokens.CURRENT.error}; background: transparent;")
         else:
-            icon = Icon.label(icon_name, 16, "#9B9BC0")
-            text.setStyleSheet("color: #F1F0FF; background: transparent;")
+            icon = Icon.label(icon_name, 16, tokens.CURRENT.text_secondary)
+            text.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent;")
             
         icon.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         text.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)

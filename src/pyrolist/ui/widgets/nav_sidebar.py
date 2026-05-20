@@ -281,13 +281,14 @@ class NavSidebar(QWidget):
                             from PySide6.QtCore import QRectF
                             circular = QPixmap(size, size)
                             circular.fill(Qt.GlobalColor.transparent)
-                            painter = QPainter(circular)
-                            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-                            path_clip = QPainterPath()
-                            path_clip.addEllipse(QRectF(0, 0, size, size))
-                            painter.setClipPath(path_clip)
-                            painter.drawPixmap(0, 0, cropped)
-                            painter.end()
+                            painter = QPainter()
+                            if painter.begin(circular):
+                                painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+                                path_clip = QPainterPath()
+                                path_clip.addEllipse(QRectF(0, 0, size, size))
+                                painter.setClipPath(path_clip)
+                                painter.drawPixmap(0, 0, cropped)
+                                painter.end()
                             self._profile_btn.setIcon(QIcon(circular))
                             self._profile_btn.setText(text)
                             return
@@ -316,12 +317,13 @@ class NavSidebar(QWidget):
                 from PySide6.QtGui import QFont as QFontClass
                 pix = QPixmap(24, 24)
                 pix.fill(Qt.GlobalColor.transparent)
-                painter = QPainter(pix)
-                painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-                painter.setPen(QColor(tokens.CURRENT.text_secondary))
-                painter.setFont(Icon.font(20))
-                painter.drawText(pix.rect(), Qt.AlignmentFlag.AlignCenter, icon_char)
-                painter.end()
+                painter = QPainter()
+                if painter.begin(pix):
+                    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+                    painter.setPen(QColor(tokens.CURRENT.text_secondary))
+                    painter.setFont(Icon.font(20))
+                    painter.drawText(pix.rect(), Qt.AlignmentFlag.AlignCenter, icon_char)
+                    painter.end()
                 self._profile_btn.setIcon(QIcon(pix))
 
     def _on_profile_clicked(self) -> None:

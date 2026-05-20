@@ -8,27 +8,34 @@ from pyrolist.ui.design.icons import Icon
 
 
 class ToastNotification(QWidget):
-    _COLORS = {
-        "success": ("#34D399", "#0A2E1E", "check_circle"),
-        "error": ("#F87171", "#2E0A0A", "error"),
-        "info": ("#60A5FA", "#0A1A2E", "info"),
-        "warning": ("#FBBF24", "#2E1E0A", "warning"),
+    _ICONS = {
+        "success": "check_circle",
+        "error": "error",
+        "info": "info",
+        "warning": "warning",
     }
 
     def __init__(self, parent: QWidget, message: str, kind: str = "info"):
         super().__init__(parent, Qt.WindowType.SubWindow)
-        accent, bg, icon_name = self._COLORS.get(kind, self._COLORS["info"])
+        from pyrolist.ui.design import tokens
+        from PySide6.QtGui import QColor
+        
+        icon_name = self._ICONS.get(kind, "info")
+        accent_hex = getattr(tokens.CURRENT, kind, tokens.CURRENT.info)
+        accent_c = QColor(accent_hex)
+        r, g, b = accent_c.red(), accent_c.green(), accent_c.blue()
+        
         layout = QHBoxLayout(self)
         layout.setContentsMargins(16, 12, 20, 12)
         layout.setSpacing(10)
-        layout.addWidget(Icon.label(icon_name, 20, accent))
+        layout.addWidget(Icon.label(icon_name, 20, accent_hex))
         msg = QLabel(message)
         msg.setFont(AppFont.body(13))
         msg.setWordWrap(True)
         msg.setMaximumWidth(280)
-        msg.setStyleSheet("color: #F1F0FF; background: transparent;")
+        msg.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent;")
         layout.addWidget(msg)
-        self.setStyleSheet(f"ToastNotification {{ background-color: {bg}; border: 1px solid {accent}66; border-radius: 14px; }}")
+        self.setStyleSheet(f"ToastNotification {{ background-color: {tokens.CURRENT.bg_surface}; border: 1px solid rgba({r},{g},{b},0.40); border-radius: 14px; }}")
         self.adjustSize()
         parent_rect = parent.rect()
         self.move(max(20, parent_rect.width() - self.width() - 20), max(20, parent_rect.height() - self.height() - 96))
