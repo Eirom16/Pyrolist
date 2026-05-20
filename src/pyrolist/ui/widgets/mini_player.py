@@ -222,6 +222,12 @@ class MiniPlayerWidget(QWidget):
                 painter.drawPixmap(0, 0, cropped)
                 painter.end()
 
+                # Remove any previous graphics effect to avoid QPainter conflicts
+                if self.artwork.graphicsEffect():
+                    self.artwork.setGraphicsEffect(None)
+                if hasattr(self, '_fade_anim') and self._fade_anim:
+                    self._fade_anim.stop()
+
                 # Fade-in transition for the new artwork
                 effect = QGraphicsOpacityEffect(self.artwork)
                 self.artwork.setGraphicsEffect(effect)
@@ -230,13 +236,13 @@ class MiniPlayerWidget(QWidget):
                 self.artwork.setText("")
                 self.artwork.setStyleSheet("background: transparent;")
                 
-                fade = QPropertyAnimation(effect, b"opacity", self)
-                fade.setDuration(250)
-                fade.setStartValue(0.0)
-                fade.setEndValue(1.0)
-                fade.setEasingCurve(QEasingCurve.Type.OutCubic)
-                fade.finished.connect(lambda: self.artwork.setGraphicsEffect(None))
-                fade.start()
+                self._fade_anim = QPropertyAnimation(effect, b"opacity", self)
+                self._fade_anim.setDuration(250)
+                self._fade_anim.setStartValue(0.0)
+                self._fade_anim.setEndValue(1.0)
+                self._fade_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+                self._fade_anim.finished.connect(lambda: self.artwork.setGraphicsEffect(None))
+                self._fade_anim.start()
 
     def update_state(self, status):
         """Update play/pause icon dynamically based on player state."""

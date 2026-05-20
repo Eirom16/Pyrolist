@@ -212,6 +212,8 @@ class MainWindow(QMainWindow):
                 screen.add_to_playlist_requested.connect(self._on_add_to_playlist_requested)
             if hasattr(screen, 'download_playlist_requested'):
                 screen.download_playlist_requested.connect(self._on_download_playlist_requested)
+            if hasattr(screen, 'download_album_requested'):
+                screen.download_album_requested.connect(self._on_download_album_requested)
             if hasattr(screen, 'like_requested'):
                 screen.like_requested.connect(self._on_like_requested)
             if hasattr(screen, 'delete_download_requested'):
@@ -365,6 +367,60 @@ class MainWindow(QMainWindow):
         except Exception as e:
             logger.error(f"Error downloading playlist: {e}")
             self.statusBar().showMessage("Error al iniciar descarga de playlist", 4000)
+
+    def _on_download_album_requested(self, browse_id, title, thumbnail_url):
+        self._run_async(self._download_album_async(browse_id, title, thumbnail_url))
+
+    async def _download_album_async(self, browse_id, title, thumbnail_url):
+        self.statusBar().showMessage(f"Iniciando descarga de álbum: {title}", 3000)
+        self.show_notification(f"Iniciando descarga de álbum: {title}", "info")
+
+        try:
+            data = await self.yt.get_album(browse_id)
+            album_thumbnails = data.get('thumbnails', [])
+            if album_thumbnails:
+                high_res_thumb = album_thumbnails[-1].get('url', '')
+                if high_res_thumb:
+                    thumbnail_url = high_res_thumb
+
+            tracks = data.get('tracks', [])
+            artists = data.get('artists', [])
+            album_artist = ", ".join([a.get('name', '') for a in artists]) if isinstance(artists, list) else str(artists)
+            parent_id = f"album_{browse_id}"
+
+            queued = 0
+            already_downloaded = 0
+            for track in tracks:
+                vid = track.get('videoId')
+                if not vid:
+                    continue
+
+                existing = await self.download_manager._repo.get_download(vid)
+                if existing:
+                    already_downloaded += 1
+                    continue
+
+                t_title = track.get('title', 'Unknown')
+                track_artists = track.get('artists', [])
+                if track_artists:
+                    artist_names = ", ".join([a.get('name', '') for a in track_artists]) if isinstance(track_artists, list) else str(track_artists)
+                else:
+                    artist_names = album_artist
+                track_thumbnails = track.get('thumbnails', [])
+                track_thumb = track_thumbnails[-1].get('url', '') if track_thumbnails else thumbnail_url
+
+                if self.download_manager.add_download(vid, t_title, artist_names, track_thumb, parent_id, title, thumbnail_url):
+                    queued += 1
+
+            if already_downloaded > 0:
+                self.statusBar().showMessage(f"{queued} añadidas a cola • {already_downloaded} ya descargadas", 5000)
+                self.show_notification(f"{queued} añadidas, {already_downloaded} omitidas (ya descargadas).", "success")
+            else:
+                self.statusBar().showMessage(f"{queued} canciones del álbum añadidas a cola", 4000)
+                self.show_notification(f"{queued} canciones del álbum añadidas a la cola", "success")
+        except Exception as e:
+            logger.error(f"Error downloading album: {e}")
+            self.statusBar().showMessage("Error al iniciar descarga de álbum", 4000)
 
     def _on_download_error(self, video_id, error):
         self.statusBar().showMessage(f"Error en descarga: {error}", 5000)

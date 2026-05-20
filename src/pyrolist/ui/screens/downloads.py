@@ -580,6 +580,7 @@ class DownloadsScreen(QWidget):
         
         tab_names = [
             ("songs", "Canciones"),
+            ("albums", "Álbumes"),
             ("playlists", "Playlists Completas")
         ]
         
@@ -706,22 +707,28 @@ class DownloadsScreen(QWidget):
 
             downloads = await self._repo.get_downloads()
             
-            if self._current_tab == "playlists":
+            if self._current_tab == "playlists" or self._current_tab == "albums":
                 # Group downloaded items by parent_playlist_id
                 playlist_groups = {}
                 for d in downloads:
                     if d.parent_playlist_id:
                         pid = d.parent_playlist_id
+                        # Filter by tab type
+                        is_album = pid.startswith("album_")
+                        if (self._current_tab == "albums" and not is_album) or (self._current_tab == "playlists" and is_album):
+                            continue
                         if pid not in playlist_groups:
                             playlist_groups[pid] = {
-                                "title": d.parent_playlist_title or "Playlist Local",
+                                "title": d.parent_playlist_title or ("Album Local" if is_album else "Playlist Local"),
                                 "tracks": []
                             }
                         playlist_groups[pid]["tracks"].append(d)
                 
                 if not playlist_groups:
-                    msg = QLabel("No hay playlists descargadas.")
-                    msg.setStyleSheet("color: #888899; font-size: 16px; padding: 40px;")
+                    from pyrolist.ui.design import tokens
+                    empty_text = "No hay \u00e1lbumes descargados." if self._current_tab == "albums" else "No hay playlists descargadas."
+                    msg = QLabel(empty_text)
+                    msg.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; font-size: 16px; padding: 40px;")
                     msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
                     self.content_layout.insertWidget(0, msg)
                 else:
@@ -738,29 +745,33 @@ class DownloadsScreen(QWidget):
                         col = index % columns
                         
                         tracks = info["tracks"]
-                        playlist_thumb = ""
+                        item_thumb = ""
                         if tracks:
-                            playlist_thumb = getattr(tracks[0], "parent_playlist_thumbnail_url", "") or tracks[0].thumbnail_url
+                            item_thumb = getattr(tracks[0], "parent_playlist_thumbnail_url", "") or tracks[0].thumbnail_url
                         
                         card = PlaylistCard(
                             title=info["title"],
                             description=f"{len(tracks)} canciones",
-                            thumbnail_url=playlist_thumb
+                            thumbnail_url=item_thumb
                         )
                         card.checkbox.toggled.connect(self._update_selected_count)
                         card.set_selection_mode(getattr(self, "_selection_mode", False))
                         self._playlist_cards[pid] = card
                         if self.on_navigate:
-                            card.clicked.connect(lambda p=pid: self.on_navigate(f"playlist?id=local_{p}"))
-                            
+                            if pid.startswith("album_"):
+                                card.clicked.connect(lambda p=pid: self.on_navigate(f"album?id={p.replace('album_', '')}"))
+                            else:
+                                card.clicked.connect(lambda p=pid: self.on_navigate(f"playlist?id=local_{p}"))
+                                
                         grid_layout.addWidget(card, row, col)
                     
                     self.content_layout.insertWidget(0, grid_widget)
             else:
                 # "songs" tab: Show all downloads individually (both completed and active)
                 if not downloads:
+                    from pyrolist.ui.design import tokens as _t
                     msg = QLabel("No hay descargas aquí.")
-                    msg.setStyleSheet("color: #888899; font-size: 16px; padding: 40px;")
+                    msg.setStyleSheet(f"color: {_t.CURRENT.text_secondary}; font-size: 16px; padding: 40px;")
                     msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
                     self.content_layout.insertWidget(0, msg)
                 
@@ -886,7 +897,7 @@ class DownloadsScreen(QWidget):
         if self._current_tab == "songs":
             for vid, widget in self._items.items():
                 widget.set_selection_mode(self._selection_mode)
-        elif self._current_tab == "playlists":
+        elif self._current_tab in ("playlists", "albums"):
             for pid, card in getattr(self, "_playlist_cards", {}).items():
                 card.set_selection_mode(self._selection_mode)
 
@@ -896,7 +907,7 @@ class DownloadsScreen(QWidget):
             for vid, widget in self._items.items():
                 if widget.checkbox.isChecked():
                     count += 1
-        elif self._current_tab == "playlists":
+        elif self._current_tab in ("playlists", "albums"):
             for pid, card in getattr(self, "_playlist_cards", {}).items():
                 if card.checkbox.isChecked():
                     count += 1
@@ -912,7 +923,7 @@ class DownloadsScreen(QWidget):
                     break
             for vid, widget in self._items.items():
                 widget.checkbox.setChecked(not all_checked)
-        elif self._current_tab == "playlists":
+        elif self._current_tab in ("playlists", "albums"):
             for pid, card in getattr(self, "_playlist_cards", {}).items():
                 if not card.checkbox.isChecked():
                     all_checked = False
@@ -926,7 +937,7 @@ class DownloadsScreen(QWidget):
             for vid, widget in self._items.items():
                 if widget.checkbox.isChecked():
                     selected_ids.append(vid)
-        elif self._current_tab == "playlists":
+        elif self._current_tab in ("playlists", "albums"):
             for pid, card in getattr(self, "_playlist_cards", {}).items():
                 if card.checkbox.isChecked():
                     selected_ids.append(pid)
@@ -939,6 +950,8 @@ class DownloadsScreen(QWidget):
         msg_box.setWindowTitle("Confirmar Eliminación")
         if self._current_tab == "songs":
             msg_box.setText(f"¿Estás seguro de que deseas eliminar las {len(selected_ids)} descargas seleccionadas?")
+        elif self._current_tab == "albums":
+            msg_box.setText(f"¿Estás seguro de que deseas eliminar los {len(selected_ids)} álbumes seleccionados junto con todas sus canciones descargadas?")
         else:
             msg_box.setText(f"¿Estás seguro de que deseas eliminar las {len(selected_ids)} playlists seleccionadas junto con todas sus canciones descargadas?")
             
@@ -979,11 +992,11 @@ class DownloadsScreen(QWidget):
             if self._current_tab == "songs":
                 for vid in ids:
                     await main_win._delete_download_async(vid)
-            elif self._current_tab == "playlists":
+            elif self._current_tab in ("playlists", "albums"):
                 downloads = await self._repo.get_downloads()
                 for pid in ids:
-                    playlist_songs = [d.video_id for d in downloads if d.parent_playlist_id == pid]
-                    for vid in playlist_songs:
+                    group_songs = [d.video_id for d in downloads if d.parent_playlist_id == pid]
+                    for vid in group_songs:
                         await main_win._delete_download_async(vid)
             await self.load()
 
@@ -993,6 +1006,8 @@ class DownloadsScreen(QWidget):
         msg_box.setWindowTitle("Confirmar Eliminación Masiva")
         if self._current_tab == "songs":
             msg_box.setText("¿Estás seguro de que deseas eliminar TODAS las canciones descargadas?")
+        elif self._current_tab == "albums":
+            msg_box.setText("¿Estás seguro de que deseas eliminar TODOS los álbumes descargados junto con todas sus canciones?")
         else:
             msg_box.setText("¿Estás seguro de que deseas eliminar TODAS las playlists descargadas junto con todas sus canciones?")
             
@@ -1035,8 +1050,12 @@ class DownloadsScreen(QWidget):
             if self._current_tab == "songs":
                 for d in downloads:
                     await main_win._delete_download_async(d.video_id)
-            elif self._current_tab == "playlists":
-                playlist_songs = [d.video_id for d in downloads if d.parent_playlist_id]
-                for vid in playlist_songs:
+            elif self._current_tab in ("playlists", "albums"):
+                is_album_tab = self._current_tab == "albums"
+                group_songs = [
+                    d.video_id for d in downloads
+                    if d.parent_playlist_id and d.parent_playlist_id.startswith("album_") == is_album_tab
+                ]
+                for vid in group_songs:
                     await main_win._delete_download_async(vid)
             await self.load()
