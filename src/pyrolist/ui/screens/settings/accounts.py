@@ -36,20 +36,9 @@ class AccountsSettingsScreen(QWidget):
         layout.addWidget(self.yt_section)
         self._update_yt_row()
 
-        lastfm = SettingsSection("Last.fm")
-        enabled = AnimatedToggle()
-        enabled.setChecked(self.settings.integrations.lastfm_enabled)
-        enabled.toggled.connect(lambda checked: self._set_integration("lastfm_enabled", checked))
-        lastfm.add_row(SettingsRow("Scrobbling", "Registra las canciones escuchadas", enabled))
-        
-        self.lastfm_api_key = self._line_edit(self.settings.integrations.lastfm_api_key, "API Key")
-        self.lastfm_api_key.editingFinished.connect(lambda: self._set_integration("lastfm_api_key", self.lastfm_api_key.text()))
-        lastfm.add_row(SettingsRow("API Key", "Credencial publica de Last.fm", self.lastfm_api_key))
-        
-        self.lastfm_api_secret = self._line_edit(self.settings.integrations.lastfm_api_secret, "API Secret")
-        self.lastfm_api_secret.editingFinished.connect(lambda: self._set_integration("lastfm_api_secret", self.lastfm_api_secret.text()))
-        lastfm.add_row(SettingsRow("API Secret", "Credencial privada de Last.fm", self.lastfm_api_secret))
-        layout.addWidget(lastfm)
+        self.lastfm_section = SettingsSection("Last.fm")
+        layout.addWidget(self.lastfm_section)
+        self._update_lastfm_rows()
 
         discord = SettingsSection("Discord")
         rpc = AnimatedToggle()
@@ -145,13 +134,139 @@ class AccountsSettingsScreen(QWidget):
         if self.on_auth_changed:
             self.on_auth_changed(False, "")
 
+    def _update_lastfm_rows(self) -> None:
+        if not hasattr(self, "lastfm_section"):
+            return
+            
+        card_layout = self.lastfm_section.card_layout
+        # Clear existing
+        while card_layout.count():
+            item = card_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+                
+        # Row 1: Scrobbling Toggle
+        enabled = AnimatedToggle()
+        enabled.setChecked(self.settings.integrations.lastfm_enabled)
+        enabled.toggled.connect(self._on_lastfm_toggled)
+        self.lastfm_section.add_row(SettingsRow("Scrobbling", "Registra las canciones escuchadas en Last.fm", enabled))
+        
+        if not self.settings.integrations.lastfm_enabled:
+            return
+            
+        # Clean up self._line_edits to avoid leaks/RuntimeError
+        if hasattr(self, "_line_edits"):
+            valid = []
+            for x in self._line_edits:
+                try:
+                    x.parent()
+                    valid.append(x)
+                except RuntimeError:
+                    pass
+            self._line_edits = valid
+            
+        is_authenticated = bool(self.settings.integrations.lastfm_session_key)
+        
+        if is_authenticated:
+            btn_disconnect = RippleButton("Desconectar", "danger")
+            btn_disconnect.clicked.connect(self._on_lastfm_disconnect)
+            self.lastfm_section.add_row(SettingsRow("Cuenta Conectada", "Sesión de Last.fm activa y autorizada", btn_disconnect))
+        else:
+            self.lastfm_api_key = self._line_edit(self.settings.integrations.lastfm_api_key, "API Key")
+            self.lastfm_api_key.editingFinished.connect(lambda: self._set_integration("lastfm_api_key", self.lastfm_api_key.text()))
+            self.lastfm_section.add_row(SettingsRow("API Key", "Credencial pública de Last.fm", self.lastfm_api_key))
+            
+            self.lastfm_api_secret = self._line_edit(self.settings.integrations.lastfm_api_secret, "API Secret")
+            self.lastfm_api_secret.editingFinished.connect(lambda: self._set_integration("lastfm_api_secret", self.lastfm_api_secret.text()))
+            self.lastfm_section.add_row(SettingsRow("API Secret", "Credencial privada de Last.fm", self.lastfm_api_secret))
+            
+            self.lastfm_username = self._line_edit("", "Usuario")
+            self.lastfm_section.add_row(SettingsRow("Usuario", "Tu nombre de usuario en Last.fm", self.lastfm_username))
+            
+            self.lastfm_password = self._line_edit("", "Contraseña")
+            self.lastfm_password.setEchoMode(QLineEdit.EchoMode.Password)
+            self.lastfm_section.add_row(SettingsRow("Contraseña", "Tu contraseña de Last.fm", self.lastfm_password))
+            
+            btn_auth = RippleButton("Autenticar en Last.fm", "primary")
+            btn_auth.clicked.connect(self._on_lastfm_authenticate)
+            self.lastfm_section.add_row(SettingsRow("Autenticación", "Conecta e inicia sesión de forma segura", btn_auth))
+
+    def _on_lastfm_toggled(self, checked: bool) -> None:
+        self._set_integration("lastfm_enabled", checked)
+        self._update_lastfm_rows()
+
+    def _on_lastfm_disconnect(self) -> None:
+        self._set_integration("lastfm_session_key", "")
+        from pyrolist.ui.widgets.toast import ToastNotification
+        ToastNotification.show(self, "Cuenta de Last.fm desconectada con éxito", "success")
+        self._update_lastfm_rows()
+
+    def _on_lastfm_authenticate(self) -> None:
+        api_key = self.lastfm_api_key.text().strip()
+        api_secret = self.lastfm_api_secret.text().strip()
+        username = self.lastfm_username.text().strip()
+        password = self.lastfm_password.text()
+        
+        if not api_key or not api_secret:
+            from pyrolist.ui.widgets.toast import ToastNotification
+            ToastNotification.show(self, "Debes ingresar API Key y API Secret", "warning")
+            return
+            
+        if not username or not password:
+            from pyrolist.ui.widgets.toast import ToastNotification
+            ToastNotification.show(self, "Debes ingresar tu usuario y contraseña", "warning")
+            return
+            
+        import asyncio
+        asyncio.create_task(self._async_lastfm_auth(api_key, api_secret, username, password))
+
+    async def _async_lastfm_auth(self, api_key: str, api_secret: str, username: str, password: str) -> None:
+        from pyrolist.ui.widgets.toast import ToastNotification
+        toast = ToastNotification.show(self, "Autenticando con Last.fm...", "info")
+        
+        def do_auth():
+            import pylast
+            password_hash = pylast.md5(password)
+            network = pylast.LastFMNetwork(
+                api_key=api_key,
+                api_secret=api_secret,
+                username=username,
+                password_hash=password_hash
+            )
+            return network.session_key
+            
+        try:
+            import asyncio
+            loop = asyncio.get_running_loop()
+            session_key = await loop.run_in_executor(None, do_auth)
+            
+            if session_key:
+                self.settings.integrations.lastfm_api_key = api_key
+                self.settings.integrations.lastfm_api_secret = api_secret
+                self.settings.integrations.lastfm_session_key = session_key
+                # Save and notify setting change
+                self._set_integration("lastfm_session_key", session_key)
+                
+                ToastNotification.show(self, "¡Autenticación con Last.fm exitosa!", "success")
+                self._update_lastfm_rows()
+            else:
+                ToastNotification.show(self, "No se pudo recuperar la clave de sesión", "error")
+        except Exception as e:
+            import logging
+            logging.getLogger().error(f"Last.fm auth error: {e}", exc_info=True)
+            error_msg = str(e)
+            if "WSError" in error_msg or "failed" in error_msg.lower() or "invalid" in error_msg.lower():
+                ToastNotification.show(self, "Error de autenticación: Credenciales inválidas", "error")
+            else:
+                ToastNotification.show(self, f"Error al conectar con Last.fm: {error_msg}", "error")
+
     def _set_integration(self, key: str, value) -> None:
         setattr(self.settings.integrations, key, value)
         self.on_changed(self.settings)
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
+        if event.type() == QEvent.Type.PaletteChange:
             if not getattr(self, '_in_style_change', False):
                 self._in_style_change = True
                 try:

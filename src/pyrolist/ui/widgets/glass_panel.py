@@ -2,16 +2,22 @@ from __future__ import annotations
 
 from PySide6.QtCore import Property, QEasingCurve, QPoint, Qt, QPropertyAnimation
 from PySide6.QtGui import QBrush, QColor, QLinearGradient, QPainter, QPaintEvent, QPen
-from PySide6.QtWidgets import QVBoxLayout, QWidget
+from PySide6.QtWidgets import QVBoxLayout, QWidget, QGraphicsOpacityEffect
 
 
 class GlassPanel(QWidget):
     def __init__(self, parent=None, blur_radius: int = 20):
         super().__init__(parent)
-        self.setWindowFlags(Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint | Qt.WindowType.NoDropShadowWindowHint)
+        self.setWindowFlags(Qt.WindowType.SubWindow | Qt.WindowType.FramelessWindowHint | Qt.WindowType.NoDropShadowWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        
         self._opacity = 0.0
         self._blur_radius = blur_radius
+        self._trigger_widget = None
+
+        self._opacity_effect = QGraphicsOpacityEffect(self)
+        self.setGraphicsEffect(self._opacity_effect)
+        self._opacity_effect.setOpacity(0.0)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -30,7 +36,8 @@ class GlassPanel(QWidget):
 
     def _set_opacity(self, value: float) -> None:
         self._opacity = value
-        self.setWindowOpacity(value)
+        self._opacity_effect.setOpacity(value)
+        self.update()
 
     panel_opacity = Property(float, _get_opacity, _set_opacity)
 
@@ -52,10 +59,36 @@ class GlassPanel(QWidget):
         except RuntimeError:
             pass
         self._opacity_anim.stop()
-        self._opacity_anim.setStartValue(self.windowOpacity())
+        self._opacity_anim.setStartValue(self._opacity)
         self._opacity_anim.setEndValue(0.0)
         self._opacity_anim.finished.connect(self.close)
         self._opacity_anim.start()
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        from PySide6.QtWidgets import QApplication
+        QApplication.instance().installEventFilter(self)
+
+    def hideEvent(self, event) -> None:
+        super().hideEvent(event)
+        from PySide6.QtWidgets import QApplication
+        QApplication.instance().removeEventFilter(self)
+
+    def eventFilter(self, watched, event) -> bool:
+        from PySide6.QtCore import QEvent
+        from PySide6.QtWidgets import QWidget
+        if event.type() == QEvent.Type.MouseButtonPress:
+            pos = event.globalPosition().toPoint() if hasattr(event, "globalPosition") else event.globalPos()
+            local_pos = self.mapFromGlobal(pos)
+            if not self.rect().contains(local_pos):
+                trigger = getattr(self, "_trigger_widget", None)
+                if trigger and isinstance(trigger, QWidget):
+                    trigger_local = trigger.mapFromGlobal(pos)
+                    if trigger.rect().contains(trigger_local):
+                        self.hide()
+                        return False
+                self.dismiss()
+        return super().eventFilter(watched, event)
 
     def paintEvent(self, event: QPaintEvent) -> None:
         painter = QPainter(self)
@@ -82,4 +115,5 @@ class GlassPanel(QWidget):
         painter.setPen(QPen(QBrush(border), 1.0))
         painter.drawRoundedRect(rect, 16, 16)
         painter.end()
+
 

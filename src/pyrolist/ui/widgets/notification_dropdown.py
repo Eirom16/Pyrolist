@@ -107,7 +107,7 @@ class DownloadProgressRow(QWidget):
 
     def changeEvent(self, event):
         from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
+        if event.type() == QEvent.Type.PaletteChange:
             if not getattr(self, '_in_style_change', False):
                 self._in_style_change = True
                 try:
@@ -166,7 +166,7 @@ class NotificationHistoryRow(QWidget):
 
     def changeEvent(self, event):
         from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
+        if event.type() == QEvent.Type.PaletteChange:
             if not getattr(self, '_in_style_change', False):
                 self._in_style_change = True
                 try:
@@ -324,7 +324,7 @@ class NotificationDropdown(GlassPanel):
 
     def changeEvent(self, event):
         from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
+        if event.type() == QEvent.Type.PaletteChange:
             if not getattr(self, '_in_style_change', False):
                 self._in_style_change = True
                 try:

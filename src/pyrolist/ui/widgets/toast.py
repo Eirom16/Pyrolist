@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QEasingCurve, QTimer, Qt, QPropertyAnimation
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QWidget, QGraphicsOpacityEffect
 
 from pyrolist.ui.design.fonts import AppFont
 from pyrolist.ui.design.icons import Icon
@@ -39,11 +39,15 @@ class ToastNotification(QWidget):
         self.adjustSize()
         parent_rect = parent.rect()
         self.move(max(20, parent_rect.width() - self.width() - 20), max(20, parent_rect.height() - self.height() - 96))
-        self.setWindowOpacity(0.0)
+        
+        self._opacity_effect = QGraphicsOpacityEffect(self)
+        self.setGraphicsEffect(self._opacity_effect)
+        self._opacity_effect.setOpacity(0.0)
+        
         super().show()
         self.raise_()
 
-        self._in_anim = QPropertyAnimation(self, b"windowOpacity", self)
+        self._in_anim = QPropertyAnimation(self._opacity_effect, b"opacity", self)
         self._in_anim.setDuration(260)
         self._in_anim.setStartValue(0.0)
         self._in_anim.setEndValue(1.0)
@@ -52,9 +56,9 @@ class ToastNotification(QWidget):
         QTimer.singleShot(3500, self._dismiss)
 
     def _dismiss(self) -> None:
-        self._out_anim = QPropertyAnimation(self, b"windowOpacity", self)
+        self._out_anim = QPropertyAnimation(self._opacity_effect, b"opacity", self)
         self._out_anim.setDuration(320)
-        self._out_anim.setStartValue(self.windowOpacity())
+        self._out_anim.setStartValue(self._opacity_effect.opacity())
         self._out_anim.setEndValue(0.0)
         self._out_anim.setEasingCurve(QEasingCurve.Type.InCubic)
         self._out_anim.finished.connect(self.deleteLater)
@@ -63,4 +67,5 @@ class ToastNotification(QWidget):
     @staticmethod
     def show(parent: QWidget, message: str, kind: str = "info") -> "ToastNotification":
         return ToastNotification(parent, message, kind)
+
 

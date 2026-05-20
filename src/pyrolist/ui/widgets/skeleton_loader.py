@@ -22,13 +22,36 @@ class SkeletonBlock(QWidget):
     def _get_shimmer(self) -> float:
         return self._shimmer_pos
 
+    def _is_ancestor_animating(self) -> bool:
+        p = self.parentWidget()
+        while p:
+            if p.graphicsEffect() is not None:
+                return True
+            if hasattr(p, "_animating") and p._animating:
+                return True
+            p = p.parentWidget()
+        return False
+
     def _set_shimmer(self, value: float) -> None:
         self._shimmer_pos = value
-        self.update()
+        if self.isVisible() and not self._is_ancestor_animating():
+            self.update()
 
     shimmer = Property(float, _get_shimmer, _set_shimmer)
 
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        if hasattr(self, "_anim") and self._anim.state() != QPropertyAnimation.State.Running:
+            self._anim.start()
+
+    def hideEvent(self, event) -> None:
+        super().hideEvent(event)
+        if hasattr(self, "_anim"):
+            self._anim.stop()
+
     def paintEvent(self, event: QPaintEvent) -> None:
+        if self._is_ancestor_animating():
+            return
         from pyrolist.ui.design import tokens
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)

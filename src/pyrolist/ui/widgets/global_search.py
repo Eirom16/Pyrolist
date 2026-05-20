@@ -137,8 +137,12 @@ class _SuggestionRow(QWidget):
 
     def changeEvent(self, event):
         from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-            self._update_row_styles()
+        if event.type() == QEvent.Type.PaletteChange and not getattr(self, '_in_style_update', False):
+            self._in_style_update = True
+            try:
+                self._update_row_styles()
+            finally:
+                self._in_style_update = False
         super().changeEvent(event)
 
     # Click anywhere on the row
@@ -167,48 +171,47 @@ class _SearchDropdown(GlassPanel):
     suggestion_selected = Signal(str)
 
     def __init__(self, parent=None):
-        super().__init__(parent)
+        super().__init__(parent, blur_radius=24)
         self.setObjectName("searchDropdown")
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
-        self.setAttribute(Qt.WidgetAttribute.WA_X11DoNotAcceptFocus) # Helpful on Linux
+        self.setAttribute(Qt.WidgetAttribute.WA_X11DoNotAcceptFocus)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.setMaximumHeight(400)
+        self.setMaximumHeight(420)
 
         root_layout = self.layout()
-        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.setContentsMargins(6, 6, 6, 6)
         root_layout.setSpacing(0)
 
         self._scroll = QScrollArea()
         self._scroll.setWidgetResizable(True)
         self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self._scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+        self._scroll.setStyleSheet("""
+            QScrollArea { background: transparent; border: none; }
+            QScrollBar:vertical {
+                background: transparent; width: 6px; margin: 4px 2px;
+            }
+            QScrollBar::handle:vertical {
+                background: rgba(255,255,255,0.12); border-radius: 3px; min-height: 30px;
+            }
+            QScrollBar::handle:vertical:hover { background: rgba(255,255,255,0.22); }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+        """)
 
         self._inner = QWidget()
+        self._inner.setStyleSheet("background: transparent;")
         self._layout = QVBoxLayout(self._inner)
-        self._layout.setContentsMargins(0, 8, 0, 8)
-        self._layout.setSpacing(0)
+        self._layout.setContentsMargins(4, 6, 4, 6)
+        self._layout.setSpacing(2)
         self._layout.addStretch()
 
         self._scroll.setWidget(self._inner)
         root_layout.addWidget(self._scroll)
-        self._update_dropdown_styles()
-
-    def _update_dropdown_styles(self):
-        from pyrolist.ui.design import tokens
-        self.setStyleSheet(f"""
-            #searchDropdown {{
-                background-color: {tokens.CURRENT.bg_surface};
-                border: 1px solid {tokens.CURRENT.border};
-                border-top: none;
-                border-radius: 0 0 16px 16px;
-            }}
-        """)
 
     def changeEvent(self, event):
         from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-            self._update_dropdown_styles()
+        if event.type() == QEvent.Type.PaletteChange:
+            self.update()  # Just repaint — GlassPanel handles styling
         super().changeEvent(event)
 
     # --- Public helpers ---
@@ -303,49 +306,70 @@ class GlobalSearchBar(QWidget):
 
         # Notification Button & Dropdown
         from pyrolist.ui.widgets.notification_button import NotificationButton
-        from pyrolist.ui.widgets.notification_dropdown import NotificationDropdown
 
         self.notif_btn = NotificationButton(self)
-        self.notif_dropdown = NotificationDropdown(self)
-        self.notif_dropdown.unread_changed.connect(self.notif_btn.set_unread)
+        self._notif_dropdown = None
         self.notif_btn.clicked.connect(self._toggle_notifications)
         bar_layout.addWidget(self.notif_btn)
 
         layout.addWidget(self.bar_widget)
 
+    @property
+    def notif_dropdown(self):
+        return self._ensure_notif_dropdown()
+
+    def _ensure_notif_dropdown(self):
+        if not hasattr(self, "_notif_dropdown") or self._notif_dropdown is None:
+            from pyrolist.ui.widgets.notification_dropdown import NotificationDropdown
+            parent_win = self.window() or self
+            self._notif_dropdown = NotificationDropdown(parent_win)
+            self._notif_dropdown._trigger_widget = self.notif_btn
+            self._notif_dropdown.unread_changed.connect(self.notif_btn.set_unread)
+        return self._notif_dropdown
+
     def _toggle_notifications(self):
-        if self.notif_dropdown.isVisible():
-            self.notif_dropdown.dismiss()
+        nd = self.notif_dropdown
+        if nd.isVisible():
+            nd.dismiss()
         else:
-            # Position below the notification button, aligning right edges
-            btn_bottom_right = self.notif_btn.mapToGlobal(QPoint(self.notif_btn.width(), self.notif_btn.height()))
-            dropdown_width = self.notif_dropdown.width()
+            parent_win = self.window()
+            if parent_win:
+                btn_bottom_right = self.notif_btn.mapTo(parent_win, QPoint(self.notif_btn.width(), self.notif_btn.height()))
+            else:
+                btn_bottom_right = self.notif_btn.mapToGlobal(QPoint(self.notif_btn.width(), self.notif_btn.height()))
+            dropdown_width = nd.width()
             popup_pos = QPoint(btn_bottom_right.x() - dropdown_width, btn_bottom_right.y() + 6)
             
             # Dismiss search dropdown if visible
             self._hide_dropdown()
             
-            self.notif_dropdown.popup_at(popup_pos)
+            nd.popup_at(popup_pos)
 
     # ---- Dropdown lifecycle ----
     def _ensure_dropdown(self):
         if self._dropdown is None:
-            self._dropdown = _SearchDropdown(self)
+            parent_win = self.window() or self
+            self._dropdown = _SearchDropdown(parent_win)
+            self._dropdown._trigger_widget = self.input
             self._dropdown.suggestion_selected.connect(self._on_suggestion_selected)
         return self._dropdown
 
     def _show_dropdown(self):
         # Dismiss notification dropdown if visible when search dropdown opens
-        if hasattr(self, "notif_dropdown") and self.notif_dropdown.isVisible():
-            self.notif_dropdown.dismiss()
+        if hasattr(self, "_notif_dropdown") and self._notif_dropdown and self._notif_dropdown.isVisible():
+            self._notif_dropdown.dismiss()
 
         dd = self._ensure_dropdown()
 
-        # Position below the search bar, aligned to the input
-        global_pos = self.input.mapToGlobal(QPoint(0, self.input.height()))
+        # Position below the search bar, aligned to the input, relative to the main window
+        parent_win = self.window()
+        if parent_win:
+            rel_pos = self.input.mapTo(parent_win, QPoint(0, self.input.height()))
+        else:
+            rel_pos = self.input.mapToGlobal(QPoint(0, self.input.height()))
         dd_width = min(self.input.width(), 600)
         dd.setFixedWidth(dd_width)
-        dd.move(global_pos)
+        dd.move(rel_pos)
         
         # Calculate dynamic height based on the widgets inside the scroll area layout
         item_count = dd._layout.count() - 1  # Exclude the bottom stretch
@@ -369,7 +393,7 @@ class GlobalSearchBar(QWidget):
         
         # On some platforms/WMs, show() might still steal focus despite flags.
         # We ensure the input keeps it.
-        dd.popup_at(global_pos)
+        dd.popup_at(rel_pos)
         self.input.setFocus()
         dd.raise_()
 
@@ -606,7 +630,7 @@ class GlobalSearchBar(QWidget):
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
+        if event.type() == QEvent.Type.PaletteChange:
             if not getattr(self, '_in_style_change', False):
                 self._in_style_change = True
                 try:

@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTabWidget, QScrollArea, QPushButton
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QSize
 from PySide6.QtGui import QFont, QPixmap
 import asyncio
 from pyrolist.utils.image_cache import ImageCache
@@ -62,15 +62,17 @@ class NowPlayingScreen(QWidget):
         top_bar = QHBoxLayout()
         top_bar.setContentsMargins(24, 16, 24, 0)
         self.btn_collapse = QPushButton()
-        self.btn_collapse.setText(f"{Icon.get('expand_more')}  Minimizar")
-        self.btn_collapse.setFont(QFont("Inter", 12))
+        self.btn_collapse.setText("Minimizar")
+        self.btn_collapse.setIcon(Icon.icon("expand_more", tokens.CURRENT.text_secondary, 18))
+        self.btn_collapse.setIconSize(QSize(18, 18))
+        self.btn_collapse.setFont(QFont("Inter", 12, QFont.Weight.Medium))
         self.btn_collapse.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_collapse.setStyleSheet(f"""
             QPushButton {{
                 background: transparent;
                 color: {tokens.CURRENT.text_secondary};
                 border: none;
-                padding: 6px 12px;
+                padding: 6px 16px;
                 border-radius: 8px;
             }}
             QPushButton:hover {{

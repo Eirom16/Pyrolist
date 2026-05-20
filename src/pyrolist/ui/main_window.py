@@ -153,6 +153,11 @@ class MainWindow(QMainWindow):
         self.search_bar.search_submitted.connect(self._on_search_submitted)
         right_layout.addWidget(self.search_bar)
 
+        # Add glassmorphic offline warning banner
+        from pyrolist.ui.widgets.offline_banner import OfflineBannerWidget
+        self.offline_banner = OfflineBannerWidget(self)
+        right_layout.addWidget(self.offline_banner)
+
         self.stack = FadeStackedWidget()
         self.stack.setObjectName("screenStack")
 
@@ -308,7 +313,7 @@ class MainWindow(QMainWindow):
             self.mpris.start()
             self.mpris.update_shuffle(self.queue.shuffle_enabled)
 
-        if self.settings.integrations.lastfm_enabled:
+        if self.settings.integrations.lastfm_enabled and self.settings.integrations.lastfm_session_key:
             self.scrobbler = LastFmScrobbler(
                 self.settings.integrations.lastfm_api_key,
                 self.settings.integrations.lastfm_api_secret,
@@ -317,6 +322,11 @@ class MainWindow(QMainWindow):
         if self.settings.integrations.discord_rpc_enabled:
             self.discord = DiscordRPC()
             task = self._run_async(self.discord.connect())
+
+        # Setup and start network monitor
+        from pyrolist.system.network import NetworkMonitor
+        self.network_monitor = NetworkMonitor(on_connectivity_change=self._on_connectivity_change)
+        self._run_async(self.network_monitor.start())
 
     def _on_mpris_volume_changed(self, volume: int) -> None:
         self.settings.player.volume = volume
@@ -328,6 +338,21 @@ class MainWindow(QMainWindow):
                 player_settings_page.update_fields()
         except Exception:
             pass
+
+    def _on_connectivity_change(self, is_connected: bool) -> None:
+        """Handle network status transitions dynamically."""
+        if not is_connected:
+            self.offline_banner.show_banner()
+            ToastNotification.show(self, "Sin conexión: reproduciendo descargas locales", "warning")
+        else:
+            self.offline_banner.hide_banner()
+            ToastNotification.show(self, "Conexión de red restablecida", "success")
+            
+            # Reload active static screen to resume online capabilities
+            current_index = self.stack.currentIndex()
+            active_route = next((k for k, v in self.ROUTES.items() if v == current_index), None)
+            if active_route:
+                self._run_async(self._load_screen(active_route))
 
     def _toggle_shuffle_from_mpris(self, enable: bool) -> None:
         if self.queue.shuffle_enabled != enable:
@@ -707,6 +732,8 @@ class MainWindow(QMainWindow):
             self._init_task.cancel()
         if self.mpris:
             self.mpris.stop()
+        if hasattr(self, 'network_monitor') and self.network_monitor:
+            self._run_async(self.network_monitor.stop())
 
     async def _initialize(self) -> None:
         await self._navigate("home")
@@ -835,6 +862,9 @@ class MainWindow(QMainWindow):
     def _on_search_submitted(self, query: str) -> None:
         """Called when user presses Enter or picks a suggestion."""
         if query:
+            if "?" in query:
+                self._navigate_to(query)
+                return
             # Navigate to search screen (won't clear the bar because route IS 'search')
             index = self.ROUTES.get("search", 0)
             self._set_stack_index(index)
@@ -925,6 +955,13 @@ class MainWindow(QMainWindow):
         self.now_playing_screen.set_related([], None)
         self._run_async(self._load_lyrics(item, play_id))
         self._run_async(self._load_related(item, play_id))
+        if not item.is_local:
+            if hasattr(self, 'network_monitor') and not self.network_monitor.is_connected:
+                logger.warning(f"Offline: cannot play non-local song {item.title}")
+                from pyrolist.ui.widgets.toast import ToastNotification
+                ToastNotification.show(self, f"Sin conexión: '{item.title}' no está descargada.", "error")
+                await self.player.stop()
+                return
 
         if item.is_local:
             logger.info(f"Playing local track: {item.title}")
@@ -936,6 +973,52 @@ class MainWindow(QMainWindow):
                 self._run_async(self._save_play_history(item))
                 if self.settings.player.crossfade_enabled:
                     self._run_async(self.crossfade_manager.fade_in(self.player, self.settings.player.volume, duration_sec=1.2))
+            return
+
+        # Check if preloaded stream_url is already valid
+        import time
+        has_preloaded = False
+        if item.stream_url and hasattr(item, 'stream_expires_at') and time.time() < item.stream_expires_at:
+            has_preloaded = True
+
+        if has_preloaded:
+            logger.info(f"Playing preloaded: {item.title}")
+            if item.stream_url:
+                if self.settings.player.crossfade_enabled and self.player.status.state == PlayerState.PLAYING:
+                    await self.crossfade_manager.fade_out(self.player, duration_sec=1.2)
+
+                success = await self.player.play_url(item.stream_url, item.video_id)
+                if success:
+                    self._run_async(self._save_play_history(item))
+                    if self.settings.player.crossfade_enabled:
+                        self._run_async(self.crossfade_manager.fade_in(self.player, self.settings.player.volume, duration_sec=1.2))
+                else:
+                    logger.error(f"Player failed for preloaded {item.title}, trying alternative format...")
+                    alt_url = await self.extractor.get_alternative_stream(item.video_id)
+                    if alt_url:
+                        logger.info(f"Retrying with alternative format")
+                        success = await self.player.play_url(alt_url, item.video_id)
+                        if success and self.settings.player.crossfade_enabled:
+                            self._run_async(self.crossfade_manager.fade_in(self.player, self.settings.player.volume, duration_sec=1.2))
+            else:
+                logger.error(f"No stream URL for preloaded {item.title}")
+
+            if getattr(getattr(self.settings, 'network', None), 'preload_next', True):
+                self._run_async(self._preload_next())
+
+            if self.scrobbler:
+                await self.scrobbler.update_now_playing(
+                    item.artist, item.title, item.album
+                )
+            if self.discord:
+                await self.discord.update(
+                    item.title, item.artist, item.album, True
+                )
+            if self.mpris:
+                self.mpris.update_metadata(
+                    item.title, item.artist, item.album,
+                    item.duration_ms * 1000, item.thumbnail_url
+                )
             return
 
         try:
@@ -1014,9 +1097,12 @@ class MainWindow(QMainWindow):
                         logger.error(f"Error reading offline lyrics file: {e}")
             
             if not lyrics:
-                lyrics = await self.lyrics_client.get_lyrics(
-                    item.title, item.artist, item.album
-                )
+                if hasattr(self, 'network_monitor') and not self.network_monitor.is_connected:
+                    lyrics = "[Letras no disponibles sin conexión]"
+                else:
+                    lyrics = await self.lyrics_client.get_lyrics(
+                        item.title, item.artist, item.album
+                    )
             
             if self._current_play_id == play_id:
                 self.now_playing_screen.set_lyrics(lyrics)
@@ -1030,6 +1116,10 @@ class MainWindow(QMainWindow):
     async def _load_related(self, item: QueueItem, play_id: int) -> None:
         """Load related/similar tracks for the SIMILARES tab."""
         try:
+            if hasattr(self, 'network_monitor') and not self.network_monitor.is_connected:
+                if self._current_play_id == play_id:
+                    self.now_playing_screen.set_related([], None)
+                return
             video_id = item.video_id
             
             # If it's a local/imported track or we don't have a valid ID, search for it
@@ -1105,12 +1195,6 @@ class MainWindow(QMainWindow):
     async def _advance_queue(self) -> None:
         item = self.queue.advance()
         if item:
-            if item.stream_url:
-                import time
-                if time.time() < item.stream_expires_at:
-                    self._update_queue_panel()
-                    await self.player.play_url(item.stream_url, item.video_id)
-                    return
             self._update_queue_panel()
             await self._play_current()
         else:
@@ -1134,6 +1218,7 @@ class MainWindow(QMainWindow):
                             self.queue.add_to_end(ni)
                         self.queue.advance()
                         self._update_queue_panel()
+                        await self._play_current()
                 except Exception as e:
                     logger.warning(f"Autoplay failed: {e}")
 
@@ -1266,6 +1351,23 @@ class MainWindow(QMainWindow):
             self.now_playing_screen.update_lyrics_style()
         from pyrolist.config.paths import AppDirs
         settings.save(AppDirs.settings_file)
+
+        # Update Last.fm scrobbler dynamically
+        if settings.integrations.lastfm_enabled and settings.integrations.lastfm_session_key:
+            if not getattr(self, 'scrobbler', None) or getattr(self, '_lastfm_session_key', None) != settings.integrations.lastfm_session_key:
+                try:
+                    self.scrobbler = LastFmScrobbler(
+                        settings.integrations.lastfm_api_key,
+                        settings.integrations.lastfm_api_secret,
+                        settings.integrations.lastfm_session_key,
+                    )
+                    self._lastfm_session_key = settings.integrations.lastfm_session_key
+                    logger.info("Dynamic Last.fm scrobbler initialized/updated")
+                except Exception as e:
+                    logger.error(f"Failed to initialize dynamic scrobbler: {e}")
+        else:
+            self.scrobbler = None
+            self._lastfm_session_key = None
         
         # Update player volume
         if hasattr(self, 'player'):

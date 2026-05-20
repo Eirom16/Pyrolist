@@ -186,10 +186,15 @@ class GlassComboBox(QPushButton):
             btn.clicked.connect(lambda _, i=idx: self._on_item_selected(i))
             layout.addWidget(btn)
             
-        # Position popup exactly below the button
-        global_pos = self.mapToGlobal(self.rect().bottomLeft())
-        # Slide down slightly
-        self._popup.popup_at(QPoint(global_pos.x(), global_pos.y() + 4))
+        # Position popup exactly below the button relative to parent window
+        parent_win = self.window()
+        if parent_win:
+            rel_pos = self.mapTo(parent_win, self.rect().bottomLeft())
+        else:
+            rel_pos = self.mapToGlobal(self.rect().bottomLeft())
+            
+        self._popup._trigger_widget = self
+        self._popup.popup_at(QPoint(rel_pos.x(), rel_pos.y() + 4))
 
     def _on_item_selected(self, index: int) -> None:
         self.setCurrentIndex(index)
@@ -199,7 +204,7 @@ class GlassComboBox(QPushButton):
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
+        if event.type() == QEvent.Type.PaletteChange:
             if not getattr(self, '_in_style_change', False):
                 self._in_style_change = True
                 try:
