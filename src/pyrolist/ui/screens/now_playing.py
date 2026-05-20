@@ -20,13 +20,14 @@ class NowPlayingScreen(QWidget):
     add_to_playlist_requested = Signal(str, str)
     delete_download_requested = Signal(str)
 
-    def __init__(self, player, queue, yt_client, play_queue_item_cb, settings=None):
+    def __init__(self, player, queue, yt_client, play_queue_item_cb, settings=None, on_back=None):
         super().__init__()
         self.player = player
         self.queue = queue
         self.yt = yt_client
         self.play_queue_item_cb = play_queue_item_cb
         self.settings = settings
+        self.on_back = on_back
         self._is_playing = False
         self._build_ui()
 
@@ -52,8 +53,40 @@ class NowPlayingScreen(QWidget):
         return btn
 
     def _build_ui(self):
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(40, 40, 40, 40)
+        outer_layout = QVBoxLayout(self)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+        outer_layout.setSpacing(0)
+
+        # Top bar with collapse/back button
+        from pyrolist.ui.design import tokens
+        top_bar = QHBoxLayout()
+        top_bar.setContentsMargins(24, 16, 24, 0)
+        self.btn_collapse = QPushButton()
+        self.btn_collapse.setText(f"{Icon.get('expand_more')}  Minimizar")
+        self.btn_collapse.setFont(QFont("Inter", 12))
+        self.btn_collapse.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_collapse.setStyleSheet(f"""
+            QPushButton {{
+                background: transparent;
+                color: {tokens.CURRENT.text_secondary};
+                border: none;
+                padding: 6px 12px;
+                border-radius: 8px;
+            }}
+            QPushButton:hover {{
+                background: {tokens.CURRENT.bg_elevated};
+                color: {tokens.CURRENT.text_primary};
+            }}
+        """)
+        self.btn_collapse.setFixedHeight(36)
+        if self.on_back:
+            self.btn_collapse.clicked.connect(self.on_back)
+        top_bar.addWidget(self.btn_collapse)
+        top_bar.addStretch()
+        outer_layout.addLayout(top_bar)
+
+        layout = QHBoxLayout()
+        layout.setContentsMargins(40, 16, 40, 40)
         layout.setSpacing(40)
 
         # Left Side (Artwork & Details + Controls)
@@ -215,6 +248,7 @@ class NowPlayingScreen(QWidget):
 
         layout.addWidget(left_panel)
         layout.addWidget(right_panel)
+        outer_layout.addLayout(layout)
 
     def _on_like_clicked(self):
         """Toggle like for the currently playing song."""

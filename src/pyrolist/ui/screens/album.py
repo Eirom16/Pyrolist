@@ -47,12 +47,14 @@ class AlbumScreen(QWidget):
     add_to_playlist_requested = Signal(str, str)
     delete_download_requested = Signal(str)
 
-    def __init__(self, yt_client, on_play_song):
+    def __init__(self, yt_client, on_play_song, on_back=None):
         super().__init__()
         self.yt = yt_client
         self.on_play_song = on_play_song
+        self.on_back = on_back
         self._browse_id = None
         self._album_data = None
+        self._thumbnail_url = ""
         self._build_ui()
 
         # Wire up DownloadManager signals for real-time progress update
@@ -151,6 +153,34 @@ class AlbumScreen(QWidget):
         thumbnails = data.get('thumbnails', [])
         if thumbnails:
             thumbnail_url = thumbnails[-1].get('url', '')
+        self._thumbnail_url = thumbnail_url
+
+        # Back button row
+        back_row = QHBoxLayout()
+        back_row.setContentsMargins(0, 0, 0, 8)
+        btn_back = QPushButton()
+        btn_back.setText(f"{Icon.get('arrow_back')}  Volver")
+        btn_back.setFont(QFont("Inter", 12))
+        btn_back.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_back.setStyleSheet(f"""
+            QPushButton {{
+                background: transparent;
+                color: {tokens.CURRENT.text_secondary};
+                border: none;
+                padding: 6px 12px;
+                border-radius: 8px;
+            }}
+            QPushButton:hover {{
+                background: {tokens.CURRENT.bg_elevated};
+                color: {tokens.CURRENT.text_primary};
+            }}
+        """)
+        btn_back.setFixedHeight(36)
+        if self.on_back:
+            btn_back.clicked.connect(self.on_back)
+        back_row.addWidget(btn_back)
+        back_row.addStretch()
+        self.content_layout.addLayout(back_row)
             
         self.cover = QLabel()
         self.cover.setFixedSize(200, 200)
@@ -322,7 +352,7 @@ class AlbumScreen(QWidget):
 
     def _handle_play(self, video_id, title, artists):
         if self.on_play_song:
-            self.on_play_song(video_id, title, artists, "", 0, "")
+            self.on_play_song(video_id, title, artists, "", 0, self._thumbnail_url)
 
     def _update_dl_button_style(self) -> None:
         if hasattr(self, 'btn_dl') and isinstance(self.btn_dl, QPushButton):

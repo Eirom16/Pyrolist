@@ -45,6 +45,7 @@ class MainWindow(QMainWindow):
         self._loop = event_loop
         self._pending_tasks: set[asyncio.Task] = set()
         self._current_play_id = 0
+        self._nav_history: list[int] = []  # stack of previous screen indices for back navigation
 
         self.yt = YouTubeMusicClient(settings)
         self.extractor = StreamExtractor(settings)
@@ -180,10 +181,10 @@ class MainWindow(QMainWindow):
             on_settings_changed=self._on_settings_changed,
             on_auth_changed=self._on_auth_changed
         )
-        self.playlist_screen = PlaylistScreen(self.yt, self._play_song_sync, self._play_local_playlist)
-        self.album_screen = AlbumScreen(self.yt, self._play_song_sync)
-        self.artist_screen = ArtistScreen(self.yt, self._play_song_sync, self._navigate_to)
-        self.now_playing_screen = NowPlayingScreen(self.player, self.queue, self.yt, self._play_queue_item, self.settings)
+        self.playlist_screen = PlaylistScreen(self.yt, self._play_song_sync, self._play_local_playlist, on_back=self._go_back)
+        self.album_screen = AlbumScreen(self.yt, self._play_song_sync, on_back=self._go_back)
+        self.artist_screen = ArtistScreen(self.yt, self._play_song_sync, self._navigate_to, on_back=self._go_back)
+        self.now_playing_screen = NowPlayingScreen(self.player, self.queue, self.yt, self._play_queue_item, self.settings, on_back=self._go_back)
         self.search_screen = SearchScreen(self.yt, self._play_song_sync)
         self.stats_screen = StatsScreen(self.yt, self._play_song_sync)
 
@@ -784,10 +785,18 @@ class MainWindow(QMainWindow):
             self.search_screen.search(query)
 
     def _set_stack_index(self, index: int) -> None:
+        current = self.stack.currentIndex()
+        if current != index:
+            self._nav_history.append(current)
+            # Keep history bounded
+            if len(self._nav_history) > 30:
+                self._nav_history = self._nav_history[-20:]
         if hasattr(self.stack, "setCurrentIndexAnimated"):
             self.stack.setCurrentIndexAnimated(index)
         else:
             self.stack.setCurrentIndex(index)
+        # Update mini player expand icon based on whether we're on now_playing
+        self._update_expand_icon()
 
     async def _load_screen(self, route: str) -> None:
         screens = {
@@ -1164,7 +1173,35 @@ class MainWindow(QMainWindow):
             self._run_async(self._advance_queue())
 
     def _show_full_player(self) -> None:
-        self._navigate_to("now_playing")
+        now_playing_index = self.ROUTES.get("now_playing", 8)
+        if self.stack.currentIndex() == now_playing_index:
+            # Already on NowPlaying — go back
+            self._go_back()
+        else:
+            self._navigate_to("now_playing")
+
+    def _go_back(self) -> None:
+        """Navigate back to the previous screen in the history stack."""
+        if self._nav_history:
+            prev_index = self._nav_history.pop()
+            if hasattr(self.stack, "setCurrentIndexAnimated"):
+                self.stack.setCurrentIndexAnimated(prev_index)
+            else:
+                self.stack.setCurrentIndex(prev_index)
+            self._update_expand_icon()
+        else:
+            # Fallback to home
+            self._run_async(self._navigate("home"))
+
+    def _update_expand_icon(self) -> None:
+        """Toggle the mini player expand icon between up/down chevron."""
+        from pyrolist.ui.design.icons import Icon
+        if hasattr(self, 'mini_player') and hasattr(self.mini_player, 'btn_expand'):
+            now_playing_index = self.ROUTES.get("now_playing", 8)
+            if self.stack.currentIndex() == now_playing_index:
+                self.mini_player.btn_expand.setText(Icon.get("expand_more"))
+            else:
+                self.mini_player.btn_expand.setText(Icon.get("expand_less"))
 
     def _on_settings_changed(self, settings: AppSettings) -> None:
         self.settings = settings

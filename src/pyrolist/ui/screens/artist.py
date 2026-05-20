@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea, QGridLayout
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea, QGridLayout, QPushButton
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QPixmap
 from functools import partial
@@ -18,11 +18,12 @@ class ArtistScreen(QWidget):
     add_to_playlist_requested = Signal(str, str)
     delete_download_requested = Signal(str)
 
-    def __init__(self, yt_client, on_play_song, on_navigate=None):
+    def __init__(self, yt_client, on_play_song, on_navigate=None, on_back=None):
         super().__init__()
         self.yt = yt_client
         self.on_play_song = on_play_song
         self.on_navigate = on_navigate
+        self.on_back = on_back
         self._channel_id = None
         self._build_ui()
 
@@ -85,6 +86,35 @@ class ArtistScreen(QWidget):
             self.content_layout.addWidget(QLabel("Artista no encontrado"))
             return
             
+        # Back button row
+        from pyrolist.ui.design import tokens
+        from pyrolist.ui.design.icons import Icon
+        back_row = QHBoxLayout()
+        back_row.setContentsMargins(0, 0, 0, 8)
+        btn_back = QPushButton()
+        btn_back.setText(f"{Icon.get('arrow_back')}  Volver")
+        btn_back.setFont(QFont("Inter", 12))
+        btn_back.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_back.setStyleSheet(f"""
+            QPushButton {{
+                background: transparent;
+                color: {tokens.CURRENT.text_secondary};
+                border: none;
+                padding: 6px 12px;
+                border-radius: 8px;
+            }}
+            QPushButton:hover {{
+                background: {tokens.CURRENT.bg_elevated};
+                color: {tokens.CURRENT.text_primary};
+            }}
+        """)
+        btn_back.setFixedHeight(36)
+        if self.on_back:
+            btn_back.clicked.connect(self.on_back)
+        back_row.addWidget(btn_back)
+        back_row.addStretch()
+        self.content_layout.addLayout(back_row)
+
         # Header
         header_layout = QHBoxLayout()
         header_layout.setSpacing(24)
