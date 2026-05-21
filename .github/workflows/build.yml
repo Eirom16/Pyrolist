@@ -73,12 +73,13 @@ jobs:
           Terminal=false
           EOF
           
-          # 4. Crear script de arranque AppRun que expone las variables de VLC
+          # 4. Crear script de arranque AppRun que expone las variables de VLC y la plataforma
           cat << 'EOF' > AppDir/AppRun
           #!/bin/sh
           SELF=$(dirname "$(readlink -f "$0")")
           export LD_LIBRARY_PATH="$SELF/_internal/vlc_libs:$LD_LIBRARY_PATH"
           export VLC_PLUGIN_PATH="$SELF/_internal/vlc_libs/plugins"
+          export QT_QPA_PLATFORM="xcb"
           exec "$SELF/Pyrolist" "$@"
           EOF
           chmod +x AppDir/AppRun

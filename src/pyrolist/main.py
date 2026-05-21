@@ -8,7 +8,6 @@ from loguru import logger
 from pyrolist.utils.vlc_check import check_vlc_available, show_vlc_error_and_exit, setup_vlc_env
 from pyrolist.config.paths import AppDirs
 from pyrolist.config.settings import AppSettings
-from pyrolist.ui.main_window import MainWindow
 from pyrolist.db.database import init_db
 
 warnings.filterwarnings("ignore")
@@ -29,6 +28,7 @@ async def main_async(app: QApplication, settings: AppSettings, loop: qasync.QEve
     loop.set_exception_handler(lambda loop, ctx: None)
     
     await init_db()
+    from pyrolist.ui.main_window import MainWindow
     window = MainWindow(settings, loop)
     window.show()
 
@@ -58,6 +58,12 @@ async def main_async(app: QApplication, settings: AppSettings, loop: qasync.QEve
 
 
 def main() -> None:
+    import os
+    # En Linux, cuando está congelado (AppImage), forzar xcb para evitar fallos de Wayland EGL
+    if sys.platform.startswith('linux') and getattr(sys, 'frozen', False):
+        if not os.environ.get("QT_QPA_PLATFORM"):
+            os.environ["QT_QPA_PLATFORM"] = "xcb"
+            
     app = QApplication(sys.argv)
     app.setApplicationName("Pyrolist")
     app.setApplicationVersion("1.0.0")

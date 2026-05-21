@@ -6,9 +6,13 @@ from loguru import logger
 
 
 def _find_vlc_lib() -> Path | None:
-    """Busca libvlc.so en el directorio VLC embebido y en rutas del sistema."""
+    """Busca libvlc en el directorio VLC embebido y en rutas del sistema."""
     from pyrolist.config.paths import AppDirs
     import sys
+
+    is_win = sys.platform.startswith('win')
+    lib_name = "libvlc.dll" if is_win else "libvlc.so.5"
+    alternative_name = "libvlc.dll" if is_win else "libvlc.so"
 
     candidates: list[Path] = []
 
@@ -16,31 +20,48 @@ def _find_vlc_lib() -> Path | None:
     if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
         meipass_vlc = Path(sys._MEIPASS) / "vlc_libs"
         if meipass_vlc.exists():
-            candidates.append(meipass_vlc / "libvlc.so.5")
-            candidates.append(meipass_vlc / "libvlc.so")
-            for so in meipass_vlc.rglob("libvlc.so*"):
-                candidates.append(so)
+            candidates.append(meipass_vlc / lib_name)
+            candidates.append(meipass_vlc / alternative_name)
+            if is_win:
+                for dll in meipass_vlc.rglob("*.dll"):
+                    if "libvlc.dll" in dll.name.lower():
+                        candidates.append(dll)
+            else:
+                for so in meipass_vlc.rglob("libvlc.so*"):
+                    candidates.append(so)
 
     # 1. VLC embebido
     vlc_dir = AppDirs.vlc_dir
     if vlc_dir.exists():
-        candidates.append(vlc_dir / "libvlc.so.5")
-        candidates.append(vlc_dir / "libvlc.so")
-        for so in vlc_dir.rglob("libvlc.so*"):
-            candidates.append(so)
+        candidates.append(vlc_dir / lib_name)
+        candidates.append(vlc_dir / alternative_name)
+        if is_win:
+            for dll in vlc_dir.rglob("*.dll"):
+                if "libvlc.dll" in dll.name.lower():
+                    candidates.append(dll)
+        else:
+            for so in vlc_dir.rglob("libvlc.so*"):
+                candidates.append(so)
 
     # 2. Rutas estándar del sistema
-    system_paths = [
-        "/usr/lib/libvlc.so.5",
-        "/usr/lib64/libvlc.so.5",
-        "/usr/lib/x86_64-linux-gnu/libvlc.so.5",
-        "/usr/lib/aarch64-linux-gnu/libvlc.so.5",
-        "/usr/lib/libvlc.so",
-        "/usr/lib64/libvlc.so",
-        "/usr/lib/x86_64-linux-gnu/libvlc.so",
-        "/usr/lib/aarch64-linux-gnu/libvlc.so",
-    ]
-    candidates.extend(Path(p) for p in system_paths)
+    if is_win:
+        system_paths = [
+            r"C:\Program Files\VideoLAN\VLC\libvlc.dll",
+            r"C:\Program Files (x86)\VideoLAN\VLC\libvlc.dll",
+        ]
+        candidates.extend(Path(p) for p in system_paths)
+    else:
+        system_paths = [
+            "/usr/lib/libvlc.so.5",
+            "/usr/lib64/libvlc.so.5",
+            "/usr/lib/x86_64-linux-gnu/libvlc.so.5",
+            "/usr/lib/aarch64-linux-gnu/libvlc.so.5",
+            "/usr/lib/libvlc.so",
+            "/usr/lib64/libvlc.so",
+            "/usr/lib/x86_64-linux-gnu/libvlc.so",
+            "/usr/lib/aarch64-linux-gnu/libvlc.so",
+        ]
+        candidates.extend(Path(p) for p in system_paths)
 
     for p in candidates:
         if p.exists():
@@ -63,16 +84,42 @@ def setup_vlc_env() -> None:
         if meipass_vlc.exists():
             vlc_dir = meipass_vlc
 
+    # Si es Windows y no existe vlc_dir, probar rutas comunes de instalación antes de rendirse
+    if not vlc_dir.exists() and sys.platform.startswith('win'):
+        for p in [r"C:\Program Files\VideoLAN\VLC", r"C:\Program Files (x86)\VideoLAN\VLC"]:
+            if Path(p).exists():
+                vlc_dir = Path(p)
+                break
+
     if not vlc_dir.exists():
         return
 
-    vlc_lib = str(vlc_dir)
-    os.environ["LD_LIBRARY_PATH"] = f"{vlc_lib}:{os.environ.get('LD_LIBRARY_PATH', '')}"
+    # Configuración de variables según plataforma
+    if sys.platform.startswith('win'):
+        dll_path = vlc_dir / "libvlc.dll"
+        if dll_path.exists():
+            os.environ["PYTHON_VLC_LIB_PATH"] = str(dll_path)
+            logger.info(f"Setting PYTHON_VLC_LIB_PATH to {dll_path}")
+        
+        # Agregar al PATH para compatibilidad general
+        os.environ["PATH"] = f"{vlc_dir};{os.environ.get('PATH', '')}"
+        
+        # add_dll_directory para Python 3.8+ (crítico para ctypes y dependencias como libvlccore.dll)
+        if hasattr(os, "add_dll_directory"):
+            try:
+                os.add_dll_directory(str(vlc_dir))
+                logger.info(f"Added DLL search directory: {vlc_dir}")
+            except Exception as e:
+                logger.warning(f"Failed to add DLL directory {vlc_dir}: {e}")
+    else:
+        vlc_lib = str(vlc_dir)
+        os.environ["LD_LIBRARY_PATH"] = f"{vlc_lib}:{os.environ.get('LD_LIBRARY_PATH', '')}"
 
     if not os.environ.get("VLC_PLUGIN_PATH"):
         plugin_dir = vlc_dir / "plugins"
         if plugin_dir.exists():
             os.environ["VLC_PLUGIN_PATH"] = str(plugin_dir)
+            logger.info(f"Setting VLC_PLUGIN_PATH to {plugin_dir}")
 
 
 def check_vlc_available() -> bool:
