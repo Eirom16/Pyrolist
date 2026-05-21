@@ -80,6 +80,8 @@ jobs:
           export LD_LIBRARY_PATH="$SELF/_internal/vlc_libs:$LD_LIBRARY_PATH"
           export VLC_PLUGIN_PATH="$SELF/_internal/vlc_libs/plugins"
           export QT_QPA_PLATFORM="xcb"
+          export QT_QUICK_BACKEND="software"
+          export QTWEBENGINE_CHROMIUM_FLAGS="--disable-gpu"
           exec "$SELF/Pyrolist" "$@"
           EOF
           chmod +x AppDir/AppRun

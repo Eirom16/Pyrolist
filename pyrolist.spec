@@ -30,6 +30,29 @@ if os.path.exists("assets/icon.ico"):
 if os.path.exists("assets/fonts"):
     datas.append(("assets/fonts/", "assets/fonts"))
 
+# Incluir archivos de localización de Python (locale/translations)
+# ytmusicapi usa internamente gettext y necesita los archivos .mo/.po de locale.
+# Sin estos archivos, la inicialización del cliente público falla con:
+#   "[Errno 2] No translation file found for domain: 'base'"
+# lo que causa que el home muestre "Explorar por género" en vez del feed real.
+import importlib.util
+_ytm_spec = importlib.util.find_spec("ytmusicapi")
+if _ytm_spec and _ytm_spec.submodule_search_locations:
+    _ytm_pkg = Path(_ytm_spec.submodule_search_locations[0])
+    _ytm_locales = _ytm_pkg / "locales"
+    if _ytm_locales.exists():
+        datas.append((str(_ytm_locales), "ytmusicapi/locales"))
+        
+# Locale estándar de Python (fallback)
+import locale as _locale_mod
+_locale_dir = Path(_locale_mod.__file__).parent
+_py_locale = _locale_dir.parent / "locale"  # Lib/locale en la stdlib
+if not _py_locale.exists():
+    # En algunos sistemas el directorio se llama 'localedata'
+    _py_locale = _locale_dir.parent / "localedata"
+if _py_locale.exists() and _py_locale.is_dir():
+    datas.append((str(_py_locale), "locale"))
+
 # Recolección dinámica de binarios (binaries)
 # Copiamos explícitamente las librerías nativas de VLC que el workflow o usuario colocan en vlc_libs/
 binaries = []

@@ -59,10 +59,16 @@ async def main_async(app: QApplication, settings: AppSettings, loop: qasync.QEve
 
 def main() -> None:
     import os
-    # En Linux, cuando está congelado (AppImage), forzar xcb para evitar fallos de Wayland EGL
+    # En Linux congelado (AppImage), forzar xcb y renderizado por software
+    # para evitar fallos de Wayland EGL y de GLX dentro del sandbox del AppImage
     if sys.platform.startswith('linux') and getattr(sys, 'frozen', False):
         if not os.environ.get("QT_QPA_PLATFORM"):
             os.environ["QT_QPA_PLATFORM"] = "xcb"
+        # Forzar renderizado por software para Qt Quick (QQuickWidget)
+        # El AppImage no puede resolver los drivers GLX/EGL del host correctamente
+        os.environ.setdefault("QT_QUICK_BACKEND", "software")
+        # Deshabilitar GPU en QtWebEngine/Chromium embebido
+        os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", "--disable-gpu")
             
     app = QApplication(sys.argv)
     app.setApplicationName("Pyrolist")
