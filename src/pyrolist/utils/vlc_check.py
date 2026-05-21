@@ -8,8 +8,18 @@ from loguru import logger
 def _find_vlc_lib() -> Path | None:
     """Busca libvlc.so en el directorio VLC embebido y en rutas del sistema."""
     from pyrolist.config.paths import AppDirs
+    import sys
 
     candidates: list[Path] = []
+
+    # 0. VLC empaquetado en PyInstaller
+    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+        meipass_vlc = Path(sys._MEIPASS) / "vlc_libs"
+        if meipass_vlc.exists():
+            candidates.append(meipass_vlc / "libvlc.so.5")
+            candidates.append(meipass_vlc / "libvlc.so")
+            for so in meipass_vlc.rglob("libvlc.so*"):
+                candidates.append(so)
 
     # 1. VLC embebido
     vlc_dir = AppDirs.vlc_dir
@@ -43,8 +53,16 @@ def _find_vlc_lib() -> Path | None:
 def setup_vlc_env() -> None:
     """Configura las variables de entorno para que python-vlc encuentre libvlc."""
     from pyrolist.config.paths import AppDirs
+    import sys
 
     vlc_dir = AppDirs.vlc_dir
+
+    # Si está congelado con PyInstaller, priorizar el vlc_libs empaquetado
+    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+        meipass_vlc = Path(sys._MEIPASS) / "vlc_libs"
+        if meipass_vlc.exists():
+            vlc_dir = meipass_vlc
+
     if not vlc_dir.exists():
         return
 

@@ -77,8 +77,8 @@ jobs:
           cat << 'EOF' > AppDir/AppRun
           #!/bin/sh
           SELF=$(dirname "$(readlink -f "$0")")
-          export LD_LIBRARY_PATH="$SELF/vlc_libs:$LD_LIBRARY_PATH"
-          export VLC_PLUGIN_PATH="$SELF/vlc_libs/plugins"
+          export LD_LIBRARY_PATH="$SELF/_internal/vlc_libs:$LD_LIBRARY_PATH"
+          export VLC_PLUGIN_PATH="$SELF/_internal/vlc_libs/plugins"
           exec "$SELF/Pyrolist" "$@"
           EOF
           chmod +x AppDir/AppRun
