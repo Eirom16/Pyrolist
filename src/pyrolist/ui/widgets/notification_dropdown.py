@@ -183,6 +183,7 @@ class NotificationDropdown(GlassPanel):
         super().__init__(parent)
         self.setObjectName("notificationDropdown")
         self.setFixedWidth(320)
+        self.setMinimumHeight(200)
         self.setMaximumHeight(400)
         
         self._tasks_metadata = {} # video_id -> {"title": str, "artist": str}
@@ -379,6 +380,18 @@ class NotificationDropdown(GlassPanel):
         self.history_container.setVisible(has_history)
         self.empty_widget.setVisible(not has_active and not has_history)
         self.clear_btn.setVisible(has_history)
+
+        # Recalcular altura según contenido
+        if not has_active and not has_history:
+            self.setFixedHeight(200)
+        else:
+            # Calcular altura ideal basada en items
+            ideal = 60  # header + separator + margins
+            if has_active:
+                ideal += 30 + len(self._active_widgets) * 70
+            if has_history:
+                ideal += 30 + len(self._history_items) * 40
+            self.setFixedHeight(min(max(ideal, 200), 400))
 
     # --- Slot Listeners ---
     @Slot(object)

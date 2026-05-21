@@ -1,0 +1,13 @@
+[Desktop Entry]
+Name=Pyrolist
+GenericName=Reproductor de Música
+Comment=Cliente de escritorio para YouTube Music
+Exec=pyrolist %U
+Icon=pyrolist
+Terminal=false
+Type=Application
+Categories=Audio;Music;Player;AudioVideo;
+Keywords=music;youtube;streaming;lyrics;letras;
+StartupWMClass=pyrolist
+MimeType=x-scheme-handler/pyrolist;
+X-GNOME-UsesNotifications=true

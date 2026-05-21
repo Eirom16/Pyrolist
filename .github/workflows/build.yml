@@ -1,187 +1,351 @@
-name: Multiplatform Build and Release
+name: Build y Release Pyrolist
 
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - "v[0-9]+.[0-9]+.[0-9]+"
 
-permissions:
-  contents: write
+env:
+  APP_NAME: pyrolist
+  PYTHON_VERSION: "3.12"
 
 jobs:
-  build-linux:
-    name: Build Linux (AppImage)
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
 
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: 'pip'
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            vlc \
-            libvlc-dev \
-            libvlc5 \
-            libdbus-1-dev \
-            python3-dev \
-            fuse \
-            libfuse2
-
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pyinstaller
-
-      - name: Copy native VLC libraries
-        run: |
-          mkdir -p vlc_libs/plugins
-          # Buscar e incorporar libvlc.so
-          find /usr/lib -name "libvlc.so*" -exec cp {} ./vlc_libs/ \; || true
-          # Copiar de forma recursiva los plugins de VLC manteniendo su estructura de directorios
-          cp -r /usr/lib/x86_64-linux-gnu/vlc/plugins/* ./vlc_libs/plugins/ 2>/dev/null || cp -r /usr/lib/vlc/plugins/* ./vlc_libs/plugins/ || true
-
-      - name: Build PyInstaller folder
-        run: |
-          pyinstaller pyrolist.spec
-
-      - name: Generate AppImage
-        run: |
-          # 1. Crear estructura AppDir para empaquetado de AppImage
-          mkdir -p AppDir
-          cp -r dist/Pyrolist/* AppDir/
-          
-          # 2. Agregar metadatos e icono al root de AppDir
-          cp assets/icon.png AppDir/pyrolist.png
-          
-          # 3. Crear archivo de escritorio (Desktop Entry)
-          cat << 'EOF' > AppDir/pyrolist.desktop
-          [Desktop Entry]
-          Name=Pyrolist
-          Exec=Pyrolist
-          Icon=pyrolist
-          Type=Application
-          Categories=AudioVideo;Player;
-          Comment=YouTube Music Desktop Client
-          Terminal=false
-          EOF
-          
-          # 4. Crear script de arranque AppRun que expone las variables de VLC y la plataforma
-          cat << 'EOF' > AppDir/AppRun
-          #!/bin/sh
-          SELF=$(dirname "$(readlink -f "$0")")
-          export LD_LIBRARY_PATH="$SELF/_internal/vlc_libs:$LD_LIBRARY_PATH"
-          export VLC_PLUGIN_PATH="$SELF/_internal/vlc_libs/plugins"
-          export QT_QPA_PLATFORM="xcb"
-          export QT_QUICK_BACKEND="software"
-          export QTWEBENGINE_CHROMIUM_FLAGS="--disable-gpu"
-          exec "$SELF/Pyrolist" "$@"
-          EOF
-          chmod +x AppDir/AppRun
-          
-          # 5. Descargar appimagetool oficial y generar el binario portable
-          curl -Lo appimagetool https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
-          chmod +x appimagetool
-          
-          # Extraer el AppImage para evitar problemas con FUSE en entornos virtuales de GitHub Actions
-          ./appimagetool --appimage-extract
-          
-          # appimagetool requiere ARCH definida en el entorno
-          export ARCH=x86_64
-          ./squashfs-root/AppRun AppDir Pyrolist-x86_64.AppImage
-
-      - name: Upload AppImage Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: pyrolist-linux-appimage
-          path: Pyrolist-x86_64.AppImage
-          if-no-files-found: error
-
-  build-windows:
-    name: Build Windows (.exe)
-    runs-on: windows-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: 'pip'
-
-      - name: Install VLC via Chocolatey
-        run: |
-          choco install vlc --yes
-
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pyinstaller
-
-      - name: Copy native VLC DLLs
-        shell: cmd
-        run: |
-          mkdir vlc_libs
-          mkdir vlc_libs\plugins
-          xcopy "C:\Program Files\VideoLAN\VLC\libvlc.dll" .\vlc_libs\ /Y
-          xcopy "C:\Program Files\VideoLAN\VLC\libvlccore.dll" .\vlc_libs\ /Y
-          xcopy "C:\Program Files\VideoLAN\VLC\plugins\" .\vlc_libs\plugins\ /E /Y
-
-      - name: Build PyInstaller Standalone EXE
-        run: |
-          pyinstaller pyrolist.spec
-
-      - name: Upload Windows EXE Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: pyrolist-windows-exe
-          path: dist/Pyrolist.exe
-          if-no-files-found: error
-
-  publish-release:
-    name: Publish Release on GitHub
-    needs: [build-linux, build-windows]
+  # ──────────────────────────────────────────────────────────────────────────
+  # Arch Linux / CachyOS / Manjaro / EndeavourOS → .pkg.tar.zst
+  # ──────────────────────────────────────────────────────────────────────────
+  build-arch:
+    name: Build Arch Package (.pkg.tar.zst)
     runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+      options: --privileged
+
     steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: dist-artifacts
+      - uses: actions/checkout@v4
 
-      - name: Organize files for release
+      - name: Actualizar sistema e instalar dependencias de build
         run: |
-          mkdir -p release-files
-          # Copiar de forma plana todos los binarios descargados al directorio temporal de publicación
-          find dist-artifacts/ -type f -exec cp {} release-files/ \;
-          echo "Files to upload:"
-          ls -lh release-files/
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm \
+            base-devel \
+            python \
+            python-pip \
+            vlc \
+            git \
+            sudo
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+      - name: Reemplazar VERSION en PKGBUILD
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"   # quitar la 'v' inicial
+          sed -i "s/VERSION_PLACEHOLDER/$VERSION/g" packaging/arch/PKGBUILD
+
+      - name: Actualizar CURRENT_VERSION en el código
+        run: |
+          sed -i "s/CURRENT_VERSION = \".*\"/CURRENT_VERSION = \"${{ github.ref_name }}\"/" \
+            src/pyrolist/utils/updater.py
+
+      - name: Crear usuario builder (makepkg no puede correr como root)
+        run: |
+          useradd -m -G wheel builder
+          echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+          chown -R builder:builder .
+
+      - name: Construir paquete con makepkg
+        run: |
+          su builder -c "cd $GITHUB_WORKSPACE/packaging/arch && makepkg -s --noconfirm"
+
+      - name: Mover paquete al directorio raíz
+        run: mv packaging/arch/*.pkg.tar.zst ./
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
-          files: release-files/*
-          draft: false
-          prerelease: false
-          name: Release ${{ github.ref_name }}
-          body: |
-            ## Pyrolist ${{ github.ref_name }}
-            
-            ¡Nueva versión multiplataforma compilada automáticamente de Pyrolist!
-            
-            ### Binarios Incluidos
-            - **Linux**: `Pyrolist-x86_64.AppImage` (portable, ejecutable en Arch, Fedora y Debian).
-            - **Windows**: `Pyrolist.exe` (ejecutable standalone portable con soporte de VLC integrado).
-            
-            ---
-            *Compilado automáticamente mediante GitHub Actions.*
+          name: arch-package
+          path: "*.pkg.tar.zst"
+          retention-days: 1
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Debian / Ubuntu / Linux Mint / Pop!_OS → .deb
+  # ──────────────────────────────────────────────────────────────────────────
+  build-deb:
+    name: Build Debian Package (.deb)
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar herramientas de empaquetado
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            dpkg-dev \
+            lintian \
+            python3.12 \
+            python3-pip
+
+      - name: Actualizar CURRENT_VERSION en el código
+        run: |
+          sed -i "s/CURRENT_VERSION = \".*\"/CURRENT_VERSION = \"${{ github.ref_name }}\"/" \
+            src/pyrolist/utils/updater.py
+
+      - name: Preparar estructura del paquete
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          PKG_DIR="packaging/deb/${APP_NAME}_${VERSION}_amd64"
+
+          mkdir -p "$PKG_DIR/DEBIAN"
+          mkdir -p "$PKG_DIR/usr/bin"
+          mkdir -p "$PKG_DIR/usr/lib/${APP_NAME}"
+          mkdir -p "$PKG_DIR/usr/share/applications"
+          mkdir -p "$PKG_DIR/usr/share/pixmaps"
+          mkdir -p "$PKG_DIR/usr/share/icons/hicolor/256x256/apps"
+
+          # Código y assets
+          cp -r src/${APP_NAME} "$PKG_DIR/usr/lib/${APP_NAME}/app"
+          cp -r assets           "$PKG_DIR/usr/lib/${APP_NAME}/assets"
+
+          # DEBIAN control con versión real
+          cp packaging/deb/DEBIAN/control    "$PKG_DIR/DEBIAN/control"
+          cp packaging/deb/DEBIAN/postinst   "$PKG_DIR/DEBIAN/postinst"
+          cp packaging/deb/DEBIAN/postrm     "$PKG_DIR/DEBIAN/postrm"
+          sed -i "s/VERSION_PLACEHOLDER/$VERSION/g" "$PKG_DIR/DEBIAN/control"
+          chmod 755 "$PKG_DIR/DEBIAN/postinst" "$PKG_DIR/DEBIAN/postrm"
+
+          # Script lanzador
+          cat > "$PKG_DIR/usr/bin/${APP_NAME}" << 'EOF'
+          #!/bin/bash
+          export PYROLIST_ASSETS="/usr/lib/pyrolist/assets"
+          exec python3 /usr/lib/pyrolist/app/main.py "$@"
+          EOF
+          chmod 755 "$PKG_DIR/usr/bin/${APP_NAME}"
+
+          # Integración escritorio
+          cp packaging/pyrolist.desktop \
+            "$PKG_DIR/usr/share/applications/${APP_NAME}.desktop"
+          cp assets/icon.png \
+            "$PKG_DIR/usr/share/pixmaps/${APP_NAME}.png"
+          cp assets/icon.png \
+            "$PKG_DIR/usr/share/icons/hicolor/256x256/apps/${APP_NAME}.png"
+
+          # Tamaño instalado
+          SIZE=$(du -sk "$PKG_DIR/usr" | cut -f1)
+          sed -i "s/INSTALLEDSIZE_PLACEHOLDER/$SIZE/" "$PKG_DIR/DEBIAN/control"
+
+          # Construir .deb
+          dpkg-deb --build "$PKG_DIR"
+          mv "packaging/deb/${APP_NAME}_${VERSION}_amd64.deb" ./
+
+      - name: Verificar .deb con lintian
+        run: lintian --no-tag-display-limit *.deb || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb-package
+          path: "*.deb"
+          retention-days: 1
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Fedora / RHEL / AlmaLinux / Rocky → .rpm
+  # ──────────────────────────────────────────────────────────────────────────
+  build-rpm:
+    name: Build RPM Package (.rpm)
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar herramientas de build
+        run: |
+          dnf install -y \
+            rpm-build \
+            rpmdevtools \
+            python3-devel \
+            python3-pip \
+            git
+
+      - name: Setup estructura rpmbuild
+        run: rpmdev-setuptree
+
+      - name: Actualizar CURRENT_VERSION en el código
+        run: |
+          sed -i "s/CURRENT_VERSION = \".*\"/CURRENT_VERSION = \"${{ github.ref_name }}\"/" \
+            src/pyrolist/utils/updater.py
+
+      - name: Preparar fuentes
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          tar czf ~/rpmbuild/SOURCES/${APP_NAME}-${VERSION}.tar.gz \
+            --transform "s|^\.|${APP_NAME}-${VERSION}|" .
+
+      - name: Reemplazar versión en spec
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          DATE=$(date "+%a %b %d %Y")
+          sed -i "s/VERSION_PLACEHOLDER/$VERSION/g"  packaging/rpm/${APP_NAME}.spec
+          sed -i "s/VERSION_DATE/$DATE/g"             packaging/rpm/${APP_NAME}.spec
+          cp packaging/rpm/${APP_NAME}.spec ~/rpmbuild/SPECS/
+
+      - name: Construir RPM
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          rpmbuild -ba ~/rpmbuild/SPECS/${APP_NAME}.spec
+
+      - name: Mover RPM al directorio raíz
+        run: mv ~/rpmbuild/RPMS/x86_64/*.rpm ./
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rpm-package
+          path: "*.rpm"
+          retention-days: 1
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # openSUSE → .rpm (mismo spec, distinto runner)
+  # ──────────────────────────────────────────────────────────────────────────
+  build-opensuse:
+    name: Build openSUSE Package (.rpm)
+    runs-on: ubuntu-latest
+    container:
+      image: opensuse/leap:latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar herramientas
+        run: |
+          zypper refresh
+          zypper install -y \
+            rpm-build \
+            python3-devel \
+            python3-pip \
+            git
+
+      - name: Actualizar CURRENT_VERSION en el código
+        run: |
+          sed -i "s/CURRENT_VERSION = \".*\"/CURRENT_VERSION = \"${{ github.ref_name }}\"/" \
+            src/pyrolist/utils/updater.py
+
+      - name: Construir RPM para openSUSE
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+          tar czf ~/rpmbuild/SOURCES/${APP_NAME}-${VERSION}.tar.gz \
+            --transform "s|^\.|${APP_NAME}-${VERSION}|" .
+          DATE=$(date "+%a %b %d %Y")
+          sed -i "s/VERSION_PLACEHOLDER/$VERSION/g" packaging/rpm/${APP_NAME}.spec
+          sed -i "s/VERSION_DATE/$DATE/g"           packaging/rpm/${APP_NAME}.spec
+          cp packaging/rpm/${APP_NAME}.spec ~/rpmbuild/SPECS/
+          rpmbuild -ba ~/rpmbuild/SPECS/${APP_NAME}.spec
+          mv ~/rpmbuild/RPMS/x86_64/*.rpm ./${APP_NAME}-${VERSION}-opensuse.x86_64.rpm
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: opensuse-package
+          path: "*-opensuse.x86_64.rpm"
+          retention-days: 1
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Windows → .exe (instalador Inno Setup + standalone PyInstaller)
+  # ──────────────────────────────────────────────────────────────────────────
+  build-windows:
+    name: Build Windows Installer (.exe)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Instalar VLC
+        run: choco install vlc --yes --no-progress
+
+      - name: Instalar dependencias Python
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Copiar DLLs de VLC
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path vlc_libs\plugins
+          $vlcPath = "C:\Program Files\VideoLAN\VLC"
+          Copy-Item "$vlcPath\libvlc.dll"     vlc_libs\
+          Copy-Item "$vlcPath\libvlccore.dll" vlc_libs\
+          Copy-Item -Recurse "$vlcPath\plugins\*" vlc_libs\plugins\
+
+      - name: Reemplazar versión en código
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}"
+          (Get-Content src\pyrolist\utils\updater.py) `
+            -replace 'CURRENT_VERSION = ".*"', "CURRENT_VERSION = `"$version`"" |
+            Set-Content src\pyrolist\utils\updater.py
+
+      - name: Construir con PyInstaller
+        run: pyinstaller pyrolist.spec
+
+      - name: Instalar Inno Setup
+        run: choco install innosetup --yes --no-progress
+
+      - name: Crear instalador con Inno Setup
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          (Get-Content packaging\windows\installer.iss) `
+            -replace "VERSION_PLACEHOLDER", $version |
+            Set-Content packaging\windows\installer_final.iss
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
+            packaging\windows\installer_final.iss
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: dist/installer/Pyrolist-*-Setup.exe
+          retention-days: 1
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Publicar todos los artifacts en el GitHub Release
+  # ──────────────────────────────────────────────────────────────────────────
+  release:
+    name: Publicar Release
+    needs:
+      - build-arch
+      - build-deb
+      - build-rpm
+      - build-opensuse
+      - build-windows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+          merge-multiple: true
+
+      - name: Listar archivos generados
+        run: find artifacts/ -type f | sort
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/*.pkg.tar.zst
+            artifacts/*.deb
+            artifacts/*.rpm
+            artifacts/*-opensuse.x86_64.rpm
+            artifacts/*.exe
+          generate_release_notes: true
+          body_path: ""
+          fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

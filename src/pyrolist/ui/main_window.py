@@ -73,6 +73,11 @@ class MainWindow(QMainWindow):
         self._connect_player_callbacks()
         self._setup_integrations()
 
+        # Verificar actualizaciones 10 segundos después de arrancar
+        # (no al instante para no retrasar la carga inicial)
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(10_000, lambda: asyncio.ensure_future(self._check_updates()))
+
         if self._loop:
             self._init_task = self._loop.create_task(self._initialize())
             self._track_task(self._init_task)
@@ -567,7 +572,7 @@ class MainWindow(QMainWindow):
         await self._navigate("downloads")
 
     def show_notification(self, message: str, kind: str = "info"):
-        if hasattr(self, "search_bar") and hasattr(self.search_bar, "notif_dropdown"):
+        if hasattr(self, "search_bar"):
             self.search_bar.notif_dropdown.add_custom_notification(message, kind)
         else:
             ToastNotification.show(self, message, kind)
@@ -737,6 +742,17 @@ class MainWindow(QMainWindow):
 
     async def _initialize(self) -> None:
         await self._navigate("home")
+
+    async def _check_updates(self) -> None:
+        """Comprueba actualizaciones silenciosamente al arrancar."""
+        from pyrolist.utils.updater import check_for_updates
+        from pyrolist.ui.widgets.update_dialog import UpdateDialog
+
+        release = await check_for_updates()
+        if release:
+            # Mostrar el diálogo de actualización (no bloquea la UI)
+            dlg = UpdateDialog(release, parent=self)
+            dlg.show()
 
     async def _navigate(self, route: str) -> None:
         if route != "search":

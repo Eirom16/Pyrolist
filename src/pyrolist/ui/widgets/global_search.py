@@ -625,8 +625,8 @@ class GlobalSearchBar(QWidget):
 
         if hasattr(self, 'notif_btn') and self.notif_btn:
             self.notif_btn._update_styles()
-        if hasattr(self, 'notif_dropdown') and self.notif_dropdown:
-            self.notif_dropdown._update_styles()
+        if hasattr(self, '_notif_dropdown') and self._notif_dropdown:
+            self._notif_dropdown._update_styles()
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent

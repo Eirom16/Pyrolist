@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 from PySide6.QtCore import Qt
 
@@ -58,9 +59,62 @@ class AboutScreen(QWidget):
         github = RippleButton("Ver proyecto", "secondary")
         github.clicked.connect(lambda: __import__('webbrowser').open("https://github.com/Eirom16/Pyrolist"))
         layout.addWidget(github)
+
+        # ── Sección de actualizaciones ─────────────────────────────────
+        from pyrolist.utils.updater import CURRENT_VERSION
+        from pyrolist.ui.design.icons import Icon
+
+        current_ver_lbl = QLabel(f"Versión instalada: {CURRENT_VERSION}")
+        current_ver_lbl.setFont(AppFont.mono(13))
+        current_ver_lbl.setStyleSheet("color: #6B6B9B;")
+        layout.addWidget(current_ver_lbl)
+
+        self._check_btn = RippleButton("  Buscar actualizaciones", variant="secondary")
+        self._check_btn.setText(Icon.get("sync") + "  Buscar actualizaciones")
+        self._check_btn.setFont(AppFont.body(14))
+        self._check_btn.setMinimumHeight(44)
+        self._check_btn.clicked.connect(lambda: asyncio.ensure_future(self._manual_check()))
+        layout.addWidget(self._check_btn)
+
+        self._update_status_lbl = QLabel("")
+        self._update_status_lbl.setFont(AppFont.label(12))
+        self._update_status_lbl.setStyleSheet("color: #6B6B9B;")
+        layout.addWidget(self._update_status_lbl)
+
         layout.addStretch()
         
         self._update_about_styles()
+
+    async def _manual_check(self) -> None:
+        from pyrolist.utils.updater import check_for_updates, CURRENT_VERSION
+        from pyrolist.ui.widgets.update_dialog import UpdateDialog
+        from pyrolist.ui.design.icons import Icon
+
+        self._check_btn.setEnabled(False)
+        self._check_btn.setText(Icon.get("sync") + "  Comprobando...")
+
+        release = await check_for_updates()
+
+        self._check_btn.setEnabled(True)
+        self._check_btn.setText(Icon.get("sync") + "  Buscar actualizaciones")
+
+        if release:
+            dlg = UpdateDialog(release, parent=self.window())
+            dlg.show()
+        else:
+            main_win = self.window()
+            if hasattr(main_win, 'show_notification'):
+                main_win.show_notification(
+                    f"Ya tienes la última versión ({CURRENT_VERSION})",
+                    "success"
+                )
+            else:
+                from pyrolist.ui.widgets.toast import ToastNotification
+                ToastNotification.show(
+                    main_win,
+                    f"Ya tienes la última versión ({CURRENT_VERSION})",
+                    kind="success"
+                )
 
     def _update_about_styles(self) -> None:
         from pyrolist.ui.design import tokens
@@ -80,4 +134,5 @@ class AboutScreen(QWidget):
                 finally:
                     self._in_style_change = False
         super().changeEvent(event)
+
 

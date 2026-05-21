@@ -1,0 +1,10 @@
+#!/bin/bash
+set -e
+if [ "$1" = "purge" ]; then
+    pip3 uninstall -y ytmusicapi yt-dlp syncedlyrics qasync \
+        qt-material python-vlc 2>/dev/null || true
+    rm -rf /usr/lib/pyrolist
+    rm -f  /usr/share/applications/pyrolist.desktop
+    rm -f  /usr/share/pixmaps/pyrolist.png
+fi
+exit 0
