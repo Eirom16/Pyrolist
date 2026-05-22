@@ -132,6 +132,10 @@ class MainWindow(QMainWindow):
         from PySide6.QtCore import QTimer
         QTimer.singleShot(10_000, lambda: asyncio.ensure_future(self._check_updates()))
 
+        from pyrolist.services.lyrics_prefetcher import LyricsPrefetcher
+        self._lyrics_prefetcher = LyricsPrefetcher()
+        self._run_async(self._lyrics_prefetcher.run())
+
         if self._loop:
             self._init_task = self._loop.create_task(self._initialize())
             self._track_task(self._init_task)
@@ -1196,12 +1200,21 @@ class MainWindow(QMainWindow):
                         logger.error(f"Error reading offline lyrics file: {e}")
             
             if not lyrics:
+                # Check global lyrics cache
+                from pyrolist.utils.lyrics_cache import LyricsCache
+                lyrics = LyricsCache.get(item.title, item.artist)
+
+            if not lyrics:
                 if hasattr(self, 'network_monitor') and not self.network_monitor.is_connected:
                     lyrics = "[Letras no disponibles sin conexión]"
                 else:
-                    lyrics = await self.lyrics_client.get_lyrics(
+                    synced = await self.lyrics_client.get_lyrics(
                         item.title, item.artist, item.album
                     )
+                    lyrics = synced
+                    if lyrics:
+                        from pyrolist.utils.lyrics_cache import LyricsCache
+                        LyricsCache.save(item.title, item.artist, str(lyrics))
             
             if self._current_play_id == play_id:
                 self.now_playing_screen.set_lyrics(lyrics)

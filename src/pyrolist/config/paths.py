@@ -33,6 +33,10 @@ class _AppDirs:
         return self.cache / "artwork"
 
     @property
+    def lyrics_cache(self) -> Path:
+        return self.cache / "lyrics"
+
+    @property
     def downloads(self) -> Path:
         return self.data / "downloads"
 
@@ -56,7 +60,7 @@ class _AppDirs:
 
     def setup(self) -> None:
         for d in [self.config, self.data, self.cache,
-                  self.artwork_cache, self.downloads, self.logs, self.vlc_dir]:
+                  self.artwork_cache, self.lyrics_cache, self.downloads, self.logs, self.vlc_dir]:
             d.mkdir(parents=True, exist_ok=True)
 
 

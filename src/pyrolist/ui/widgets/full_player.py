@@ -308,7 +308,15 @@ class FullPlayerDialog(QDialog):
                         pass
             
             if not lyrics:
-                lyrics = await self.lyrics_client.get_lyrics(item.title, item.artist)
+                from pyrolist.utils.lyrics_cache import LyricsCache
+                lyrics = LyricsCache.get(item.title, item.artist)
+                
+            if not lyrics:
+                synced = await self.lyrics_client.get_lyrics(item.title, item.artist)
+                lyrics = synced
+                if lyrics:
+                    from pyrolist.utils.lyrics_cache import LyricsCache
+                    LyricsCache.save(item.title, item.artist, str(lyrics))
             
             # Clear loading indicator
             while self.lyrics_content_layout.count():
