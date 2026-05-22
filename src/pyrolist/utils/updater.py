@@ -21,7 +21,7 @@ import httpx
 from loguru import logger
 
 # ── Constantes ────────────────────────────────────────────────────────────────
-CURRENT_VERSION = "v1.1.6"          # actualizar en cada release
+CURRENT_VERSION = "v1.1.7"          # actualizar en cada release
 GITHUB_API_URL  = (
     "https://api.github.com/repos/Eirom16/pyrolist/releases/latest"
 )

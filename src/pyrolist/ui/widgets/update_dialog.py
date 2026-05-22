@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QTextEdit, QFrame, QWidget
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QFont, QColor
 from qasync import asyncSlot
 
@@ -38,11 +38,22 @@ class UpdateDialog(QDialog):
     """
 
     update_installed = Signal()
+    _active_instance: UpdateDialog | None = None
 
     def __init__(self, release: ReleaseInfo, parent=None):
         super().__init__(parent)
         self.release = release
         self._downloading = False
+
+        if UpdateDialog._active_instance is not None:
+            if getattr(UpdateDialog._active_instance, "_downloading", False):
+                QTimer.singleShot(0, self.reject)
+                return
+            try:
+                UpdateDialog._active_instance.close()
+            except Exception:
+                pass
+        UpdateDialog._active_instance = self
 
         self.setWindowTitle("Actualización disponible — Pyrolist")
         self.setWindowFlags(
@@ -54,6 +65,11 @@ class UpdateDialog(QDialog):
 
         self._build()
         self._center_on_parent()
+
+    def hideEvent(self, event) -> None:
+        if UpdateDialog._active_instance is self:
+            UpdateDialog._active_instance = None
+        super().hideEvent(event)
 
     def _build(self) -> None:
         root = QVBoxLayout(self)

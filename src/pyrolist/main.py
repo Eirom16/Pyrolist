@@ -1,3 +1,20 @@
+# Monkey-patch to fix PySide6 6.7+ event dispatcher compatibility with qasync
+try:
+    from PySide6.QtCore import QAbstractEventDispatcher, QEventLoop
+    orig_process_events = QAbstractEventDispatcher.processEvents
+
+    def patched_process_events(self, flags):
+        if not isinstance(flags, QEventLoop.ProcessEventsFlag):
+            try:
+                flags = QEventLoop.ProcessEventsFlag(int(flags))
+            except Exception:
+                pass
+        return orig_process_events(self, flags)
+
+    QAbstractEventDispatcher.processEvents = patched_process_events
+except Exception:
+    pass
+
 import sys
 import asyncio
 import qasync
@@ -72,7 +89,7 @@ def main() -> None:
             
     app = QApplication(sys.argv)
     app.setApplicationName("Pyrolist")
-    app.setApplicationVersion("1.1.6")
+    app.setApplicationVersion("1.1.7")
     app.setOrganizationName("pyrolist")
 
     setup_vlc_env()
