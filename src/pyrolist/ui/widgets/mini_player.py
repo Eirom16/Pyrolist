@@ -18,6 +18,47 @@ from pyrolist.ui.widgets.scrolling_label import ScrollingLabel
 _image_cache = ImageCache()
 
 
+class ArtworkLoadingOverlay(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self._angle = 0
+        from PySide6.QtCore import QTimer
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._rotate)
+        self.hide()
+        
+    def start(self):
+        self._timer.start(30)
+        self.show()
+        
+    def stop(self):
+        self._timer.stop()
+        self.hide()
+        
+    def _rotate(self):
+        self._angle = (self._angle + 12) % 360
+        self.update()
+        
+    def paintEvent(self, event):
+        from PySide6.QtGui import QPainter, QColor, QPen
+        from PySide6.QtCore import QRectF
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        
+        # Dark overlay
+        painter.fillRect(self.rect(), QColor(0, 0, 0, 150))
+        
+        # Spinner
+        pen = QPen(QColor(tokens.CURRENT.accent))
+        pen.setWidth(3)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(pen)
+        
+        rect = QRectF(self.width() / 2 - 12, self.height() / 2 - 12, 24, 24)
+        painter.drawArc(rect, -self._angle * 16, 120 * 16)
+
+
 class MiniPlayerWidget(QWidget):
     on_expand = Signal()
     on_prev = Signal()
@@ -94,6 +135,10 @@ class MiniPlayerWidget(QWidget):
         self.artwork.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.artwork.setText(Icon.get("library_music"))
         self.artwork.setFont(Icon.font(28))
+        
+        self.artwork_overlay = ArtworkLoadingOverlay(self.artwork)
+        self.artwork_overlay.setFixedSize(60, 60)
+        
         card_layout.addWidget(self.artwork)
 
         # ── Song info ──
@@ -152,20 +197,24 @@ class MiniPlayerWidget(QWidget):
         controls.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         self.btn_prev = self._make_control_btn("skip_previous", size=26, color=tokens.CURRENT.text_primary, btn_size=40)
+        self.btn_prev.setAccessibleName("Pista anterior")
         self.btn_prev.clicked.connect(lambda: self.on_prev.emit())
         controls.addWidget(self.btn_prev)
 
         self.btn_play = self._make_control_btn("play_arrow", size=34, color=tokens.CURRENT.text_on_accent, btn_size=52, primary=True)
+        self.btn_play.setAccessibleName("Reproducir o Pausar")
         self.btn_play.clicked.connect(lambda: self.on_play_pause.emit())
         controls.addWidget(self.btn_play)
 
         self.btn_next = self._make_control_btn("skip_next", size=26, color=tokens.CURRENT.text_primary, btn_size=40)
+        self.btn_next.setAccessibleName("Pista siguiente")
         self.btn_next.clicked.connect(lambda: self.on_next.emit())
         controls.addWidget(self.btn_next)
 
         controls.addSpacing(8)
 
         self.btn_expand = self._make_control_btn("expand_less", size=22, color=tokens.CURRENT.text_secondary, btn_size=36)
+        self.btn_expand.setAccessibleName("Expandir reproductor")
         self.btn_expand.clicked.connect(lambda: self.on_expand.emit())
         controls.addWidget(self.btn_expand)
 
@@ -270,6 +319,11 @@ class MiniPlayerWidget(QWidget):
 
     def update_state(self, status):
         """Update play/pause icon dynamically based on player state."""
+        if status.state == PlayerState.LOADING:
+            self.artwork_overlay.start()
+        else:
+            self.artwork_overlay.stop()
+            
         if status.state == PlayerState.PLAYING:
             self._is_playing = True
             self.btn_play.setText(Icon.get("pause"))

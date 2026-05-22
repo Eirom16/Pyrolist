@@ -73,6 +73,59 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._connect_player_callbacks()
         self._setup_integrations()
+        self._setup_shortcuts()
+
+    def _setup_shortcuts(self) -> None:
+        from PySide6.QtGui import QShortcut, QKeySequence
+        from PySide6.QtWidgets import QApplication, QLineEdit, QTextEdit, QAbstractSpinBox
+        from PySide6.QtCore import QObject, QEvent, Qt
+
+        search_shortcut = QShortcut(QKeySequence("Ctrl+F"), self)
+        search_shortcut.activated.connect(self.search_bar.focus_search)
+        
+        slash_shortcut = QShortcut(QKeySequence("/"), self)
+        slash_shortcut.activated.connect(self.search_bar.focus_search)
+
+        class GlobalShortcutFilter(QObject):
+            def __init__(self, main_window):
+                super().__init__(main_window)
+                self.mw = main_window
+
+            def eventFilter(self, obj, event):
+                if event.type() == QEvent.Type.KeyPress:
+                    focus_widget = QApplication.focusWidget()
+                    if isinstance(focus_widget, (QLineEdit, QTextEdit, QAbstractSpinBox)):
+                        if event.key() == Qt.Key.Key_Escape:
+                            focus_widget.clearFocus()
+                            return True
+                        return False
+                        
+                    key = event.key()
+                    if key == Qt.Key.Key_Space:
+                        self.mw._on_play_pause()
+                        return True
+                    elif key == Qt.Key.Key_Right:
+                        if self.mw.player.status.duration_ms > 0:
+                            p = self.mw.player.status.position_ms
+                            self.mw._on_seek(p + 5000)
+                        return True
+                    elif key == Qt.Key.Key_Left:
+                        if self.mw.player.status.duration_ms > 0:
+                            p = self.mw.player.status.position_ms
+                            self.mw._on_seek(max(0, p - 5000))
+                        return True
+                    elif key == Qt.Key.Key_Up:
+                        v = self.mw.player.status.volume
+                        self.mw.player.set_volume(min(100, v + 5))
+                        return True
+                    elif key == Qt.Key.Key_Down:
+                        v = self.mw.player.status.volume
+                        self.mw.player.set_volume(max(0, v - 5))
+                        return True
+                return False
+
+        self._shortcut_filter = GlobalShortcutFilter(self)
+        QApplication.instance().installEventFilter(self._shortcut_filter)
 
         # Verificar actualizaciones 10 segundos después de arrancar
         # (no al instante para no retrasar la carga inicial)

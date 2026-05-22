@@ -139,6 +139,7 @@ class NowPlayingScreen(QWidget):
         self.btn_like.setText(Icon.get("favorite"))
         self.btn_like.setFont(Icon.font(28, filled=False))
         self.btn_like.setObjectName("nowPlayingLikeBtn")
+        self.btn_like.setAccessibleName("Me gusta")
         self.btn_like.clicked.connect(self._on_like_clicked)
         info_layout.addWidget(self.btn_like)
 
@@ -178,25 +179,30 @@ class NowPlayingScreen(QWidget):
 
         self.btn_shuffle = self._make_btn("shuffle", 22, "#6B6B9B", 40)
         self.btn_shuffle.setObjectName("nowPlayingShuffleBtn")
+        self.btn_shuffle.setAccessibleName("Reproducción aleatoria")
         self.btn_shuffle.clicked.connect(self._on_shuffle)
         controls.addWidget(self.btn_shuffle)
 
         self.btn_prev = self._make_btn("skip_previous", 30, "#F1F0FF", 48)
         self.btn_prev.setObjectName("nowPlayingPrevBtn")
+        self.btn_prev.setAccessibleName("Pista anterior")
         self.btn_prev.clicked.connect(self._on_prev)
         controls.addWidget(self.btn_prev)
 
         self.btn_play = self._make_btn("play_arrow", 38, "#0A0A14", 60, primary=True)
+        self.btn_play.setAccessibleName("Reproducir o Pausar")
         self.btn_play.clicked.connect(self._on_play_pause)
         controls.addWidget(self.btn_play)
 
         self.btn_next = self._make_btn("skip_next", 30, "#F1F0FF", 48)
         self.btn_next.setObjectName("nowPlayingNextBtn")
+        self.btn_next.setAccessibleName("Pista siguiente")
         self.btn_next.clicked.connect(self._on_next)
         controls.addWidget(self.btn_next)
 
         self.btn_repeat = self._make_btn("repeat", 22, "#6B6B9B", 40)
         self.btn_repeat.setObjectName("nowPlayingRepeatBtn")
+        self.btn_repeat.setAccessibleName("Repetir")
         self.btn_repeat.clicked.connect(self._on_repeat)
         controls.addWidget(self.btn_repeat)
 

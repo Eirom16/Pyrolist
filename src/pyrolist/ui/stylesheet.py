@@ -27,6 +27,19 @@ QPushButton#primaryPlayBtn:pressed {
     background-color: #8B5CF6;
 }
 
+/* ─── Accessibility Focus Rings ────────────────────────────── */
+*:focus {
+    outline: none;
+}
+QPushButton:focus, QLineEdit:focus, QSlider:focus {
+    outline: none;
+    border: 2px solid #A78BFA;
+    border-radius: 4px;
+}
+QPushButton#primaryPlayBtn:focus {
+    border: 2px solid #F1F0FF;
+}
+
 /* ─── Sidebar ──────────────────────────────────────────────── */
 #navSidebar {
     background-color: #10101E;
