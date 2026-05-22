@@ -42,10 +42,7 @@ QPushButton#primaryPlayBtn:pressed {
 
 /* ─── Mini Player ──────────────────────────────────────────── */
 #miniPlayer {
-    background-color: #0A0A14;
-    border-top: 1px solid rgba(167,139,250,0.07);
-    min-height: 96px;
-    max-height: 96px;
+    background-color: transparent;
 }
 
 /* ─── Status Bar ───────────────────────────────────────────── */

@@ -2,7 +2,7 @@ from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel,
     QSizePolicy, QGraphicsOpacityEffect
 )
-from PySide6.QtCore import Qt, Signal, QSize, QPropertyAnimation, QEasingCurve
+from PySide6.QtCore import Qt, Signal, QSize, QPropertyAnimation, QEasingCurve, Property
 from PySide6.QtGui import QPixmap, QFont
 from pyrolist.audio.player import PlayerState
 from pyrolist.utils.time_utils import format_duration_short
@@ -40,10 +40,31 @@ class MiniPlayerWidget(QWidget):
             
         self._build_ui()
 
+    def _get_player_height(self) -> int:
+        return self.height()
+
+    def _set_player_height(self, value: int):
+        self.setFixedHeight(value)
+
+    player_height = Property(int, _get_player_height, _set_player_height)
+
+    def show_animated(self):
+        if self._is_visible:
+            return
+        self._is_visible = True
+        
+        self._pop_anim = QPropertyAnimation(self, b"player_height", self)
+        self._pop_anim.setDuration(600)
+        self._pop_anim.setStartValue(0)
+        self._pop_anim.setEndValue(96)
+        self._pop_anim.setEasingCurve(QEasingCurve.Type.OutExpo)
+        self._pop_anim.start()
+
     def _build_ui(self):
         self.setObjectName("miniPlayer")
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.setFixedHeight(96)
+        self.setFixedHeight(0) # Initially hidden
+        self._is_visible = False
 
         self.setStyleSheet("""
             #miniPlayer {
@@ -55,6 +76,7 @@ class MiniPlayerWidget(QWidget):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(12, 6, 12, 6)
         outer.setSpacing(0)
+        outer.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         # Inner card
         self.card = QWidget()
@@ -186,6 +208,7 @@ class MiniPlayerWidget(QWidget):
             self.on_seek.emit(ms)
 
     def update_track_info(self, title: str, artist: str, thumbnail_url: str):
+        self.show_animated()
         self.title.setText(title)
         self.artist.setText(artist)
         self.progress.setEnabled(True)
