@@ -212,7 +212,7 @@ jobs:
     name: Build openSUSE Package (.rpm)
     runs-on: ubuntu-latest
     container:
-      image: opensuse/leap:latest
+      image: opensuse/tumbleweed:latest
 
     steps:
       - name: Instalar herramientas básicas en el contenedor
