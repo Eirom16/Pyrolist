@@ -43,7 +43,7 @@ class AboutScreen(QWidget):
                 from importlib.metadata import version as pkg_version
                 ver = pkg_version("pyrolist")
             except Exception:
-                ver = "1.1.7"
+                ver = "1.1.8"
         self.version = QLabel(f"Versión {ver}")
         self.version.setFont(AppFont.body(14))
         layout.addWidget(self.version)
@@ -126,7 +126,7 @@ class AboutScreen(QWidget):
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
-        if event.type() == QEvent.Type.PaletteChange:
+        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
             if not getattr(self, '_in_style_change', False):
                 self._in_style_change = True
                 try:

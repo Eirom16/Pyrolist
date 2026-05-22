@@ -160,7 +160,7 @@ class AccentColorPicker(QWidget):
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
-        if event.type() == QEvent.Type.PaletteChange:
+        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
             self._update_custom_button_style()
             for button, preset in zip(self._buttons, self.PRESETS, strict=False):
                 self._style_swatch(button, preset)

@@ -698,6 +698,12 @@ class MainWindow(QMainWindow):
             
         liked = await repo.toggle_like(video_id)
         
+        if btn_like.objectName() == "nowPlayingLikeBtn":
+            self.now_playing_screen.set_liked_state(liked)
+            self.statusBar().showMessage("Añadido a Favoritas" if liked else "Eliminado de Favoritas", 2000)
+            self._update_queue_panel()
+            return
+        
         from pyrolist.ui.design import tokens
         from pyrolist.ui.design.icons import Icon
         from PySide6.QtGui import QColor
@@ -962,6 +968,17 @@ class MainWindow(QMainWindow):
         self.now_playing_screen.update_track_info(
             item.title, item.artist, item.thumbnail_url
         )
+
+        async def _check_liked_state() -> None:
+            try:
+                from pyrolist.db.repository import SongRepository
+                repo = SongRepository()
+                song = await repo.get_song(item.video_id)
+                liked = song.is_liked if song else False
+                self.now_playing_screen.set_liked_state(liked)
+            except Exception as e:
+                logger.error(f"Error checking liked state in _play_current: {e}")
+        self._run_async(_check_liked_state())
 
         self._current_play_id += 1
         play_id = self._current_play_id

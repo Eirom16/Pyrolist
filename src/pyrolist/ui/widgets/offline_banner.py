@@ -58,6 +58,8 @@ class OfflineBannerWidget(QWidget):
                 }}
             """)
             
+            self.label.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; font-weight: 500; border: none; background: transparent;")
+            
             self.badge.setStyleSheet(f"""
                 QLabel {{
                     background-color: rgba({r},{g},{b},0.15);
@@ -69,10 +71,10 @@ class OfflineBannerWidget(QWidget):
             """)
         finally:
             self._applying_style = False
-
+ 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
-        if event.type() == QEvent.Type.PaletteChange and not self._applying_style:
+        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange) and not self._applying_style:
             self._apply_style()
         super().changeEvent(event)
 

@@ -39,7 +39,8 @@ class NavButton(QPushButton):
         row.setContentsMargins(14, 0, 12, 0)
         row.setSpacing(12)
 
-        self.icon_label = Icon.label(icon_name, 22, "#9B9BC0")
+        from pyrolist.ui.design import tokens
+        self.icon_label = Icon.label(icon_name, 22, tokens.CURRENT.text_secondary)
         self.text_label = QLabel(label)
         self.text_label.setFont(AppFont.body(13))
         self.text_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
@@ -65,7 +66,7 @@ class NavButton(QPushButton):
         c = QColor(accent)
         r, g, b, _ = c.getRgb()
 
-        color = accent if active else "#9B9BC0"
+        color = accent if active else tokens.CURRENT.text_secondary
         weight = "700" if active else "500"
         self.icon_label.setStyleSheet(f"color: {color}; background: transparent;")
         self.text_label.setStyleSheet(f"color: {color}; background: transparent; font-weight: {weight};")
@@ -87,7 +88,7 @@ class NavButton(QPushButton):
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
-        if event.type() == QEvent.Type.PaletteChange:
+        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
             if hasattr(self, 'icon_label') and self.icon_label:
                 if not getattr(self, '_in_style_change', False):
                     self._in_style_change = True
@@ -377,7 +378,7 @@ class NavSidebar(QWidget):
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
-        if event.type() == QEvent.Type.PaletteChange:
+        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
             if not getattr(self, '_in_style_change', False):
                 self._in_style_change = True
                 try:

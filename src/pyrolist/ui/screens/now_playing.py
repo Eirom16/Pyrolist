@@ -650,3 +650,77 @@ class NowPlayingScreen(QWidget):
                 self.related_layout.addWidget(card)
 
         self.related_layout.addStretch()
+
+    def set_liked_state(self, liked: bool) -> None:
+        """Dynamically style the like button based on the liked state and active theme colors."""
+        from pyrolist.ui.design import tokens
+        from pyrolist.ui.design.icons import Icon
+        from PySide6.QtGui import QColor
+        
+        like_c = QColor(tokens.CURRENT.like_color)
+        lr, lg, lb = like_c.red(), like_c.green(), like_c.blue()
+        
+        self.btn_like.setText(Icon.get("favorite"))
+        if liked:
+            self.btn_like.setStyleSheet(f"QPushButton {{ color: {tokens.CURRENT.like_color}; background: transparent; border: none; }}")
+            self.btn_like.setFont(Icon.font(28, filled=True))
+            self.btn_like.set_active(True)
+        else:
+            self.btn_like.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: transparent;
+                    color: {tokens.CURRENT.text_secondary};
+                    border: none;
+                    border-radius: 24px;
+                }}
+                QPushButton:hover {{
+                    background-color: rgba({lr},{lg},{lb},0.15);
+                    color: {tokens.CURRENT.like_color};
+                }}
+            """)
+            self.btn_like.setFont(Icon.font(28, filled=False))
+            self.btn_like.set_active(False)
+
+    def changeEvent(self, event) -> None:
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
+            self._update_styles()
+        super().changeEvent(event)
+
+    def _update_styles(self) -> None:
+        from pyrolist.ui.design import tokens
+        from PySide6.QtGui import QColor, QPixmap
+        
+        # 1. Update collapse button
+        self.btn_collapse.setIcon(Icon.icon("expand_more", tokens.CURRENT.text_secondary, 18))
+        self.btn_collapse.setStyleSheet(f"""
+            QPushButton {{
+                background: transparent;
+                color: {tokens.CURRENT.text_secondary};
+                border: none;
+                padding: 6px 16px;
+                border-radius: 8px;
+            }}
+            QPushButton:hover {{
+                background: {tokens.CURRENT.bg_elevated};
+                color: {tokens.CURRENT.text_primary};
+            }}
+        """)
+        
+        # 2. Update shuffle and repeat states
+        self.update_shuffle_repeat_state()
+        
+        # 3. Update lyrics style
+        self.update_lyrics_style()
+        
+        # 4. If artwork is a placeholder, refresh its background/foreground color
+        if not self.artwork.pixmap() or self.artwork.pixmap().isNull():
+            self.artwork.setStyleSheet(f"background: {tokens.CURRENT.bg_high}; color: {tokens.CURRENT.text_disabled}; border-radius: 24px;")
+        else:
+            self.artwork.setStyleSheet("background: transparent;")
+
+        # 5. Update the like button state dynamically
+        video_id = self.player.status.current_video_id
+        if video_id:
+            self.set_liked_state(self.btn_like._is_active)
+

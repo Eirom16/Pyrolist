@@ -204,7 +204,7 @@ class GlassComboBox(QPushButton):
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
-        if event.type() == QEvent.Type.PaletteChange:
+        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
             if not getattr(self, '_in_style_change', False):
                 self._in_style_change = True
                 try:

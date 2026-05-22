@@ -137,7 +137,7 @@ class _SuggestionRow(QWidget):
 
     def changeEvent(self, event):
         from PySide6.QtCore import QEvent
-        if event.type() == QEvent.Type.PaletteChange and not getattr(self, '_in_style_update', False):
+        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange) and not getattr(self, '_in_style_update', False):
             self._in_style_update = True
             try:
                 self._update_row_styles()
@@ -186,18 +186,6 @@ class _SearchDropdown(GlassPanel):
         self._scroll.setWidgetResizable(True)
         self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self._scroll.setStyleSheet("""
-            QScrollArea { background: transparent; border: none; }
-            QScrollBar:vertical {
-                background: transparent; width: 6px; margin: 4px 2px;
-            }
-            QScrollBar::handle:vertical {
-                background: rgba(255,255,255,0.12); border-radius: 3px; min-height: 30px;
-            }
-            QScrollBar::handle:vertical:hover { background: rgba(255,255,255,0.22); }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
-        """)
-
         self._inner = QWidget()
         self._inner.setStyleSheet("background: transparent;")
         self._layout = QVBoxLayout(self._inner)
@@ -207,10 +195,31 @@ class _SearchDropdown(GlassPanel):
 
         self._scroll.setWidget(self._inner)
         root_layout.addWidget(self._scroll)
+        self._update_scroll_styles()
+
+    def _update_scroll_styles(self) -> None:
+        from pyrolist.ui.design import tokens
+        from PySide6.QtGui import QColor
+        is_light = QColor(tokens.CURRENT.bg_surface).lightness() > 128
+        color_str = "rgba(0,0,0,0.18)" if is_light else "rgba(255,255,255,0.15)"
+        hover_color_str = "rgba(0,0,0,0.30)" if is_light else "rgba(255,255,255,0.30)"
+        
+        self._scroll.setStyleSheet(f"""
+            QScrollArea {{ background: transparent; border: none; }}
+            QScrollBar:vertical {{
+                background: transparent; width: 6px; margin: 4px 2px;
+            }}
+            QScrollBar::handle:vertical {{
+                background: {color_str}; border-radius: 3px; min-height: 30px;
+            }}
+            QScrollBar::handle:vertical:hover {{ background: {hover_color_str}; }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
+        """)
 
     def changeEvent(self, event):
         from PySide6.QtCore import QEvent
-        if event.type() == QEvent.Type.PaletteChange:
+        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
+            self._update_scroll_styles()
             self.update()  # Just repaint — GlassPanel handles styling
         super().changeEvent(event)
 
@@ -630,7 +639,7 @@ class GlobalSearchBar(QWidget):
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
-        if event.type() == QEvent.Type.PaletteChange:
+        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
             if not getattr(self, '_in_style_change', False):
                 self._in_style_change = True
                 try:
