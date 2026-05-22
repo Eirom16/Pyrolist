@@ -107,7 +107,7 @@ class DownloadProgressRow(QWidget):
 
     def changeEvent(self, event):
         from PySide6.QtCore import QEvent
-        if event.type() == QEvent.Type.PaletteChange:
+        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
             if not getattr(self, '_in_style_change', False):
                 self._in_style_change = True
                 try:
@@ -166,7 +166,7 @@ class NotificationHistoryRow(QWidget):
 
     def changeEvent(self, event):
         from PySide6.QtCore import QEvent
-        if event.type() == QEvent.Type.PaletteChange:
+        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
             if not getattr(self, '_in_style_change', False):
                 self._in_style_change = True
                 try:
@@ -205,10 +205,10 @@ class NotificationDropdown(GlassPanel):
         header_layout.setContentsMargins(16, 12, 16, 8)
         header_layout.setSpacing(8)
 
-        title_lbl = QLabel("Notificaciones")
-        title_lbl.setFont(QFont("Inter", 13, QFont.Weight.Bold))
-        title_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_primary};")
-        header_layout.addWidget(title_lbl, stretch=1)
+        self.title_lbl = QLabel("Notificaciones")
+        self.title_lbl.setFont(QFont("Inter", 13, QFont.Weight.Bold))
+        self.title_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_primary};")
+        header_layout.addWidget(self.title_lbl, stretch=1)
 
         self.clear_btn = QPushButton("Limpiar")
         self.clear_btn.setFont(QFont("Inter", 10, QFont.Weight.Medium))
@@ -244,16 +244,16 @@ class NotificationDropdown(GlassPanel):
         empty_layout = QVBoxLayout(self.empty_widget)
         empty_layout.setContentsMargins(16, 32, 16, 32)
         empty_layout.setSpacing(8)
-        empty_icon = QLabel(Icon.get("notifications"))
-        empty_icon.setFont(Icon.font(36))
-        empty_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        empty_icon.setStyleSheet(f"color: {tokens.CURRENT.text_disabled};")
-        empty_layout.addWidget(empty_icon)
-        empty_lbl = QLabel("No tienes notificaciones")
-        empty_lbl.setFont(QFont("Inter", 11))
-        empty_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        empty_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_secondary};")
-        empty_layout.addWidget(empty_lbl)
+        self.empty_icon = QLabel(Icon.get("notifications"))
+        self.empty_icon.setFont(Icon.font(36))
+        self.empty_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.empty_icon.setStyleSheet(f"color: {tokens.CURRENT.text_disabled};")
+        empty_layout.addWidget(self.empty_icon)
+        self.empty_lbl = QLabel("No tienes notificaciones")
+        self.empty_lbl.setFont(QFont("Inter", 11))
+        self.empty_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.empty_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_secondary};")
+        empty_layout.addWidget(self.empty_lbl)
         self._inner_layout.addWidget(self.empty_widget)
 
         # B. Active downloads group
@@ -323,9 +323,20 @@ class NotificationDropdown(GlassPanel):
             }}
         """)
 
+        if hasattr(self, "title_lbl") and self.title_lbl:
+            self.title_lbl.setStyleSheet(f"color: {text_primary}; background: transparent;")
+        if hasattr(self, "empty_icon") and self.empty_icon:
+            self.empty_icon.setStyleSheet(f"color: {tokens.CURRENT.text_disabled}; background: transparent;")
+        if hasattr(self, "empty_lbl") and self.empty_lbl:
+            self.empty_lbl.setStyleSheet(f"color: {text_secondary}; background: transparent;")
+        if hasattr(self, "active_hdr") and self.active_hdr:
+            self.active_hdr.setStyleSheet(f"color: {text_secondary}; background: transparent;")
+        if hasattr(self, "history_hdr") and self.history_hdr:
+            self.history_hdr.setStyleSheet(f"color: {text_secondary}; background: transparent;")
+
     def changeEvent(self, event):
         from PySide6.QtCore import QEvent
-        if event.type() == QEvent.Type.PaletteChange:
+        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
             if not getattr(self, '_in_style_change', False):
                 self._in_style_change = True
                 try:
