@@ -1,6 +1,6 @@
 [project]
 name = "pyrolist"
-version = "1.1.4"
+version = "1.1.5"
 description = "Cliente de escritorio para YouTube Music - Linux"
 requires-python = ">=3.12"
 dependencies = [

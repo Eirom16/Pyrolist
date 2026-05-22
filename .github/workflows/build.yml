@@ -114,11 +114,11 @@ jobs:
 
           # Script lanzador
           cat > "$PKG_DIR/usr/bin/${APP_NAME}" << 'EOF'
-#!/bin/bash
-export PYROLIST_ASSETS="/usr/lib/pyrolist/assets"
-export PYTHONPATH="/usr/lib/pyrolist:$PYTHONPATH"
-exec python3 -m pyrolist.main "$@"
-EOF
+          #!/bin/bash
+          export PYROLIST_ASSETS="/usr/lib/pyrolist/assets"
+          export PYTHONPATH="/usr/lib/pyrolist:$PYTHONPATH"
+          exec python3 -m pyrolist.main "$@"
+          EOF
           chmod 755 "$PKG_DIR/usr/bin/${APP_NAME}"
 
           # Integración escritorio
