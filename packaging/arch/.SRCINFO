@@ -14,7 +14,7 @@ pkgbase = pyrolist
 	makedepends = python-installer
 	makedepends = python-wheel
 	depends = python>=3.12
-	depends = python-pyside6
+	depends = pyside6
 	depends = vlc
 	depends = python-sqlalchemy
 	depends = python-aiosqlite
@@ -23,7 +23,7 @@ pkgbase = pyrolist
 	depends = python-pillow
 	depends = python-loguru
 	depends = python-dbus
-	depends = libdbus
+	depends = dbus
 	depends = qt6-svg
 	depends = qt6-multimedia
 	optdepends = python-pypresence: Discord Rich Presence

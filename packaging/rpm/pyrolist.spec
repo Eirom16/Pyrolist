@@ -43,15 +43,15 @@ PIP_BREAK_SYSTEM_PACKAGES=1 pip3 install --isolated --target="%{buildroot}/usr/l
 
 # Código fuente
 install -dm755 %{buildroot}/usr/lib/%{appname}
-cp -r src/%{appname} %{buildroot}/usr/lib/%{appname}/app
+cp -r src/%{appname} %{buildroot}/usr/lib/%{appname}/%{appname}
 cp -r assets         %{buildroot}/usr/lib/%{appname}/assets
 
 # Lanzador
 install -Dm755 /dev/stdin %{buildroot}/usr/bin/%{appname} << 'LAUNCHER'
 #!/bin/bash
 export PYROLIST_ASSETS="/usr/lib/pyrolist/assets"
-export PYTHONPATH="/usr/lib/pyrolist/dependencies:$PYTHONPATH"
-exec python3 /usr/lib/pyrolist/app/main.py "$@"
+export PYTHONPATH="/usr/lib/pyrolist:/usr/lib/pyrolist/dependencies:$PYTHONPATH"
+exec python3 -m pyrolist.main "$@"
 LAUNCHER
 
 # Integración escritorio

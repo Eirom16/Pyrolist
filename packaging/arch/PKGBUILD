@@ -59,15 +59,15 @@ package() {
 
     # Código fuente de la app
     install -dm755 "$pkgdir/usr/lib/$pkgname"
-    cp -r src/pyrolist "$pkgdir/usr/lib/$pkgname/app"
+    cp -r src/pyrolist "$pkgdir/usr/lib/$pkgname/pyrolist"
     cp -r assets       "$pkgdir/usr/lib/$pkgname/assets"
 
     # Script lanzador en PATH
     install -Dm755 /dev/stdin "$pkgdir/usr/bin/$pkgname" << 'LAUNCHER'
 #!/bin/bash
 export PYROLIST_ASSETS="/usr/lib/pyrolist/assets"
-export PYTHONPATH="/usr/lib/pyrolist/dependencies:$PYTHONPATH"
-exec python3 /usr/lib/pyrolist/app/main.py "$@"
+export PYTHONPATH="/usr/lib/pyrolist:/usr/lib/pyrolist/dependencies:$PYTHONPATH"
+exec python3 -m pyrolist.main "$@"
 LAUNCHER
 
     # Integración escritorio

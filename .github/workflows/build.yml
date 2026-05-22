@@ -102,7 +102,7 @@ jobs:
           mkdir -p "$PKG_DIR/usr/share/icons/hicolor/256x256/apps"
 
           # Código y assets
-          cp -r src/${APP_NAME} "$PKG_DIR/usr/lib/${APP_NAME}/app"
+          cp -r src/${APP_NAME} "$PKG_DIR/usr/lib/${APP_NAME}/${APP_NAME}"
           cp -r assets           "$PKG_DIR/usr/lib/${APP_NAME}/assets"
 
           # DEBIAN control con versión real
@@ -114,10 +114,11 @@ jobs:
 
           # Script lanzador
           cat > "$PKG_DIR/usr/bin/${APP_NAME}" << 'EOF'
-          #!/bin/bash
-          export PYROLIST_ASSETS="/usr/lib/pyrolist/assets"
-          exec python3 /usr/lib/pyrolist/app/main.py "$@"
-          EOF
+#!/bin/bash
+export PYROLIST_ASSETS="/usr/lib/pyrolist/assets"
+export PYTHONPATH="/usr/lib/pyrolist:$PYTHONPATH"
+exec python3 -m pyrolist.main "$@"
+EOF
           chmod 755 "$PKG_DIR/usr/bin/${APP_NAME}"
 
           # Integración escritorio
