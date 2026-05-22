@@ -10,9 +10,7 @@ is_win = sys.platform.startswith('win')
 is_linux = sys.platform.startswith('linux')
 
 # Configuración dinámica de compilación
-# Linux: onefile = False (AppImage requiere estructura de carpeta para empaquetarse con appimagetool)
-# Windows: onefile = True (ejecutable .exe standalone portable)
-onefile = True if is_win else False
+onefile = False
 console_mode = False  # console = False / windowed = True (sin ventana de consola negra)
 
 # Recolección segura de recursos (datas)
@@ -142,7 +140,7 @@ else:
         target_arch=None,
         codesign_identity=None,
         entitlements_file=None,
-        icon='assets/icon.png' if os.path.exists('assets/icon.png') else None,
+        icon='assets/icon.ico' if (is_win and os.path.exists('assets/icon.ico')) else ('assets/icon.png' if os.path.exists('assets/icon.png') else None),
     )
     coll = COLLECT(
         exe,

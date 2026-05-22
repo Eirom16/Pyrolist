@@ -8,7 +8,7 @@ url="https://github.com/Eirom16/pyrolist"
 license=('GPL3')
 depends=(
     'python>=3.12'
-    'python-pyside6'
+    'pyside6'
     'vlc'
     'python-sqlalchemy'
     'python-aiosqlite'
@@ -17,7 +17,7 @@ depends=(
     'python-pillow'
     'python-loguru'
     'python-dbus'
-    'libdbus'
+    'dbus'
     'qt6-svg'
     'qt6-multimedia'
 )
@@ -36,7 +36,7 @@ sha256sums=('SKIP')
 
 build() {
     cd "$pkgname-$pkgver"
-    pip install --isolated --root="$srcdir/tmp_deps" --prefix=/usr \
+    pip install --isolated --break-system-packages --root="$srcdir/tmp_deps" --prefix=/usr \
         ytmusicapi \
         yt-dlp \
         syncedlyrics \
