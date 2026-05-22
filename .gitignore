@@ -36,6 +36,7 @@ oauth.json
 *.json
 !pyproject.toml
 headers.txt
+github_token.txt
 *.log
 
 # Database

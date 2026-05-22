@@ -35,7 +35,7 @@ source=("$pkgname-$pkgver.tar.gz::https://github.com/Eirom16/$pkgname/archive/re
 sha256sums=('SKIP')
 
 build() {
-    cd "$pkgname-$pkgver"
+    cd "Pyrolist-$pkgver"
     pip install --isolated --break-system-packages --root="$srcdir/tmp_deps" --prefix=/usr \
         ytmusicapi \
         yt-dlp \
@@ -48,7 +48,7 @@ build() {
 }
 
 package() {
-    cd "$pkgname-$pkgver"
+    cd "Pyrolist-$pkgver"
 
     # Deps instaladas en build()
     if [ -d "$srcdir/tmp_deps" ]; then

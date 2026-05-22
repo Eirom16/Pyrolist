@@ -81,9 +81,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y \
             dpkg-dev \
-            lintian \
-            python3.12 \
-            python3-pip
+            lintian
 
       - name: Actualizar CURRENT_VERSION en el código
         run: |
@@ -217,16 +215,19 @@ jobs:
       image: opensuse/leap:latest
 
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Instalar herramientas
+      - name: Instalar herramientas básicas en el contenedor
         run: |
           zypper refresh
+          zypper install -y git tar gzip
+
+      - uses: actions/checkout@v4
+
+      - name: Instalar herramientas de compilación
+        run: |
           zypper install -y \
             rpm-build \
             python3-devel \
-            python3-pip \
-            git
+            python3-pip
 
       - name: Actualizar CURRENT_VERSION en el código
         run: |
