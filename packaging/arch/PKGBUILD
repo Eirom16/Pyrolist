@@ -36,7 +36,8 @@ sha256sums=('SKIP')
 
 build() {
     cd "Pyrolist-$pkgver"
-    pip install --isolated --break-system-packages --root="$srcdir/tmp_deps" --prefix=/usr \
+    mkdir -p "$srcdir/tmp_deps"
+    pip install --isolated --break-system-packages --target="$srcdir/tmp_deps" \
         ytmusicapi \
         yt-dlp \
         syncedlyrics \
@@ -50,9 +51,10 @@ build() {
 package() {
     cd "Pyrolist-$pkgver"
 
-    # Deps instaladas en build()
+    # Deps aisladas
     if [ -d "$srcdir/tmp_deps" ]; then
-        cp -r "$srcdir/tmp_deps/"* "$pkgdir/"
+        install -dm755 "$pkgdir/usr/lib/pyrolist/dependencies"
+        cp -r "$srcdir/tmp_deps/"* "$pkgdir/usr/lib/pyrolist/dependencies/"
     fi
 
     # Código fuente de la app
@@ -64,6 +66,7 @@ package() {
     install -Dm755 /dev/stdin "$pkgdir/usr/bin/$pkgname" << 'LAUNCHER'
 #!/bin/bash
 export PYROLIST_ASSETS="/usr/lib/pyrolist/assets"
+export PYTHONPATH="/usr/lib/pyrolist/dependencies:$PYTHONPATH"
 exec python3 /usr/lib/pyrolist/app/main.py "$@"
 LAUNCHER
 

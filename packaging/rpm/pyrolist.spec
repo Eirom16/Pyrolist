@@ -35,8 +35,8 @@ Discord Rich Presence, scrobbling a Last.fm e integración MPRIS2.
 # No compilation required for pure Python
 
 %install
-# Instalar dependencias Python directamente en buildroot
-PIP_BREAK_SYSTEM_PACKAGES=1 pip3 install --isolated --root="%{buildroot}" --prefix=/usr \
+# Instalar dependencias Python de forma aislada
+PIP_BREAK_SYSTEM_PACKAGES=1 pip3 install --isolated --target="%{buildroot}/usr/lib/%{appname}/dependencies" \
     ytmusicapi yt-dlp syncedlyrics qasync qt-material \
     "sqlalchemy[asyncio]" aiosqlite pydantic httpx \
     loguru pystray pillow pylast pypresence python-vlc
@@ -50,6 +50,7 @@ cp -r assets         %{buildroot}/usr/lib/%{appname}/assets
 install -Dm755 /dev/stdin %{buildroot}/usr/bin/%{appname} << 'LAUNCHER'
 #!/bin/bash
 export PYROLIST_ASSETS="/usr/lib/pyrolist/assets"
+export PYTHONPATH="/usr/lib/pyrolist/dependencies:$PYTHONPATH"
 exec python3 /usr/lib/pyrolist/app/main.py "$@"
 LAUNCHER
 
@@ -82,13 +83,6 @@ fi
 /usr/share/applications/%{appname}.desktop
 /usr/share/pixmaps/%{appname}.png
 /usr/share/icons/hicolor/256x256/apps/%{appname}.png
-/usr/lib/python*
-/usr/lib64/python*
-/usr/share/bash-completion/completions/*
-/usr/share/doc/*
-/usr/share/fish/vendor_completions.d/*
-/usr/share/man/man1/*
-/usr/share/zsh/site-functions/*
 
 %changelog
 * VERSION_DATE Eirom16 <eirom16@users.noreply.github.com> - VERSION_PLACEHOLDER-1
