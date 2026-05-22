@@ -1,4 +1,5 @@
 %define debug_package %{nil}
+%define _unpackaged_files_terminate_build 0
 
 %global appname pyrolist
 %global appver  VERSION_PLACEHOLDER
@@ -12,9 +13,9 @@ URL:            https://github.com/Eirom16/%{appname}
 Source0:        %{appname}-%{appver}.tar.gz
 
 BuildArch:      x86_64
-BuildRequires:  python3-devel >= 3.12
+BuildRequires:  python3-devel
 BuildRequires:  python3-pip
-Requires:       python3 >= 3.12
+Requires:       python3
 Requires:       vlc
 Requires:       vlc-libs
 Requires:       python3-dbus
@@ -81,6 +82,13 @@ fi
 /usr/share/applications/%{appname}.desktop
 /usr/share/pixmaps/%{appname}.png
 /usr/share/icons/hicolor/256x256/apps/%{appname}.png
+/usr/lib/python*
+/usr/lib64/python*
+/usr/share/bash-completion/completions/*
+/usr/share/doc/*
+/usr/share/fish/vendor_completions.d/*
+/usr/share/man/man1/*
+/usr/share/zsh/site-functions/*
 
 %changelog
 * VERSION_DATE Eirom16 <eirom16@users.noreply.github.com> - VERSION_PLACEHOLDER-1
