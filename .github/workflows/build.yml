@@ -217,7 +217,7 @@ jobs:
     steps:
       - name: Instalar herramientas básicas en el contenedor
         run: |
-          zypper refresh
+          zypper refresh || true
           zypper install -y git tar gzip
 
       - uses: actions/checkout@v4

@@ -36,7 +36,7 @@ Discord Rich Presence, scrobbling a Last.fm e integración MPRIS2.
 
 %install
 # Instalar dependencias Python directamente en buildroot
-pip3 install --isolated --break-system-packages --root="%{buildroot}" --prefix=/usr \
+PIP_BREAK_SYSTEM_PACKAGES=1 pip3 install --isolated --root="%{buildroot}" --prefix=/usr \
     ytmusicapi yt-dlp syncedlyrics qasync qt-material \
     "sqlalchemy[asyncio]" aiosqlite pydantic httpx \
     loguru pystray pillow pylast pypresence python-vlc

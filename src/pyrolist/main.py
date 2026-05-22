@@ -72,7 +72,7 @@ def main() -> None:
             
     app = QApplication(sys.argv)
     app.setApplicationName("Pyrolist")
-    app.setApplicationVersion("1.1.0")
+    app.setApplicationVersion("1.1.1")
     app.setOrganizationName("pyrolist")
 
     setup_vlc_env()
