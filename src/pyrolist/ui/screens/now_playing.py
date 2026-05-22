@@ -107,7 +107,7 @@ class NowPlayingScreen(QWidget):
         left_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.artwork = QLabel()
-        self.artwork.setFixedSize(360, 360)
+        self.artwork.setFixedSize(280, 280)
         self.artwork.setObjectName("nowPlayingArtwork")
         self.artwork.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.artwork.setText(Icon.get("library_music"))
@@ -582,8 +582,8 @@ class NowPlayingScreen(QWidget):
             
             pixmap = QPixmap(str(path))
             if not pixmap.isNull():
-                size = 360
-                radius = 24
+                size = 280
+                radius = 20
                 pixmap = pixmap.scaled(size, size, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
                 # Center crop
                 x = (pixmap.width() - size) // 2

@@ -131,14 +131,24 @@ class AmbientBackgroundWidget(QWidget):
 
     def _set_colors(self, colors: list[QColor]):
         if len(colors) >= len(self._blobs):
-            # Saturar y oscurecer ligeramente los colores para que queden bien de fondo
             for i, blob in enumerate(self._blobs):
                 c = colors[i]
-                # Aumentar saturación, reducir valor para que el texto sea legible
+                # Convert to HSV to manipulate
                 h, s, v, a = c.getHsv()
-                s = min(255, int(s * 1.5))
-                v = min(150, int(v * 0.8)) # max brightness 150/255 for dark mode legibility
-                blob.target_color = QColor.fromHsv(h, s, v)
+                
+                # If the color is too grey/white/black, give it a default hue or keep it dark
+                if s < 30:
+                    s = 30  # Add a tiny bit of color
+                else:
+                    s = min(255, int(s * 1.5)) # Boost saturation
+                
+                # Keep it very dark to maintain the dark theme
+                v = min(80, int(v * 0.6))
+                
+                # Set transparency so they blend nicely
+                new_color = QColor.fromHsv(h, s, v)
+                new_color.setAlpha(180) # 70% opacity
+                blob.target_color = new_color
                 
             self._color_anim.stop()
             self._color_anim.setStartValue(0.0)
@@ -149,20 +159,26 @@ class AmbientBackgroundWidget(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         
-        # Fondo base super oscuro
-        painter.fillRect(self.rect(), QColor(5, 5, 5))
+        # Base background: deeply dark color to ensure contrast
+        painter.fillRect(self.rect(), QColor(10, 10, 15))
         
         w = self.width()
         h = self.height()
         
+        # Draw blobs
         for blob in self._blobs:
             cx = w * blob.x_ratio
             cy = h * blob.y_ratio
-            radius = max(w, h) * blob.radius_ratio
+            # Reduce radius slightly to create more distinct light pools
+            radius = max(w, h) * (blob.radius_ratio * 0.7)
             
             grad = QRadialGradient(QPointF(cx, cy), radius)
             grad.setColorAt(0, blob.current_color)
-            grad.setColorAt(1, QColor(0, 0, 0, 0)) # Transparente en los bordes
+            
+            # Fade out to fully transparent
+            transparent_color = QColor(blob.current_color)
+            transparent_color.setAlpha(0)
+            grad.setColorAt(1, transparent_color)
             
             painter.setBrush(grad)
             painter.setPen(Qt.PenStyle.NoPen)
