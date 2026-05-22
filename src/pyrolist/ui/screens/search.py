@@ -284,9 +284,15 @@ class SearchScreen(QWidget):
         self._scroll.setStyleSheet("background: transparent; border: none;")
 
         self._results_widget = QWidget()
-        self._results_layout = QVBoxLayout(self._results_widget)
-        self._results_layout.setContentsMargins(24, 16, 24, 24)
-        self._results_layout.setSpacing(12)
+        self._content_wrapper_layout = QVBoxLayout(self._results_widget)
+        self._content_wrapper_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self._results_layout = QVBoxLayout()
+        self._results_layout.setSpacing(16)
+        self._results_layout.setContentsMargins(0, 16, 0, 16)
+        
+        self._content_wrapper_layout.addLayout(self._results_layout)
+        self._content_wrapper_layout.addStretch()
 
         self._scroll.setWidget(self._results_widget)
         root.addWidget(self._scroll)

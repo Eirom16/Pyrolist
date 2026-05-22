@@ -278,14 +278,14 @@ class FullPlayerDialog(QDialog):
                         self.artwork.setText("")
                         self.artwork.setStyleSheet("background: transparent; border-radius: 20px;")
 
-            asyncio.ensure_future(self._load_lyrics(item.title, item.artist))
+            asyncio.ensure_future(self._load_lyrics(item))
 
-    async def _load_lyrics(self, title, artist):
+    async def _load_lyrics(self, item):
         # Clear existing lyrics
         while self.lyrics_content_layout.count():
-            item = self.lyrics_content_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+            item_widget = self.lyrics_content_layout.takeAt(0)
+            if item_widget.widget():
+                item_widget.widget().deleteLater()
 
         # Show loading state
         loading = QLabel("Buscando letras...")
@@ -296,13 +296,25 @@ class FullPlayerDialog(QDialog):
         self.lyrics_content_layout.addWidget(loading)
 
         try:
-            lyrics = await self.lyrics_client.get_lyrics(title, artist)
+            lyrics = None
+            if item.is_local and item.local_path:
+                import os
+                lrc_path = os.path.splitext(item.local_path)[0] + ".lrc"
+                if os.path.exists(lrc_path):
+                    try:
+                        with open(lrc_path, "r", encoding="utf-8") as f:
+                            lyrics = f.read()
+                    except Exception:
+                        pass
+            
+            if not lyrics:
+                lyrics = await self.lyrics_client.get_lyrics(item.title, item.artist)
             
             # Clear loading indicator
             while self.lyrics_content_layout.count():
-                item = self.lyrics_content_layout.takeAt(0)
-                if item.widget():
-                    item.widget().deleteLater()
+                item_widget = self.lyrics_content_layout.takeAt(0)
+                if item_widget.widget():
+                    item_widget.widget().deleteLater()
 
             self._lyric_labels.clear()
             self._current_lyric_index = -1

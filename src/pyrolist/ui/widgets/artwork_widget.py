@@ -16,12 +16,6 @@ class ArtworkWidget(QWidget):
         self._opacity = 0.0
         self.setFixedSize(QSize(size, size))
 
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(max(16, size // 3))
-        shadow.setOffset(0, max(4, size // 12))
-        shadow.setColor(QColor(0, 0, 0, 100))
-        self.setGraphicsEffect(shadow)
-
         self._fade_anim = QPropertyAnimation(self, b"img_opacity", self)
         self._fade_anim.setDuration(300)
         self._fade_anim.setEasingCurve(QEasingCurve.Type.OutCubic)

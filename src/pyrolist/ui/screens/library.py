@@ -93,9 +93,15 @@ class LibraryScreen(QWidget):
         self.content.setStyleSheet("background: transparent; border: none;")
 
         self.content_widget = QWidget()
-        self.content_layout = QVBoxLayout(self.content_widget)
-        self.content_layout.setContentsMargins(0, 8, 0, 8)
+        self._content_wrapper_layout = QVBoxLayout(self.content_widget)
+        self._content_wrapper_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.content_layout = QVBoxLayout()
+        self.content_layout.setContentsMargins(24, 0, 24, 24)
         self.content_layout.setSpacing(16)
+        
+        self._content_wrapper_layout.addLayout(self.content_layout)
+        self._content_wrapper_layout.addStretch()
 
         self.content.setWidget(self.content_widget)
         layout.addWidget(self.content)

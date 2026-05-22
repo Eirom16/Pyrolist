@@ -305,6 +305,12 @@ class AlbumScreen(QWidget):
         
         self.content_layout.addSpacing(24)
         
+        self.tracks_layout = QVBoxLayout()
+        self.tracks_layout.setSpacing(16)
+        self.tracks_layout.setContentsMargins(0, 0, 0, 0)
+        self.content_layout.addLayout(self.tracks_layout)
+        self.content_layout.addStretch()
+        
         # Tracks
         tracks = data.get('tracks', [])
         for i, track in enumerate(tracks):
@@ -338,9 +344,7 @@ class AlbumScreen(QWidget):
                 card.add_to_playlist_requested.connect(lambda *a: self.add_to_playlist_requested.emit(*a))
                 card.delete_download_requested.connect(lambda *a: self.delete_download_requested.emit(*a))
                 
-                self.content_layout.addWidget(card)
-                
-        self.content_layout.addStretch()
+                self.tracks_layout.addWidget(card)
 
     async def _load_cover(self, url: str):
         path = await _image_cache.download(url)

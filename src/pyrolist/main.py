@@ -110,7 +110,8 @@ def main() -> None:
 
     AppDirs.setup()
     
-    from PySide6.QtGui import QIcon
+    from PySide6.QtGui import QIcon, QPixmapCache
+    QPixmapCache.setCacheLimit(102400)  # 100 MB cache for covers
     icon_path = AppDirs.root / "assets" / "icon.png"
     if icon_path.exists():
         app.setWindowIcon(QIcon(str(icon_path)))

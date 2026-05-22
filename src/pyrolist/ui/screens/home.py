@@ -106,8 +106,14 @@ class HomeScreen(QWidget):
         self.scroll.setStyleSheet("background: transparent; border: none;")
 
         self.content = QWidget()
-        self.content_layout = QVBoxLayout(self.content)
+        self._content_wrapper_layout = QVBoxLayout(self.content)
+        self._content_wrapper_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.content_layout = QVBoxLayout()
         self.content_layout.setSpacing(24)
+        
+        self._content_wrapper_layout.addLayout(self.content_layout)
+        self._content_wrapper_layout.addStretch()
 
         self._create_loading_state()
 

@@ -614,10 +614,15 @@ class DownloadsScreen(QWidget):
         self.content_area.setStyleSheet("background: transparent; border: none;")
         
         self.scroll_content = QWidget()
-        self.content_layout = QVBoxLayout(self.scroll_content)
-        self.content_layout.setContentsMargins(0, 0, 0, 0)
-        self.content_layout.setSpacing(8)
-        self.content_layout.addStretch()
+        self._content_wrapper_layout = QVBoxLayout(self.scroll_content)
+        self._content_wrapper_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.content_layout = QVBoxLayout()
+        self.content_layout.setSpacing(16)
+        self.content_layout.setContentsMargins(0, 16, 0, 16)
+        
+        self._content_wrapper_layout.addLayout(self.content_layout)
+        self._content_wrapper_layout.addStretch()
         
         self.content_area.setWidget(self.scroll_content)
         layout.addWidget(self.content_area)

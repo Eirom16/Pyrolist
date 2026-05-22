@@ -49,12 +49,26 @@ class LyricsClient:
         self, title: str, artist: str, album: str = ""
     ) -> syncedlyrics.Lyrics | None:
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(
-            self._executor, self._sync_search, title, artist, album
-        )
+        try:
+            return await asyncio.wait_for(
+                loop.run_in_executor(
+                    self._executor, self._sync_search, title, artist, album
+                ),
+                timeout=10.0
+            )
+        except asyncio.TimeoutError:
+            logger.warning(f"Lyrics search timed out for {title} - {artist}")
+            return None
 
     async def get_plain_lyrics(self, title: str, artist: str) -> str | None:
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(
-            self._executor, self._sync_search, title, artist
-        )
+        try:
+            return await asyncio.wait_for(
+                loop.run_in_executor(
+                    self._executor, self._sync_search, title, artist
+                ),
+                timeout=10.0
+            )
+        except asyncio.TimeoutError:
+            logger.warning(f"Plain lyrics search timed out for {title} - {artist}")
+            return None

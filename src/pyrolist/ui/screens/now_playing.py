@@ -1,6 +1,7 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTabWidget, QScrollArea, QPushButton
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTabWidget, QScrollArea, QPushButton, QGraphicsDropShadowEffect
 from PySide6.QtCore import Qt, Signal, QSize
-from PySide6.QtGui import QFont, QPixmap
+from PySide6.QtCore import Qt, Signal, QSize, QPropertyAnimation, Property, QEasingCurve
+from PySide6.QtGui import QFont, QPixmap, QPainter, QColor
 import asyncio
 from pyrolist.utils.image_cache import ImageCache
 from pyrolist.audio.player import PlayerState
@@ -11,6 +12,67 @@ from pyrolist.ui.widgets.icon_button import IconButton
 from pyrolist.ui.widgets.animated_progress import AnimatedProgressBar
 
 _image_cache = ImageCache()
+
+class LyricLabel(QLabel):
+    def __init__(self, text, align_flag, base_font_size=18):
+        super().__init__(text)
+        self.setAlignment(align_flag)
+        self.setWordWrap(True)
+        self.setFont(QFont("Inter", base_font_size + 4, QFont.Weight.Black))
+        self.setContentsMargins(16, 16, 16, 16)
+        self.setStyleSheet("background: transparent;")
+        
+        self.base_font_size = base_font_size
+        self._progress = 0.0
+        
+        self.anim = QPropertyAnimation(self, b"progress")
+        self.anim.setDuration(450)
+        self.anim.setEasingCurve(QEasingCurve.Type.OutBack)
+        
+    def get_progress(self):
+        return self._progress
+        
+    def set_progress(self, p):
+        self._progress = p
+        self.update()
+        
+    progress = Property(float, get_progress, set_progress)
+    
+    def set_active(self, active: bool):
+        self.anim.stop()
+        self.anim.setEndValue(1.0 if active else 0.0)
+        self.anim.start()
+        
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+        
+        from pyrolist.ui.design import tokens
+        # Usar text_secondary (gris claro/oscuro) para inactivos y text_primary (blanco/negro) para activos
+        inactive_color = QColor(tokens.CURRENT.text_secondary)
+        active_color = QColor(tokens.CURRENT.text_primary)
+        
+        p = self._progress
+        r = inactive_color.red() + (active_color.red() - inactive_color.red()) * p
+        g = inactive_color.green() + (active_color.green() - inactive_color.green()) * p
+        b = inactive_color.blue() + (active_color.blue() - inactive_color.blue()) * p
+        painter.setPen(QColor(int(r), int(g), int(b)))
+        
+        scale = 0.85 + (0.15 * p)
+        cx = self.width() / 2
+        cy = self.height() / 2
+        painter.translate(cx, cy)
+        painter.scale(scale, scale)
+        painter.translate(-cx, -cy)
+        
+        flags = int(self.alignment()) | Qt.TextFlag.TextWordWrap
+        font = self.font()
+        # Asegurar que el texto activo se vea muy fuerte y legible
+        font.setWeight(QFont.Weight.Black if p > 0.5 else QFont.Weight.Bold)
+        painter.setFont(font)
+        
+        painter.drawText(self.contentsRect(), flags, self.text())
 
 class NowPlayingScreen(QWidget):
     download_requested = Signal(str, str, str, str)
@@ -248,6 +310,8 @@ class NowPlayingScreen(QWidget):
         self.lyrics_layout.addWidget(msg)
         
         self.tabs.addTab(self.lyrics_scroll, "LETRA")
+        
+        self.tabs.currentChanged.connect(self._on_tab_changed)
 
         # Tab: Related (SIMILARES)
         self.related_scroll = QScrollArea()
@@ -438,32 +502,48 @@ class NowPlayingScreen(QWidget):
                 continue
             
             timestamp_ms = -1
-            match = re.match(r'^\[(\d{2,}):(\d{2}(?:\.\d+)?)\](.*)', clean)
+            match = re.match(r'^((?:\[\d{1,}:\d{2}(?:\.\d+)?\])+)(.*)', clean)
             if match:
-                mins = int(match.group(1))
-                secs = float(match.group(2))
-                timestamp_ms = int((mins * 60 + secs) * 1000)
-                clean = match.group(3).strip()
+                tags_str = match.group(1)
+                clean = match.group(2).strip()
+                first_tag = re.search(r'\[(\d{1,}):(\d{2}(?:\.\d+)?)\]', tags_str)
+                if first_tag:
+                    mins = int(first_tag.group(1))
+                    secs = float(first_tag.group(2))
+                    timestamp_ms = int((mins * 60 + secs) * 1000)
             
             if not clean:
-                continue
+                if timestamp_ms != -1:
+                    clean = "🎶"
+                else:
+                    continue
             
-            lbl = QLabel(clean)
-            lbl.setFont(QFont("Inter", font_size - 2, QFont.Weight.Bold))
-            lbl.setAlignment(align_flag)
-            from pyrolist.ui.design import tokens
-            lbl.setStyleSheet(f"color: {tokens.CURRENT.text_disabled}; background: transparent; padding: {padding}px 0;")
-            lbl.setWordWrap(True)
+            lbl = LyricLabel(clean, align_flag, font_size)
             self.lyrics_layout.addWidget(lbl)
             self._lyric_lines.append((timestamp_ms, lbl))
             
+        has_timestamps = any(ts != -1 for ts, lbl in self._lyric_lines)
+        if not has_timestamps and len(self._lyric_lines) > 0:
+            from pyrolist.ui.design import tokens
+            notice = QLabel("Sincronización no disponible para esta pista")
+            notice.setFont(QFont("Inter", 11, QFont.Weight.Medium))
+            notice.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            notice.setStyleSheet(f"color: {tokens.CURRENT.text_disabled}; padding-bottom: 24px; padding-top: 12px;")
+            self.lyrics_layout.insertWidget(0, notice)
+            
+            for _, lbl in self._lyric_lines:
+                if isinstance(lbl, LyricLabel):
+                    lbl.set_active(True)
+                    
         self.lyrics_layout.addStretch()
+        # Force layout to compute geometries immediately
+        self.lyrics_container.adjustSize()
 
     def _highlight_lyric(self, position_ms: int):
         if not hasattr(self, '_lyric_lines') or not self._lyric_lines:
             return
 
-        adjusted_position = position_ms
+        adjusted_position = position_ms + 400
         if self.settings:
             adjusted_position += self.settings.subtitles.delay_ms
 
@@ -491,22 +571,12 @@ class NowPlayingScreen(QWidget):
 
             if self._current_lyric_index != -1:
                 old_ts, old_lbl = self._lyric_lines[self._current_lyric_index]
-                old_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_disabled}; background: transparent; padding: {padding}px 0;")
-                old_lbl.setFont(QFont("Inter", font_size - 2, QFont.Weight.Bold))
-                old_lbl.setGraphicsEffect(None)
+                if isinstance(old_lbl, LyricLabel):
+                    old_lbl.set_active(False)
             
             new_ts, new_lbl = self._lyric_lines[active_idx]
-            new_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent; padding: {padding}px 0;")
-            new_lbl.setFont(QFont("Inter", font_size, QFont.Weight.Black))
-            
-            if glow:
-                from PySide6.QtWidgets import QGraphicsDropShadowEffect
-                from PySide6.QtGui import QColor
-                shadow = QGraphicsDropShadowEffect(new_lbl)
-                shadow.setBlurRadius(10)
-                shadow.setColor(QColor(tokens.CURRENT.accent))
-                shadow.setOffset(0, 0)
-                new_lbl.setGraphicsEffect(shadow)
+            if isinstance(new_lbl, LyricLabel):
+                new_lbl.set_active(True)
             
             self._current_lyric_index = active_idx
             
@@ -519,11 +589,18 @@ class NowPlayingScreen(QWidget):
                 else:
                     from PySide6.QtCore import QPropertyAnimation, QEasingCurve
                     self._scroll_anim = QPropertyAnimation(scroll_bar, b"value")
-                    self._scroll_anim.setDuration(400)
+                    self._scroll_anim.setDuration(450)
                     self._scroll_anim.setStartValue(scroll_bar.value())
                     self._scroll_anim.setEndValue(int(max(0, target_y)))
                     self._scroll_anim.setEasingCurve(QEasingCurve.Type.InOutSine)
                     self._scroll_anim.start()
+
+    def _on_tab_changed(self, index):
+        if self.tabs.tabText(index) == "LETRA" and self._current_lyric_index != -1:
+            ts, lbl = self._lyric_lines[self._current_lyric_index]
+            if isinstance(lbl, LyricLabel) and lbl.y() > 0:
+                target_y = lbl.y() - (self.lyrics_scroll.height() / 2) + (lbl.height() / 2)
+                self.lyrics_scroll.verticalScrollBar().setValue(int(max(0, target_y)))
 
     def update_lyrics_style(self):
         if not hasattr(self, '_lyric_lines') or not self._lyric_lines:
@@ -550,23 +627,6 @@ class NowPlayingScreen(QWidget):
             if ts == -1:
                 continue
             lbl.setAlignment(align_flag)
-            if idx == self._current_lyric_index:
-                lbl.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent; padding: {padding}px 0;")
-                lbl.setFont(QFont("Inter", font_size, QFont.Weight.Black))
-                if self.settings and self.settings.subtitles.glow_effect:
-                    from PySide6.QtWidgets import QGraphicsDropShadowEffect
-                    from PySide6.QtGui import QColor
-                    shadow = QGraphicsDropShadowEffect(lbl)
-                    shadow.setBlurRadius(10)
-                    shadow.setColor(QColor(tokens.CURRENT.accent))
-                    shadow.setOffset(0, 0)
-                    lbl.setGraphicsEffect(shadow)
-                else:
-                    lbl.setGraphicsEffect(None)
-            else:
-                lbl.setStyleSheet(f"color: {tokens.CURRENT.text_disabled}; background: transparent; padding: {padding}px 0;")
-                lbl.setFont(QFont("Inter", font_size - 2, QFont.Weight.Bold))
-                lbl.setGraphicsEffect(None)
 
     async def _load_thumbnail(self, url: str):
         # Request a higher-resolution thumbnail

@@ -27,14 +27,22 @@ class ArtistCard(QWidget):
     async def _load_thumbnail(self) -> None:
         path = await _image_cache.download(self._thumbnail_url)
         if path:
-            from pyrolist.utils.image_cache import load_scaled_async
-            def on_loaded(bytes_data):
-                if bytes_data:
-                    pixmap = QPixmap()
-                    if pixmap.loadFromData(bytes_data):
-                        self.thumbnail.setPixmap(pixmap)
-                        self.thumbnail.setStyleSheet("background: transparent; border-radius: 74px;")
-            load_scaled_async(path, 148, 148, self, on_loaded)
+            from PySide6.QtGui import QPixmapCache
+            cache_key = f"{path}_148_148"
+            pixmap = QPixmap()
+            if QPixmapCache.find(cache_key, pixmap):
+                self.thumbnail.setPixmap(pixmap)
+                self.thumbnail.setStyleSheet("background: transparent; border-radius: 74px;")
+            else:
+                from pyrolist.utils.image_cache import load_scaled_async
+                def on_loaded(bytes_data):
+                    if bytes_data:
+                        pix = QPixmap()
+                        if pix.loadFromData(bytes_data):
+                            QPixmapCache.insert(cache_key, pix)
+                            self.thumbnail.setPixmap(pix)
+                            self.thumbnail.setStyleSheet("background: transparent; border-radius: 74px;")
+                load_scaled_async(path, 148, 148, self, on_loaded)
 
     def _build_ui(self) -> None:
         self.setObjectName("artistCard")
