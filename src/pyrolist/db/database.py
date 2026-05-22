@@ -40,6 +40,17 @@ async def init_db():
         logger.info("Added parent_playlist_thumbnail_url column to downloads table")
     except Exception:
         pass
+        
+    # Safely ensure indexes are created on existing databases
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_songs_is_liked ON songs (is_liked)"))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_songs_last_played ON songs (last_played)"))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_play_history_played_at ON play_history (played_at)"))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_downloads_downloaded_at ON downloads (downloaded_at)"))
+        logger.info("Database indexes verified/created successfully")
+    except Exception as e:
+        logger.warning(f"Could not create database indexes: {e}")
     
     logger.info("Database initialized")
 

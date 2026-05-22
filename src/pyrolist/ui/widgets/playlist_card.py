@@ -67,17 +67,14 @@ class PlaylistCard(QWidget):
     async def _load_thumbnail(self) -> None:
         path = await _image_cache.download(self._thumbnail_url)
         if path:
-            pixmap = QPixmap(str(path))
-            if not pixmap.isNull():
-                self.thumbnail.setPixmap(
-                    pixmap.scaled(
-                        148,
-                        148,
-                        Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                        Qt.TransformationMode.SmoothTransformation,
-                    )
-                )
-                self.thumbnail.setStyleSheet("background: transparent; border-radius: 12px;")
+            from pyrolist.utils.image_cache import load_scaled_async
+            def on_loaded(bytes_data):
+                if bytes_data:
+                    pixmap = QPixmap()
+                    if pixmap.loadFromData(bytes_data):
+                        self.thumbnail.setPixmap(pixmap)
+                        self.thumbnail.setStyleSheet("background: transparent; border-radius: 12px;")
+            load_scaled_async(path, 148, 148, self, on_loaded)
 
     def _build_ui(self) -> None:
         self.setObjectName("playlistCard")

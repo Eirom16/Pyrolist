@@ -209,7 +209,7 @@ def install_update(package_path: Path) -> bool:
             return False
 
         try:
-            subprocess.Popen(cmd)
+            subprocess.Popen(cmd, start_new_session=True)
             return True
         except FileNotFoundError:
             # pkexec no disponible — intentar con sudo en terminal
@@ -225,7 +225,8 @@ def install_update(package_path: Path) -> bool:
                 for term in ["konsole", "gnome-terminal", "xterm", "alacritty"]:
                     if shutil.which(term):
                         subprocess.Popen([term, "-e", "bash", "-c",
-                                         f"{cmd_str}; read -p 'Presiona Enter para cerrar'"])
+                                         f"{cmd_str}; read -p 'Presiona Enter para cerrar'"],
+                                         start_new_session=True)
                         return True
         return False
 

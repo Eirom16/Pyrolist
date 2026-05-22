@@ -11,7 +11,7 @@ import asyncio
 import webbrowser
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
-    QTextEdit, QFrame, QWidget
+    QTextEdit, QFrame, QWidget, QApplication
 )
 from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QFont, QColor
@@ -64,6 +64,10 @@ class UpdateDialog(QDialog):
         self.setMinimumWidth(520)
 
         self._build()
+        self._center_on_parent()
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
         self._center_on_parent()
 
     def hideEvent(self, event) -> None:
@@ -214,11 +218,20 @@ class UpdateDialog(QDialog):
         root.addWidget(panel)
 
     def _center_on_parent(self) -> None:
-        if self.parent():
-            parent_geo = self.parent().geometry()
+        parent = self.parent()
+        if parent and parent.isVisible():
+            parent_geo = parent.geometry()
             x = parent_geo.x() + (parent_geo.width()  - self.width())  // 2
             y = parent_geo.y() + (parent_geo.height() - self.height()) // 2
             self.move(x, y)
+        else:
+            from PySide6.QtGui import QGuiApplication
+            screen = QGuiApplication.primaryScreen()
+            if screen:
+                screen_geo = screen.geometry()
+                x = screen_geo.x() + (screen_geo.width()  - self.width())  // 2
+                y = screen_geo.y() + (screen_geo.height() - self.height()) // 2
+                self.move(x, y)
 
     @asyncSlot()
     async def _on_update_clicked(self) -> None:
@@ -260,13 +273,13 @@ class UpdateDialog(QDialog):
         success = install_update(pkg_path)
         if success:
             self._progress_label.setText(
-                "Instalación iniciada. "
-                "Reinicia Pyrolist cuando termine para aplicar los cambios."
+                "Instalación iniciada. Cerrando Pyrolist en breve para aplicar los cambios..."
             )
             self._update_btn.setText(
-                Icon.get("check_circle") + "  ¡Listo!"
+                Icon.get("check_circle") + "  Cerrando..."
             )
             self.update_installed.emit()
+            QTimer.singleShot(1500, QApplication.quit)
         else:
             self._progress_label.setText(
                 f"No se pudo instalar automáticamente.\n"

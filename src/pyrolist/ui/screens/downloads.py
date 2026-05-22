@@ -524,6 +524,7 @@ class DownloadsScreen(QWidget):
         self._items = {} # video_id -> DownloadItemWidget
         self._playlist_cards = {} # playlist_id -> PlaylistCard
         self._repo = DownloadRepository()
+        self._current_load_task = None
         self._build_ui()
         self._connect_manager()
 
@@ -660,7 +661,10 @@ class DownloadsScreen(QWidget):
         self._current_tab = key
         for k, btn in self.tab_btns.items():
             btn.setStyleSheet(self._tab_style(k == key))
-        asyncio.ensure_future(self.load())
+            
+        if self._current_load_task and not self._current_load_task.done():
+            self._current_load_task.cancel()
+        self._current_load_task = asyncio.create_task(self.load())
 
     def _connect_manager(self):
         mgr = DownloadManager.get_instance()
@@ -705,15 +709,19 @@ class DownloadsScreen(QWidget):
         self._items[vid] = widget
 
     async def load(self):
-        if getattr(self, "_is_loading", False):
-            return
-        self._is_loading = True
+        current_task = asyncio.current_task()
+        if self._current_load_task and self._current_load_task != current_task and not self._current_load_task.done():
+            self._current_load_task.cancel()
+        
+        self._current_load_task = current_task
+        
         try:
             while self.content_layout.count() > 1:
                 item = self.content_layout.takeAt(0)
                 if item.widget():
                     item.widget().deleteLater()
             self._items.clear()
+            self._playlist_cards.clear()
 
             downloads = await self._repo.get_downloads()
             
@@ -751,6 +759,8 @@ class DownloadsScreen(QWidget):
                     
                     columns = 4
                     for index, (pid, info) in enumerate(playlist_groups.items()):
+                        if index > 0 and index % 5 == 0:
+                            await asyncio.sleep(0)
                         row = index // columns
                         col = index % columns
                         
@@ -785,22 +795,26 @@ class DownloadsScreen(QWidget):
                     msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
                     self.content_layout.insertWidget(0, msg)
                 
-                for d in reversed(downloads):
+                for i, d in enumerate(reversed(downloads)):
+                    if i > 0 and i % 5 == 0:
+                        await asyncio.sleep(0)
                     self._add_item_to_ui(d.video_id, d.title, d.artist, d.thumbnail_url, d.parent_playlist_title)
                     if d.video_id in self._items:
                         self._items[d.video_id].set_completed(d.file_path)
                     
                 # Add active downloads from manager
                 mgr = DownloadManager.get_instance()
-                for vid, task in mgr._tasks.items():
+                for i, (vid, task) in enumerate(mgr._tasks.items()):
+                    if i > 0 and i % 5 == 0:
+                        await asyncio.sleep(0)
                     if vid not in self._items:
                         self._add_item_to_ui(task.video_id, task.title, task.artist, task.thumbnail_url, task.parent_playlist_title)
                         if task.status == "downloading":
                             self._items[vid].set_downloading()
                         elif task.status == "error":
                             self._items[vid].set_error("Error")
-        finally:
-            self._is_loading = False
+        except asyncio.CancelledError:
+            raise
 
     def _update_downloads_styles(self) -> None:
         from pyrolist.ui.design import tokens

@@ -16,6 +16,17 @@ except Exception:
     pass
 
 import sys
+import subprocess
+
+# Prevenir parpadeo de ventanas de consola secundarias en Windows
+if sys.platform.startswith('win'):
+    _orig_popen_init = subprocess.Popen.__init__
+    def _patched_popen_init(self, *args, **kwargs):
+        creationflags = kwargs.get('creationflags', 0)
+        kwargs['creationflags'] = creationflags | 0x08000000 # CREATE_NO_WINDOW
+        _orig_popen_init(self, *args, **kwargs)
+    subprocess.Popen.__init__ = _patched_popen_init
+
 import asyncio
 import qasync
 import warnings

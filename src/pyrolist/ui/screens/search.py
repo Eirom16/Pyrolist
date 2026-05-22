@@ -340,7 +340,7 @@ class SearchScreen(QWidget):
     # ------------------------------------------------------------------
     # Public entry point — called from MainWindow
     # ------------------------------------------------------------------
-    def search(self, query: str):
+    async def search(self, query: str):
         """Trigger a search.  Called by MainWindow when user submits."""
         if not query:
             self._clear_results()
@@ -352,7 +352,7 @@ class SearchScreen(QWidget):
         self._current_query = query
         self._query_label.setText(f"Resultados para \"{query}\"")
         self._query_label.setVisible(True)
-        asyncio.ensure_future(self._do_search(query))
+        await self._do_search(query)
 
     @asyncSlot()
     async def _do_search(self, query: str):

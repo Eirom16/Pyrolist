@@ -44,6 +44,7 @@ class MainWindow(QMainWindow):
         self.settings = settings
         self._loop = event_loop
         self._pending_tasks: set[asyncio.Task] = set()
+        self._current_nav_task: asyncio.Task | None = None
         self._current_play_id = 0
         self._nav_history: list[int] = []  # stack of previous screen indices for back navigation
 
@@ -111,7 +112,7 @@ class MainWindow(QMainWindow):
         h_layout.setContentsMargins(0, 0, 0, 0)
         h_layout.setSpacing(0)
 
-        self.sidebar = NavSidebar(on_navigate=lambda r: self._run_async(self._navigate(r)))
+        self.sidebar = NavSidebar(on_navigate=self._navigate_to)
         self.sidebar.on_login_click.connect(self._show_login)
         self.sidebar.auth_changed.connect(self._on_auth_changed)
         
@@ -370,6 +371,16 @@ class MainWindow(QMainWindow):
     def _track_task(self, task: asyncio.Task) -> None:
         self._pending_tasks.add(task)
         task.add_done_callback(self._pending_tasks.discard)
+
+        def _log_task_result(t: asyncio.Task):
+            try:
+                t.result()
+            except asyncio.CancelledError:
+                pass
+            except Exception as e:
+                logger.exception(f"Unhandled exception in background task: {e}")
+        task.add_done_callback(_log_task_result)
+
 
     def _run_async(self, coro) -> asyncio.Task:
         if self._loop:
@@ -760,7 +771,13 @@ class MainWindow(QMainWindow):
             dlg = UpdateDialog(release, parent=self)
             dlg.show()
 
-    async def _navigate(self, route: str) -> None:
+    async def _navigate(self, path: str) -> None:
+        # Parse route and query
+        route = path
+        query = ""
+        if "?" in path:
+            route, query = path.split("?", 1)
+            
         if route != "search":
             self.search_bar.input.blockSignals(True)
             self.search_bar.input.clear()
@@ -772,32 +789,31 @@ class MainWindow(QMainWindow):
         # Wait for the FadeStackedWidget animation (260ms) to complete before blocking thread with UI updates
         import asyncio
         await asyncio.sleep(0.3)
-        await self._load_screen(route)
+        await self._load_screen_with_query(route, query)
 
     def _navigate_to(self, path: str) -> None:
-        if "?" in path:
-            route, query = path.split("?", 1)
-            if route == "search" and "query=" in query:
-                query_param = query.split("=", 1)[1]
-                self.search_bar.input.setText(query_param)
-                self._on_search_submitted(query_param)
-            elif route == "playlist" and "id=" in query:
-                playlist_id = query.split("=", 1)[1]
-                index = self.ROUTES.get(route, 0)
-                self._set_stack_index(index)
-                self._run_async(self.playlist_screen.load(playlist_id))
-            elif route == "album" and "id=" in query:
-                album_id = query.split("=", 1)[1]
-                index = self.ROUTES.get(route, 0)
-                self._set_stack_index(index)
-                self._run_async(self.album_screen.load(album_id))
-            elif route == "artist" and "id=" in query:
-                artist_id = query.split("=", 1)[1]
-                index = self.ROUTES.get(route, 0)
-                self._set_stack_index(index)
-                self._run_async(self.artist_screen.load(artist_id))
+        if hasattr(self, '_current_nav_task') and self._current_nav_task and not self._current_nav_task.done():
+            self._current_nav_task.cancel()
+        self._current_nav_task = self._run_async(self._navigate(path))
+
+    async def _load_screen_with_query(self, route: str, query: str) -> None:
+        if route == "playlist" and "id=" in query:
+            playlist_id = query.split("=", 1)[1]
+            await self.playlist_screen.load(playlist_id)
+        elif route == "album" and "id=" in query:
+            album_id = query.split("=", 1)[1]
+            await self.album_screen.load(album_id)
+        elif route == "artist" and "id=" in query:
+            artist_id = query.split("=", 1)[1]
+            await self.artist_screen.load(artist_id)
+        elif route == "search" and "query=" in query:
+            query_param = query.split("=", 1)[1]
+            self.search_bar.input.blockSignals(True)
+            self.search_bar.input.setText(query_param)
+            self.search_bar.input.blockSignals(False)
+            await self.search_screen.search(query_param)
         else:
-            self._run_async(self._navigate(path))
+            await self._load_screen(route)
 
     def _show_login(self) -> None:
         if not self.yt or not self.yt.is_authenticated:
@@ -806,11 +822,11 @@ class MainWindow(QMainWindow):
             dialog.login_successful.connect(self._on_web_login_success)
             dialog.exec()
         else:
-            self._run_async(self._navigate("settings"))
+            self._navigate_to("settings")
 
     def _on_web_login_success(self, avatar_url: str) -> None:
         self._on_auth_changed(True, avatar_url)
-        self._run_async(self._navigate("home"))
+        self._navigate_to("home")
 
     def _on_auth_changed(self, is_authenticated: bool, avatar_url: str = "") -> None:
         if is_authenticated:
@@ -887,10 +903,7 @@ class MainWindow(QMainWindow):
             if "?" in query:
                 self._navigate_to(query)
                 return
-            # Navigate to search screen (won't clear the bar because route IS 'search')
-            index = self.ROUTES.get("search", 0)
-            self._set_stack_index(index)
-            self.search_screen.search(query)
+            self._navigate_to(f"search?query={query}")
 
     def _set_stack_index(self, index: int) -> None:
         current = self.stack.currentIndex()
@@ -1218,7 +1231,20 @@ class MainWindow(QMainWindow):
 
     async def _preload_next(self) -> None:
         next_item = self.queue.next_item
-        if next_item and not next_item.stream_url:
+        if not next_item:
+            return
+            
+        # 1. Preload artwork
+        if next_item.thumbnail_url:
+            try:
+                from pyrolist.utils.image_cache import ImageCache
+                cache = ImageCache()
+                await cache.download(next_item.thumbnail_url)
+            except Exception as e:
+                logger.debug(f"Failed to preload next artwork: {e}")
+
+        # 2. Preload stream URL
+        if not next_item.stream_url:
             try:
                 info = await self.extractor.get_stream_info(next_item.video_id)
                 next_item.stream_url = info["url"]
@@ -1356,6 +1382,9 @@ class MainWindow(QMainWindow):
 
     def _go_back(self) -> None:
         """Navigate back to the previous screen in the history stack."""
+        if hasattr(self, '_current_nav_task') and self._current_nav_task and not self._current_nav_task.done():
+            self._current_nav_task.cancel()
+            
         if self._nav_history:
             prev_index = self._nav_history.pop()
             if hasattr(self.stack, "setCurrentIndexAnimated"):
@@ -1365,7 +1394,7 @@ class MainWindow(QMainWindow):
             self._update_expand_icon()
         else:
             # Fallback to home
-            self._run_async(self._navigate("home"))
+            self._navigate_to("home")
 
     def _update_expand_icon(self) -> None:
         """Toggle the mini player expand icon between up/down chevron."""

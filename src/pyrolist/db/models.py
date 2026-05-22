@@ -14,8 +14,8 @@ class Song(Base):
     album = Column(String, default="")
     duration_ms = Column(Integer, default=0)
     thumbnail_url = Column(String, default="")
-    is_liked = Column(Boolean, default=False)
-    last_played = Column(DateTime, nullable=True)
+    is_liked = Column(Boolean, default=False, index=True)
+    last_played = Column(DateTime, nullable=True, index=True)
     play_count = Column(Integer, default=0)
 
     def __repr__(self):
@@ -60,7 +60,7 @@ class PlayHistory(Base):
     video_id = Column(String, nullable=False)
     title = Column(String, nullable=False)
     artist = Column(String, nullable=False)
-    played_at = Column(DateTime, default=datetime.utcnow)
+    played_at = Column(DateTime, default=datetime.utcnow, index=True)
     duration_ms = Column(Integer, default=0)
 
 
@@ -75,7 +75,7 @@ class Download(Base):
     file_path = Column(String, nullable=False)
     thumbnail_url = Column(String, default="")
     duration_ms = Column(Integer, default=0)
-    downloaded_at = Column(DateTime, default=datetime.utcnow)
+    downloaded_at = Column(DateTime, default=datetime.utcnow, index=True)
     parent_playlist_id = Column(String, nullable=True)
     parent_playlist_title = Column(String, nullable=True)
     parent_playlist_thumbnail_url = Column(String, nullable=True)

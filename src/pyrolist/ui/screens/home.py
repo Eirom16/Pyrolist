@@ -1,3 +1,4 @@
+import asyncio
 from functools import partial
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea, QGridLayout, QPushButton, QGraphicsOpacityEffect
 from qasync import asyncSlot
@@ -28,6 +29,7 @@ class HomeScreen(QWidget):
         self.on_navigate = on_navigate
         self._sections = {}
         self._loaded = False
+        self._current_load_task = None
         self._genres = [
             ("Rock", "rock"),
             ("Pop", "pop"),
@@ -134,6 +136,17 @@ class HomeScreen(QWidget):
         anim.start()
 
     async def load(self):
+        if self._current_load_task and not self._current_load_task.done():
+            self._current_load_task.cancel()
+        self._current_load_task = asyncio.create_task(self._load_async())
+        try:
+            await self._current_load_task
+        except asyncio.CancelledError:
+            if self._current_load_task and not self._current_load_task.done():
+                self._current_load_task.cancel()
+            raise
+
+    async def _load_async(self):
         if self._loaded:
             return
         self._clear_content()
@@ -148,6 +161,9 @@ class HomeScreen(QWidget):
             logger.debug(f"Error fetching downloaded playlists for badge checks: {e}")
             self.downloaded_playlist_ids = set()
 
+        # Check for cancellation before calling API/rendering
+        await asyncio.sleep(0)
+
         from loguru import logger
         logger.info(f"Home load: yt={self.yt}, is_auth={getattr(self.yt, 'is_authenticated', False) if self.yt else 'No yt'}")
 
@@ -158,14 +174,15 @@ class HomeScreen(QWidget):
         else:
             logger.info("No yt client — loading genres view")
             self._clear_content()
-            self._load_genres_view()
+            await self._load_genres_view()
         
         self._loaded = True
 
     def force_reload(self):
         """Force a full reload of the home content (e.g. after login)."""
         self._loaded = False
-        import asyncio
+        if self._current_load_task and not self._current_load_task.done():
+            self._current_load_task.cancel()
         asyncio.ensure_future(self.load())
 
     async def _load_youtube_home(self):
@@ -183,6 +200,9 @@ class HomeScreen(QWidget):
             elif isinstance(home_data, dict) and home_data.get('contents'):
                 contents = home_data.get('contents', [])
 
+            # Check for cancellation
+            await asyncio.sleep(0)
+
             if contents:
                 self._clear_content()
                 from pyrolist.ui.design import tokens
@@ -195,11 +215,18 @@ class HomeScreen(QWidget):
                 from pyrolist.db.repository import SongRepository
                 liked_ids = await SongRepository().get_liked_video_ids()
                 
-                self._display_home_content(contents, liked_ids)
+                # Check for cancellation
+                await asyncio.sleep(0)
+
+                await self._display_home_content(contents, liked_ids)
                 self._fade_in_content()
             else:
                 # Fallback to charts
                 charts_data = await self.yt.get_charts()
+                
+                # Check for cancellation
+                await asyncio.sleep(0)
+
                 has_charts = False
                 if isinstance(charts_data, dict):
                     has_charts = bool(charts_data.get('items') or charts_data.get('tracks'))
@@ -214,22 +241,27 @@ class HomeScreen(QWidget):
                     title.setStyleSheet(f"color: {tokens.CURRENT.text_primary};")
                     self.content_layout.addWidget(title)
                     
-                    self._display_charts(charts_data)
+                    await self._display_charts(charts_data)
                     self._fade_in_content()
                 else:
                     self._clear_content()
-                    self._load_genres_view()
+                    await self._load_genres_view()
+        except asyncio.CancelledError:
+            raise
         except Exception as e:
             logger.error(f"Error loading YouTube home: {e}")
             self._clear_content()
-            self._load_genres_view()
+            await self._load_genres_view()
 
-    def _display_home_content(self, contents, liked_ids=None):
+    async def _display_home_content(self, contents, liked_ids=None):
         if liked_ids is None:
             liked_ids = set()
         for section in contents[:6]:
             if not isinstance(section, dict):
                 continue
+
+            # Cooperative yield before rendering each section
+            await asyncio.sleep(0)
 
             section_widget = QWidget()
             section_layout = QVBoxLayout(section_widget)
@@ -265,6 +297,10 @@ class HomeScreen(QWidget):
             for item in items[:8]:  # show up to 8 items per section
                 if not isinstance(item, dict):
                     continue
+
+                # Yield every 3 items to let Qt process UI events and handle cancellation
+                if card_index > 0 and card_index % 3 == 0:
+                    await asyncio.sleep(0)
 
                 title = item.get('title', 'Unknown')
                 if isinstance(title, dict):
@@ -330,7 +366,7 @@ class HomeScreen(QWidget):
         
         self.content_layout.addStretch()
 
-    def _display_charts(self, charts):
+    async def _display_charts(self, charts):
         """Display charts data - handles both list and dict formats."""
         # Handle dict format from get_charts() API
         if isinstance(charts, dict):
@@ -343,6 +379,9 @@ class HomeScreen(QWidget):
                 grid = QGridLayout()
                 grid.setSpacing(12)
                 for i, playlist in enumerate(chart_playlists[:4]):
+                    # Yield before creating each card
+                    if i > 0:
+                        await asyncio.sleep(0)
                     title = playlist.get("title", "Chart")
                     thumbnails = playlist.get("thumbnails", [])
                     thumbnail_url = thumbnails[-1].get("url", "") if thumbnails else ""
@@ -360,7 +399,9 @@ class HomeScreen(QWidget):
 
             tracks = charts.get("tracks", charts.get("items", []))
             if tracks:
-                for track in tracks[:10]:
+                for i, track in enumerate(tracks[:10]):
+                    if i > 0 and i % 3 == 0:
+                        await asyncio.sleep(0)
                     title = track.get("title", "Unknown")
                     artists = track.get("artists", [])
                     artist_names = ", ".join([a.get("name", "") for a in artists]) if isinstance(artists, list) else str(artists)
@@ -385,7 +426,9 @@ class HomeScreen(QWidget):
 
         # Handle list format (direct items list)
         elif isinstance(charts, list):
-            for item in charts[:10]:
+            for i, item in enumerate(charts[:10]):
+                if i > 0 and i % 3 == 0:
+                    await asyncio.sleep(0)
                 title = item.get('title', 'Unknown')
                 video_id = item.get('videoId', '')
                 artists = item.get('artists', [])
@@ -407,7 +450,7 @@ class HomeScreen(QWidget):
         self.content_layout.addStretch()
 
 
-    def _load_genres_view(self):
+    async def _load_genres_view(self):
         from pyrolist.ui.design import tokens
         title = QLabel("Explorar por género")
         title.setFont(AppFont.display(24))
@@ -419,6 +462,9 @@ class HomeScreen(QWidget):
         genres_layout.setSpacing(16)
 
         for i, (name, query) in enumerate(self._genres):
+            # Yield every 4 items to keep the GUI fluid
+            if i > 0 and i % 4 == 0:
+                await asyncio.sleep(0)
             card = self._create_genre_card(name, query)
             genres_layout.addWidget(card, i // 4, i % 4)
 

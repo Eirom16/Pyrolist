@@ -40,15 +40,14 @@ class SongCard(QWidget):
     async def _load_thumbnail(self):
         path = await _image_cache.download(self._thumbnail_url)
         if path:
-            pixmap = QPixmap(str(path))
-            if not pixmap.isNull():
-                pixmap = pixmap.scaled(
-                    48, 48,
-                    Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                    Qt.TransformationMode.SmoothTransformation,
-                )
-                self.thumbnail.setPixmap(pixmap)
-                self.thumbnail.setStyleSheet("background: transparent; border-radius: 8px;")
+            from pyrolist.utils.image_cache import load_scaled_async
+            def on_loaded(bytes_data):
+                if bytes_data:
+                    pixmap = QPixmap()
+                    if pixmap.loadFromData(bytes_data):
+                        self.thumbnail.setPixmap(pixmap)
+                        self.thumbnail.setStyleSheet("background: transparent; border-radius: 8px;")
+            load_scaled_async(path, 48, 48, self, on_loaded)
 
     def _build_ui(self):
         self.setObjectName("songCard")

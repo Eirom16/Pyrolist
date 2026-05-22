@@ -29,7 +29,16 @@ class NowPlayingScreen(QWidget):
         self.settings = settings
         self.on_back = on_back
         self._is_playing = False
+        
+        from pyrolist.ui.widgets.ambient_background import AmbientBackgroundWidget
+        self.ambient_bg = AmbientBackgroundWidget(self)
+        self.ambient_bg.lower()
+        
         self._build_ui()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.ambient_bg.setGeometry(self.rect())
 
     def _make_btn(self, icon_name, size=24, color="#FFFFFF", btn_size=40, primary=False):
         if primary:
@@ -565,6 +574,12 @@ class NowPlayingScreen(QWidget):
         if not path:
             path = await _image_cache.download(url)
         if path:
+            try:
+                with open(path, "rb") as f:
+                    self.ambient_bg.set_image(f.read())
+            except Exception:
+                pass
+            
             pixmap = QPixmap(str(path))
             if not pixmap.isNull():
                 size = 360

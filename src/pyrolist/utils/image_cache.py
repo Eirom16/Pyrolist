@@ -9,12 +9,22 @@ import io
 class ImageCache:
     MAX_ENTRIES = 200
     MAX_SIZE_MB = 50
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls, *args, **kwargs)
+            cls._instance._initialized = False
+        return cls._instance
 
     def __init__(self):
+        if getattr(self, "_initialized", False):
+            return
         self._cache_dir = AppDirs.artwork_cache
         self._cache_dir.mkdir(parents=True, exist_ok=True)
         self._memory_cache: dict[str, str] = {}
         self._lock = asyncio.Lock()
+        self._initialized = True
 
     def _is_valid_url(self, url: str) -> bool:
         if not isinstance(url, str):
@@ -100,3 +110,60 @@ class ImageCache:
         for path in self._cache_dir.glob("*.jpg"):
             path.unlink()
         self._memory_cache.clear()
+
+
+import concurrent.futures
+
+_executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+
+
+def load_scaled_async(path, width: int, height: int, context_qobject, callback) -> None:
+    """Loads and scales an image from path on a background thread pool, invoking callback(bytes_data) on the GUI thread of context_qobject."""
+    def load_fn():
+        from PIL import Image
+        import io
+        try:
+            with Image.open(str(path)) as img:
+                w, h = img.size
+                if w <= 0 or h <= 0:
+                    return None
+                
+                scale = max(width / w, height / h)
+                new_w = int(round(w * scale))
+                new_h = int(round(h * scale))
+                
+                try:
+                    resample_filter = Image.Resampling.LANCZOS
+                except AttributeError:
+                    try:
+                        resample_filter = Image.LANCZOS
+                    except AttributeError:
+                        resample_filter = Image.ANTIALIAS
+                
+                img_resized = img.resize((new_w, new_h), resample_filter)
+                
+                buf = io.BytesIO()
+                if img_resized.mode != 'RGB':
+                    img_resized.save(buf, format="PNG")
+                else:
+                    img_resized.save(buf, format="JPEG", quality=90)
+                return buf.getvalue()
+        except Exception as e:
+            from loguru import logger
+            logger.debug(f"Failed to load/scale image asynchronously: {e}")
+            return None
+
+    def done_callback(future):
+        try:
+            bytes_data = future.result()
+        except Exception:
+            bytes_data = None
+        
+        import shiboken6
+        if shiboken6.isValid(context_qobject):
+            from PySide6.QtCore import QTimer
+            # Schedule the callback to execute on the main thread (thread of context_qobject)
+            QTimer.singleShot(0, context_qobject, lambda: callback(bytes_data))
+
+    future = _executor.submit(load_fn)
+    future.add_done_callback(done_callback)

@@ -28,7 +28,7 @@ class FadeStackedWidget(QStackedWidget):
         fade_out.setDuration(self.DURATION // 2)
         fade_out.setStartValue(1.0)
         fade_out.setEndValue(0.0)
-        fade_out.setEasingCurve(QEasingCurve.Type.InCubic)
+        fade_out.setEasingCurve(QEasingCurve.Type.InExpo)
 
         def switch() -> None:
             current.setGraphicsEffect(None)
@@ -39,7 +39,7 @@ class FadeStackedWidget(QStackedWidget):
             fade_in.setDuration(self.DURATION // 2)
             fade_in.setStartValue(0.0)
             fade_in.setEndValue(1.0)
-            fade_in.setEasingCurve(QEasingCurve.Type.OutCubic)
+            fade_in.setEasingCurve(QEasingCurve.Type.OutExpo)
 
             def done() -> None:
                 next_widget.setGraphicsEffect(None)

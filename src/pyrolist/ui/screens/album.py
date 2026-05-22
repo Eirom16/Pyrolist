@@ -55,6 +55,7 @@ class AlbumScreen(QWidget):
         self._browse_id = None
         self._album_data = None
         self._thumbnail_url = ""
+        self._current_load_task = None
         self._build_ui()
 
         # Wire up DownloadManager signals for real-time progress update
@@ -104,6 +105,16 @@ class AlbumScreen(QWidget):
         if not browse_id:
             return
             
+        if self._current_load_task and not self._current_load_task.done():
+            self._current_load_task.cancel()
+            
+        self._current_load_task = asyncio.create_task(self._load_async(browse_id))
+        try:
+            await self._current_load_task
+        except asyncio.CancelledError:
+            raise
+
+    async def _load_async(self, browse_id: str):
         self._browse_id = browse_id
         self._clear_content()
         
@@ -130,13 +141,15 @@ class AlbumScreen(QWidget):
                     data['is_partially_downloaded'] = True
                     data['downloaded_count'] = downloaded_count
 
-            self._display_album(data)
+            await self._display_album(data)
+        except asyncio.CancelledError:
+            raise
         except Exception as e:
             logger.error(f"Error loading album: {e}")
             self._clear_content()
             self.content_layout.addWidget(QLabel("Error cargando álbum"))
 
-    def _display_album(self, data: dict):
+    async def _display_album(self, data: dict):
         self._clear_content()
         
         if not data:
@@ -295,6 +308,8 @@ class AlbumScreen(QWidget):
         # Tracks
         tracks = data.get('tracks', [])
         for i, track in enumerate(tracks):
+            if i > 0 and i % 5 == 0:
+                await asyncio.sleep(0)
             title = track.get('title', 'Unknown')
             video_id = track.get('videoId', '')
             

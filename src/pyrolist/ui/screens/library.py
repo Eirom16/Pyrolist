@@ -31,6 +31,7 @@ class LibraryScreen(QWidget):
         self.on_play_song = on_play_song
         self.on_navigate = on_navigate
         self._current_tab = "songs"
+        self._current_tab_task = None
         self._build_ui()
 
     def _connect_card_signals(self, card):
@@ -141,10 +142,20 @@ class LibraryScreen(QWidget):
         else:
             self.fab.hide()
 
-        asyncio.ensure_future(self._load_tab(key))
+        if self._current_tab_task and not self._current_tab_task.done():
+            self._current_tab_task.cancel()
+        self._current_tab_task = asyncio.create_task(self._load_tab(key))
 
     async def load(self):
-        await self._load_tab(self._current_tab)
+        if self._current_tab_task and not self._current_tab_task.done():
+            self._current_tab_task.cancel()
+        self._current_tab_task = asyncio.create_task(self._load_tab(self._current_tab))
+        try:
+            await self._current_tab_task
+        except asyncio.CancelledError:
+            if self._current_tab_task and not self._current_tab_task.done():
+                self._current_tab_task.cancel()
+            raise
 
     async def _load_tab(self, tab):
         # 1. Clear content and show the skeleton loader
@@ -192,7 +203,9 @@ class LibraryScreen(QWidget):
                     header.setObjectName("libraryHeader")
                     self.content_layout.addWidget(header)
                     
-                    for track in tracks:
+                    for i, track in enumerate(tracks):
+                        if i > 0 and i % 5 == 0:
+                            await asyncio.sleep(0)
                         title = track.get('title', 'Unknown')
                         artists = track.get('artists', [])
                         artist_names = ", ".join([a.get('name', '') for a in artists]) if isinstance(artists, list) and artists else 'Unknown'
@@ -219,7 +232,9 @@ class LibraryScreen(QWidget):
                     header.setObjectName("libraryHeader")
                     self.content_layout.addWidget(header)
 
-                    for song in db_songs:
+                    for i, song in enumerate(db_songs):
+                        if i > 0 and i % 5 == 0:
+                            await asyncio.sleep(0)
                         card = SongCard(
                             title=song.title,
                             artist=song.artist,
@@ -258,6 +273,8 @@ class LibraryScreen(QWidget):
                         grid.setColumnMinimumWidth(col, 178)
                     
                     for i, album in enumerate(albums):
+                        if i > 0 and i % 5 == 0:
+                            await asyncio.sleep(0)
                         title = album.get("title", "Unknown")
                         artists = album.get("artists", [])
                         artist_names = ", ".join([a.get('name', '') for a in artists]) if isinstance(artists, list) else str(artists)
@@ -297,6 +314,8 @@ class LibraryScreen(QWidget):
                         grid.setColumnMinimumWidth(col, 178)
 
                     for i, artist in enumerate(artists):
+                        if i > 0 and i % 5 == 0:
+                            await asyncio.sleep(0)
                         name = artist.get("artist", "Unknown")
                         thumbnails = artist.get('thumbnails', [])
                         thumbnail_url = thumbnails[-1].get('url', '') if thumbnails else ''
@@ -332,6 +351,8 @@ class LibraryScreen(QWidget):
                         grid.setColumnMinimumWidth(col, 178)
 
                     for i, playlist in enumerate(playlists):
+                        if i > 0 and i % 5 == 0:
+                            await asyncio.sleep(0)
                         title = playlist.get("title", "Unknown")
                         count = playlist.get("count", "")
                         desc = f"{count} canciones" if count else ""

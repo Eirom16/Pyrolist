@@ -25,6 +25,7 @@ class ArtistScreen(QWidget):
         self.on_navigate = on_navigate
         self.on_back = on_back
         self._channel_id = None
+        self._current_load_task = None
         self._build_ui()
 
     def _build_ui(self):
@@ -64,6 +65,16 @@ class ArtistScreen(QWidget):
         if not channel_id:
             return
             
+        if self._current_load_task and not self._current_load_task.done():
+            self._current_load_task.cancel()
+            
+        self._current_load_task = asyncio.create_task(self._load_async(channel_id))
+        try:
+            await self._current_load_task
+        except asyncio.CancelledError:
+            raise
+
+    async def _load_async(self, channel_id: str):
         self._channel_id = channel_id
         self._clear_content()
         
@@ -73,13 +84,15 @@ class ArtistScreen(QWidget):
         
         try:
             data = await self.yt.get_artist(channel_id)
-            self._display_artist(data)
+            await self._display_artist(data)
+        except asyncio.CancelledError:
+            raise
         except Exception as e:
             logger.error(f"Error loading artist: {e}")
             self._clear_content()
             self.content_layout.addWidget(QLabel("Error cargando artista"))
 
-    def _display_artist(self, data: dict):
+    async def _display_artist(self, data: dict):
         self._clear_content()
         
         if not data:
@@ -170,7 +183,9 @@ class ArtistScreen(QWidget):
             songs_header.setObjectName("artistSectionHeader")
             self.content_layout.addWidget(songs_header)
             
-            for track in songs[:5]:
+            for i, track in enumerate(songs[:5]):
+                if i > 0 and i % 5 == 0:
+                    await asyncio.sleep(0)
                 title = track.get('title', 'Unknown')
                 video_id = track.get('videoId', '')
                 
@@ -217,6 +232,8 @@ class ArtistScreen(QWidget):
             grid.setSpacing(16)
             
             for i, album in enumerate(albums):
+                if i > 0 and i % 4 == 0:
+                    await asyncio.sleep(0)
                 title = album.get("title", "Unknown")
                 year = album.get("year", "")
                 browse_id = album.get("browseId", "")
