@@ -42,6 +42,7 @@ class GlassPanel(QWidget):
     panel_opacity = Property(float, _get_opacity, _set_opacity)
 
     def popup_at(self, pos: QPoint) -> None:
+        self.adjustSize()
         self.move(pos.x(), pos.y() + 10)
         self.show()
         self._opacity_anim.stop()
@@ -76,7 +77,7 @@ class GlassPanel(QWidget):
 
     def eventFilter(self, watched, event) -> bool:
         from PySide6.QtCore import QEvent
-        from PySide6.QtWidgets import QWidget
+        from PySide6.QtWidgets import QWidget, QPushButton
         if event.type() == QEvent.Type.MouseButtonPress:
             pos = event.globalPosition().toPoint() if hasattr(event, "globalPosition") else event.globalPos()
             local_pos = self.mapFromGlobal(pos)
@@ -85,7 +86,9 @@ class GlassPanel(QWidget):
                 if trigger and isinstance(trigger, QWidget):
                     trigger_local = trigger.mapFromGlobal(pos)
                     if trigger.rect().contains(trigger_local):
-                        self.hide()
+                        self.dismiss()
+                        if isinstance(trigger, QPushButton):
+                            return True
                         return False
                 self.dismiss()
         return super().eventFilter(watched, event)
