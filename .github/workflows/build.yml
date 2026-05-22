@@ -236,6 +236,7 @@ jobs:
 
       - name: Construir RPM para openSUSE
         run: |
+          echo "%_topdir $HOME/rpmbuild" > ~/.rpmmacros
           VERSION="${{ github.ref_name }}"
           VERSION="${VERSION#v}"
           mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}

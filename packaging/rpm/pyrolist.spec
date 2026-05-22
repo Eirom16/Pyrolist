@@ -1,3 +1,5 @@
+%define debug_package %{nil}
+
 %global appname pyrolist
 %global appver  VERSION_PLACEHOLDER
 

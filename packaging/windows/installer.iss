@@ -1,6 +1,7 @@
 [Setup]
 AppName=Pyrolist
 AppVersion=VERSION_PLACEHOLDER
+SourceDir=..\..
 AppPublisher=Eirom16
 AppPublisherURL=https://github.com/Eirom16/pyrolist
 AppSupportURL=https://github.com/Eirom16/pyrolist/issues
