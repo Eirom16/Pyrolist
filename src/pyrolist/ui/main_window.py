@@ -418,8 +418,11 @@ class MainWindow(QMainWindow):
                 self._run_async(self._load_screen(active_route))
 
     def _toggle_shuffle_from_mpris(self, enable: bool) -> None:
-        if self.queue.shuffle_enabled != enable:
+        if enable != self.queue.shuffle_enabled:
             self.queue.toggle_shuffle()
+            self.now_playing_screen.update_shuffle_repeat_state()
+            if hasattr(self.now_playing_screen, "queue_tab"):
+                self.now_playing_screen.queue_tab.set_queue(self.queue.items, self._liked_video_ids)
             if hasattr(self, 'now_playing_screen'):
                 self.now_playing_screen.update_shuffle_repeat_state()
             if self.mpris:

@@ -105,13 +105,16 @@ class GlassPanel(QWidget):
         if event.type() == QEvent.Type.MouseButtonPress:
             if getattr(self, "_just_opened", False):
                 return False
-            pos = event.globalPosition().toPoint() if hasattr(event, "globalPosition") else event.globalPos()
-            local_pos = self.mapFromGlobal(pos)
-            if not self.rect().contains(local_pos):
+            
+            is_inside = False
+            if isinstance(watched, QWidget):
+                if watched == self or self.isAncestorOf(watched):
+                    is_inside = True
+            
+            if not is_inside:
                 trigger = getattr(self, "_trigger_widget", None)
                 if trigger and isinstance(trigger, QWidget):
-                    trigger_local = trigger.mapFromGlobal(pos)
-                    if trigger.rect().contains(trigger_local):
+                    if watched == trigger or (isinstance(watched, QWidget) and trigger.isAncestorOf(watched)):
                         self.dismiss()
                         if isinstance(trigger, QAbstractButton):
                             return True

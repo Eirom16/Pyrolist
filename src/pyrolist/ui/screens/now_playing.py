@@ -364,41 +364,49 @@ class NowPlayingScreen(QWidget):
 
     def _on_shuffle(self):
         from pyrolist.ui.design import tokens
-        from pyrolist.audio.queue import RepeatMode
         is_shuffled = self.queue.toggle_shuffle()
-        color = tokens.CURRENT.accent if is_shuffled else tokens.CURRENT.text_disabled
+        # Always use high-contrast colors since the ambient background is saturated
+        color = tokens.CURRENT.accent if is_shuffled else "rgba(255,255,255,0.5)"
         self.btn_shuffle.setStyleSheet(f"QPushButton {{ color: {color}; border: none; background: transparent; }}")
+        if hasattr(self, "queue_tab"):
+            self.queue_tab.set_queue(self.queue.items, self._liked_video_ids if hasattr(self, "_liked_video_ids") else set())
 
     def _on_repeat(self):
         from pyrolist.ui.design import tokens
         from pyrolist.audio.queue import RepeatMode
+        from pyrolist.ui.design.icons import Icon
         mode = self.queue.toggle_repeat()
         if mode == RepeatMode.OFF:
-            self.btn_repeat.setText(Icon.get("repeat"))
-            self.btn_repeat.setStyleSheet(f"QPushButton {{ color: {tokens.CURRENT.text_disabled}; border: none; background: transparent; }}")
+            self.btn_repeat.setIcon(Icon.icon("repeat", "rgba(255,255,255,0.5)", 24))
+            self.btn_repeat.setText("")
+            self.btn_repeat.setStyleSheet("QPushButton { border: none; background: transparent; }")
         elif mode == RepeatMode.ALL:
-            self.btn_repeat.setText(Icon.get("repeat"))
-            self.btn_repeat.setStyleSheet(f"QPushButton {{ color: {tokens.CURRENT.accent}; border: none; background: transparent; }}")
+            self.btn_repeat.setIcon(Icon.icon("repeat", tokens.CURRENT.accent, 24))
+            self.btn_repeat.setText("")
+            self.btn_repeat.setStyleSheet("QPushButton { border: none; background: transparent; }")
         elif mode == RepeatMode.ONE:
-            self.btn_repeat.setText(Icon.get("repeat_one"))
-            self.btn_repeat.setStyleSheet(f"QPushButton {{ color: {tokens.CURRENT.accent}; border: none; background: transparent; }}")
+            self.btn_repeat.setIcon(Icon.icon("repeat_one", tokens.CURRENT.accent, 24))
+            self.btn_repeat.setText("")
+            self.btn_repeat.setStyleSheet("QPushButton { border: none; background: transparent; }")
 
     def update_shuffle_repeat_state(self):
         """Sync button visuals with current queue state."""
         from pyrolist.ui.design import tokens
         from pyrolist.audio.queue import RepeatMode
-        color = tokens.CURRENT.accent if self.queue.shuffle_enabled else tokens.CURRENT.text_disabled
+        from pyrolist.ui.design.icons import Icon
+        color = tokens.CURRENT.accent if self.queue.shuffle_enabled else "rgba(255,255,255,0.5)"
         self.btn_shuffle.setStyleSheet(f"QPushButton {{ color: {color}; border: none; background: transparent; }}")
         mode = self.queue.repeat_mode
         if mode == RepeatMode.OFF:
-            self.btn_repeat.setText(Icon.get("repeat"))
-            self.btn_repeat.setStyleSheet(f"QPushButton {{ color: {tokens.CURRENT.text_disabled}; border: none; background: transparent; }}")
+            self.btn_repeat.setIcon(Icon.icon("repeat", "rgba(255,255,255,0.5)", 24))
+            self.btn_repeat.setText("")
         elif mode == RepeatMode.ALL:
-            self.btn_repeat.setText(Icon.get("repeat"))
-            self.btn_repeat.setStyleSheet(f"QPushButton {{ color: {tokens.CURRENT.accent}; border: none; background: transparent; }}")
+            self.btn_repeat.setIcon(Icon.icon("repeat", tokens.CURRENT.accent, 24))
+            self.btn_repeat.setText("")
         elif mode == RepeatMode.ONE:
-            self.btn_repeat.setText(Icon.get("repeat_one"))
-            self.btn_repeat.setStyleSheet(f"QPushButton {{ color: {tokens.CURRENT.accent}; border: none; background: transparent; }}")
+            self.btn_repeat.setIcon(Icon.icon("repeat_one", tokens.CURRENT.accent, 24))
+            self.btn_repeat.setText("")
+        self.btn_repeat.setStyleSheet("QPushButton { border: none; background: transparent; }")
 
     def _find_main_window(self):
         w = self.parent()
@@ -771,21 +779,44 @@ class NowPlayingScreen(QWidget):
 
     def _update_styles(self) -> None:
         from pyrolist.ui.design import tokens
+        from pyrolist.ui.design.icons import Icon
         from PySide6.QtGui import QColor, QPixmap
         
         # 1. Update collapse button
-        self.btn_collapse.setIcon(Icon.icon("expand_more", tokens.CURRENT.text_secondary, 18))
+        self.btn_collapse.setIcon(Icon.icon("expand_more", "#FFFFFF", 24))
+        self.btn_collapse.setText("")
         self.btn_collapse.setStyleSheet(f"""
             QPushButton {{
                 background: transparent;
-                color: {tokens.CURRENT.text_secondary};
                 border: none;
                 padding: 6px 16px;
                 border-radius: 8px;
             }}
             QPushButton:hover {{
-                background: {tokens.CURRENT.bg_elevated};
-                color: {tokens.CURRENT.text_primary};
+                background: rgba(255, 255, 255, 0.1);
+            }}
+        """)
+        
+        # Force high-contrast colors since ambient background is active and saturated
+        self.title.setStyleSheet("color: #FFFFFF;")
+        self.artist.setStyleSheet("color: rgba(255,255,255,0.7);")
+        self.time_current.setStyleSheet("color: rgba(255,255,255,0.7);")
+        self.time_total.setStyleSheet("color: rgba(255,255,255,0.7);")
+        
+        self.tabs.setStyleSheet(f"""
+            QTabWidget::pane {{ border: none; }}
+            QTabBar::tab {{
+                color: rgba(255,255,255,0.5);
+                background: transparent;
+                padding: 10px 16px;
+                border: none;
+                font-family: Inter;
+                font-size: 13px;
+                font-weight: bold;
+            }}
+            QTabBar::tab:selected {{
+                color: {tokens.CURRENT.accent};
+                border-bottom: 2px solid {tokens.CURRENT.accent};
             }}
         """)
         
@@ -796,8 +827,8 @@ class NowPlayingScreen(QWidget):
         self.update_lyrics_style()
         
         # 4. If artwork is a placeholder, refresh its background/foreground color
-        if not self.artwork.pixmap() or self.artwork.pixmap().isNull():
-            self.artwork.setStyleSheet(f"background: {tokens.CURRENT.bg_high}; color: {tokens.CURRENT.text_disabled}; border-radius: 24px;")
+        if not hasattr(self, "artwork") or not self.artwork.pixmap() or self.artwork.pixmap().isNull():
+            self.artwork.setStyleSheet(f"background: rgba(0,0,0,0.4); color: #FFFFFF; border-radius: 24px;")
         else:
             self.artwork.setStyleSheet("background: transparent;")
 
@@ -805,4 +836,3 @@ class NowPlayingScreen(QWidget):
         video_id = self.player.status.current_video_id
         if video_id:
             self.set_liked_state(self.btn_like._is_active)
-

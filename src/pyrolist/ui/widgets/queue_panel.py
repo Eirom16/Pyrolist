@@ -52,6 +52,7 @@ class QueuePanel(QWidget):
             duration_str = format_duration_short(item.duration_ms) if getattr(item, 'duration_ms', 0) else ""
             video_id = getattr(item, 'video_id', '')
             
+            on_play_cb = partial(self.on_play_item, i) if self.on_play_item else None
             card = SongCard(
                 title=item.title,
                 artist=item.artist,
@@ -59,10 +60,8 @@ class QueuePanel(QWidget):
                 thumbnail_url=getattr(item, 'thumbnail_url', ''),
                 video_id=video_id,
                 is_liked=video_id in liked_ids,
+                on_play=on_play_cb
             )
-            
-            if self.on_play_item:
-                card.clicked.connect(partial(self.on_play_item, i))
             
             # Connect like signal
             card.like_requested.connect(lambda vid, btn: self.like_requested.emit(vid, btn))
@@ -83,7 +82,7 @@ class QueuePanel(QWidget):
 
     def changeEvent(self, event):
         from PySide6.QtCore import QEvent
-        if event.type() == QEvent.Type.PaletteChange:
+        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange, QEvent.Type.ApplicationPaletteChange):
             if not getattr(self, '_in_style_change', False):
                 self._in_style_change = True
                 try:

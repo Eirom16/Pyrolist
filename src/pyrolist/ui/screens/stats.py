@@ -428,10 +428,15 @@ class StatsScreen(QWidget):
         self.time_card._apply_theme_style()
         self.plays_card._apply_theme_style()
         self.artists_card._apply_theme_style()
+        
+        # Force styles to refresh and chart to repaint
+        self.style().unpolish(self)
+        self.style().polish(self)
+        self.bar_chart.update()
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
-        if event.type() == QEvent.Type.PaletteChange:
+        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange, QEvent.Type.ApplicationPaletteChange):
             if not getattr(self, '_in_style_change', False):
                 self._in_style_change = True
                 try:
