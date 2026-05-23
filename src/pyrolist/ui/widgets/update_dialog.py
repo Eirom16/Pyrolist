@@ -188,9 +188,7 @@ class UpdateDialog(QDialog):
         btn_row.setSpacing(10)
 
         self._github_btn = RippleButton("Ver en GitHub", variant="ghost")
-        self._github_btn.setText(
-            Icon.get("open_in_new") + "  Ver en GitHub"
-        )
+        self._github_btn.setIcon(Icon.icon("open_in_new", "#6B6B9B", 20))
         self._github_btn.setFont(AppFont.body(13))
         self._github_btn.clicked.connect(
             lambda: webbrowser.open(self.release.html_url)
@@ -200,11 +198,9 @@ class UpdateDialog(QDialog):
         self._postpone_btn.clicked.connect(self.reject)
 
         self._update_btn = RippleButton(
-            f"  Actualizar a {self.release.version}", variant="primary"
+            f"Actualizar a {self.release.version}", variant="primary"
         )
-        self._update_btn.setText(
-            Icon.get("download") + f"  Actualizar a {self.release.version}"
-        )
+        self._update_btn.setIcon(Icon.icon("download", "#F1F0FF", 20))
         self._update_btn.setFont(AppFont.body(14))
         self._update_btn.setMinimumHeight(44)
         self._update_btn.clicked.connect(self._on_update_clicked)
@@ -275,9 +271,8 @@ class UpdateDialog(QDialog):
             self._progress_label.setText(
                 "Instalación iniciada. Cerrando Pyrolist en breve para aplicar los cambios..."
             )
-            self._update_btn.setText(
-                Icon.get("check_circle") + "  Cerrando..."
-            )
+            self._update_btn.setText("Cerrando...")
+            self._update_btn.setIcon(Icon.icon("check_circle", "#F1F0FF", 20))
             self.update_installed.emit()
             QTimer.singleShot(1500, QApplication.quit)
         else:

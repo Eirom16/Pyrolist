@@ -69,8 +69,8 @@ class AboutScreen(QWidget):
         current_ver_lbl.setStyleSheet("color: #6B6B9B;")
         layout.addWidget(current_ver_lbl)
 
-        self._check_btn = RippleButton("  Buscar actualizaciones", variant="secondary")
-        self._check_btn.setText(Icon.get("sync") + "  Buscar actualizaciones")
+        self._check_btn = RippleButton("Buscar actualizaciones", variant="secondary")
+        self._check_btn.setIcon(Icon.icon("sync", "#A78BFA", 20))
         self._check_btn.setFont(AppFont.body(14))
         self._check_btn.setMinimumHeight(44)
         self._check_btn.clicked.connect(lambda: asyncio.ensure_future(self._manual_check()))
@@ -91,12 +91,12 @@ class AboutScreen(QWidget):
         from pyrolist.ui.design.icons import Icon
 
         self._check_btn.setEnabled(False)
-        self._check_btn.setText(Icon.get("sync") + "  Comprobando...")
+        self._check_btn.setText("Comprobando...")
 
         release = await check_for_updates()
 
         self._check_btn.setEnabled(True)
-        self._check_btn.setText(Icon.get("sync") + "  Buscar actualizaciones")
+        self._check_btn.setText("Buscar actualizaciones")
 
         if release:
             dlg = UpdateDialog(release, parent=self.window())
