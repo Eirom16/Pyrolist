@@ -168,7 +168,6 @@ class HomeScreen(QWidget):
             self.downloaded_playlist_ids = set()
 
         # Check for cancellation before calling API/rendering
-        await asyncio.sleep(0)
 
         from loguru import logger
         logger.info(f"Home load: yt={self.yt}, is_auth={getattr(self.yt, 'is_authenticated', False) if self.yt else 'No yt'}")
@@ -207,7 +206,6 @@ class HomeScreen(QWidget):
                 contents = home_data.get('contents', [])
 
             # Check for cancellation
-            await asyncio.sleep(0)
 
             if contents:
                 self._clear_content()
@@ -222,7 +220,6 @@ class HomeScreen(QWidget):
                 liked_ids = await SongRepository().get_liked_video_ids()
                 
                 # Check for cancellation
-                await asyncio.sleep(0)
 
                 await self._display_home_content(contents, liked_ids)
                 self._fade_in_content()
@@ -231,7 +228,6 @@ class HomeScreen(QWidget):
                 charts_data = await self.yt.get_charts()
                 
                 # Check for cancellation
-                await asyncio.sleep(0)
 
                 has_charts = False
                 if isinstance(charts_data, dict):
@@ -267,7 +263,6 @@ class HomeScreen(QWidget):
                 continue
 
             # Cooperative yield before rendering each section
-            await asyncio.sleep(0)
 
             section_widget = QWidget()
             section_layout = QVBoxLayout(section_widget)
@@ -303,10 +298,6 @@ class HomeScreen(QWidget):
             for item in items[:8]:  # show up to 8 items per section
                 if not isinstance(item, dict):
                     continue
-
-                # Yield every 3 items to let Qt process UI events and handle cancellation
-                if card_index > 0 and card_index % 3 == 0:
-                    await asyncio.sleep(0)
 
                 title = item.get('title', 'Unknown')
                 if isinstance(title, dict):
@@ -385,9 +376,6 @@ class HomeScreen(QWidget):
                 grid = QGridLayout()
                 grid.setSpacing(12)
                 for i, playlist in enumerate(chart_playlists[:4]):
-                    # Yield before creating each card
-                    if i > 0:
-                        await asyncio.sleep(0)
                     title = playlist.get("title", "Chart")
                     thumbnails = playlist.get("thumbnails", [])
                     thumbnail_url = thumbnails[-1].get("url", "") if thumbnails else ""
@@ -406,8 +394,6 @@ class HomeScreen(QWidget):
             tracks = charts.get("tracks", charts.get("items", []))
             if tracks:
                 for i, track in enumerate(tracks[:10]):
-                    if i > 0 and i % 3 == 0:
-                        await asyncio.sleep(0)
                     title = track.get("title", "Unknown")
                     artists = track.get("artists", [])
                     artist_names = ", ".join([a.get("name", "") for a in artists]) if isinstance(artists, list) else str(artists)
@@ -433,8 +419,6 @@ class HomeScreen(QWidget):
         # Handle list format (direct items list)
         elif isinstance(charts, list):
             for i, item in enumerate(charts[:10]):
-                if i > 0 and i % 3 == 0:
-                    await asyncio.sleep(0)
                 title = item.get('title', 'Unknown')
                 video_id = item.get('videoId', '')
                 artists = item.get('artists', [])
@@ -468,9 +452,6 @@ class HomeScreen(QWidget):
         genres_layout.setSpacing(16)
 
         for i, (name, query) in enumerate(self._genres):
-            # Yield every 4 items to keep the GUI fluid
-            if i > 0 and i % 4 == 0:
-                await asyncio.sleep(0)
             card = self._create_genre_card(name, query)
             genres_layout.addWidget(card, i // 4, i % 4)
 

@@ -361,8 +361,6 @@ class PlaylistScreen(QWidget):
         # Tracks
         tracks = data.get('tracks', [])
         for i, track in enumerate(tracks):
-            if i > 0 and i % 5 == 0:
-                await asyncio.sleep(0)
             title = track.get('title', 'Unknown')
             video_id = track.get('videoId', '')
             

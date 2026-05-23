@@ -190,8 +190,6 @@ class ArtistScreen(QWidget):
             self.content_layout.addWidget(songs_header)
             
             for i, track in enumerate(songs[:5]):
-                if i > 0 and i % 5 == 0:
-                    await asyncio.sleep(0)
                 title = track.get('title', 'Unknown')
                 video_id = track.get('videoId', '')
                 
@@ -238,8 +236,6 @@ class ArtistScreen(QWidget):
             grid.setSpacing(16)
             
             for i, album in enumerate(albums):
-                if i > 0 and i % 4 == 0:
-                    await asyncio.sleep(0)
                 title = album.get("title", "Unknown")
                 year = album.get("year", "")
                 browse_id = album.get("browseId", "")

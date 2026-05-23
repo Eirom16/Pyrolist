@@ -724,7 +724,7 @@ class DownloadsScreen(QWidget):
         self._current_load_task = current_task
         
         try:
-            while self.content_layout.count() > 1:
+            while self.content_layout.count() > 0:
                 item = self.content_layout.takeAt(0)
                 if item.widget():
                     item.widget().deleteLater()
@@ -767,8 +767,6 @@ class DownloadsScreen(QWidget):
                     
                     columns = 4
                     for index, (pid, info) in enumerate(playlist_groups.items()):
-                        if index > 0 and index % 5 == 0:
-                            await asyncio.sleep(0)
                         row = index // columns
                         col = index % columns
                         
@@ -804,8 +802,6 @@ class DownloadsScreen(QWidget):
                     self.content_layout.insertWidget(0, msg)
                 
                 for i, d in enumerate(reversed(downloads)):
-                    if i > 0 and i % 5 == 0:
-                        await asyncio.sleep(0)
                     self._add_item_to_ui(d.video_id, d.title, d.artist, d.thumbnail_url, d.parent_playlist_title)
                     if d.video_id in self._items:
                         self._items[d.video_id].set_completed(d.file_path)
@@ -813,8 +809,6 @@ class DownloadsScreen(QWidget):
                 # Add active downloads from manager
                 mgr = DownloadManager.get_instance()
                 for i, (vid, task) in enumerate(mgr._tasks.items()):
-                    if i > 0 and i % 5 == 0:
-                        await asyncio.sleep(0)
                     if vid not in self._items:
                         self._add_item_to_ui(task.video_id, task.title, task.artist, task.thumbnail_url, task.parent_playlist_title)
                         if task.status == "downloading":
