@@ -192,7 +192,7 @@ class SongCard(QWidget):
                 border-radius: 18px;
             }}
             QPushButton:hover {{
-                background-color: {accent}26;
+                background-color: rgba({r}, {g}, {b}, 0.15);
                 color: {accent};
             }}
         """)
@@ -205,7 +205,7 @@ class SongCard(QWidget):
                 border-radius: 16px;
             }}
             QToolButton:hover {{
-                background: {accent}1E;
+                background-color: rgba({r}, {g}, {b}, 0.15);
                 color: {accent};
             }}
             QToolButton::menu-indicator {{

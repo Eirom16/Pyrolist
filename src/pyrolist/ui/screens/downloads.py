@@ -424,8 +424,12 @@ class DownloadPlaylistItemWidget(QFrame):
             }}
         """)
         
+        from PySide6.QtGui import QColor
+        c = QColor(accent)
+        r, g, b = c.red(), c.green(), c.blue()
+        
         if not self.thumb.pixmap():
-            self.thumb.setStyleSheet(f"background-color: {bg_high}; color: {accent}; border-radius: 8px;")
+            self.thumb.setStyleSheet(f"background: {bg_high}; border-radius: 8px;")
         else:
             self.thumb.setStyleSheet("background: transparent; border-radius: 8px;")
             
@@ -434,14 +438,13 @@ class DownloadPlaylistItemWidget(QFrame):
         
         self.play_btn.setStyleSheet(f"""
             QPushButton {{
-                background: {accent}1F; 
+                background: rgba({r}, {g}, {b}, 0.12); 
                 color: {accent}; 
                 border: none;
                 border-radius: 20px;
             }}
             QPushButton:hover {{
-                background: {accent};
-                color: {bg_surface};
+                background: rgba({r}, {g}, {b}, 0.25);
             }}
         """)
         
@@ -860,6 +863,9 @@ class DownloadsScreen(QWidget):
         err_c = QColor(tokens.CURRENT.error)
         err_r, err_g, err_b = err_c.red(), err_c.green(), err_c.blue()
         
+        acc_c = QColor(accent)
+        acc_r, acc_g, acc_b = acc_c.red(), acc_c.green(), acc_c.blue()
+        
         btn_style = f"""
             QPushButton {{
                 background-color: {bg_surface};
@@ -870,7 +876,7 @@ class DownloadsScreen(QWidget):
             }}
             QPushButton:hover {{
                 background-color: {bg_elevated};
-                border-color: {accent}55;
+                border-color: rgba({acc_r}, {acc_g}, {acc_b}, 0.33);
             }}
         """
         
@@ -878,13 +884,13 @@ class DownloadsScreen(QWidget):
             QPushButton {{
                 background-color: {accent_dim};
                 color: {accent};
-                border: 1px solid {accent}33;
+                border: 1px solid rgba({acc_r}, {acc_g}, {acc_b}, 0.20);
                 border-radius: 17px;
                 padding: 0 16px;
                 font-weight: bold;
             }}
             QPushButton:hover {{
-                background-color: {accent}22;
+                background-color: rgba({acc_r}, {acc_g}, {acc_b}, 0.13);
             }}
         """
         

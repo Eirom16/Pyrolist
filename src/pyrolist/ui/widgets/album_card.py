@@ -85,6 +85,10 @@ class AlbumCard(QWidget):
         bg_high = tokens.CURRENT.bg_high
         border_color = tokens.CURRENT.border
         
+        from PySide6.QtGui import QColor
+        acc_c = QColor(accent)
+        acc_r, acc_g, acc_b = acc_c.red(), acc_c.green(), acc_c.blue()
+
         self.setStyleSheet(f"""
             #albumCard {{
                 background-color: {bg_surface};
@@ -93,7 +97,7 @@ class AlbumCard(QWidget):
             }}
             #albumCard:hover {{
                 background-color: {bg_elevated};
-                border-color: {accent}55;
+                border-color: rgba({acc_r}, {acc_g}, {acc_b}, 0.33);
             }}
         """)
         

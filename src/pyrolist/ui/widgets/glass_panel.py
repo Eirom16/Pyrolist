@@ -42,20 +42,40 @@ class GlassPanel(QWidget):
     panel_opacity = Property(float, _get_opacity, _set_opacity)
 
     def popup_at(self, pos: QPoint) -> None:
-        from PySide6.QtCore import QTimer
+        from PySide6.QtCore import QTimer, QPoint
+        from PySide6.QtWidgets import QApplication
+        
         self._just_opened = True
         QTimer.singleShot(100, lambda: setattr(self, "_just_opened", False))
 
         self.adjustSize()
-        self.move(pos.x(), pos.y() + 10)
+        target_x = pos.x()
+        target_y = pos.y() + 10
+        
+        # Prevent cutoff on the right edge of the screen or parent window
+        if self.parentWidget():
+            parent_global_top_left = self.parentWidget().mapToGlobal(QPoint(0, 0))
+            parent_global_right = parent_global_top_left.x() + self.parentWidget().width()
+            
+            if target_x + self.width() > parent_global_right:
+                target_x = parent_global_right - self.width() - 8
+        else:
+            screen = QApplication.screenAt(pos) or QApplication.primaryScreen()
+            if screen:
+                if target_x + self.width() > screen.geometry().right():
+                    target_x = pos.x() - self.width() + 32
+
+        self.move(target_x, target_y)
         self.show()
+        
         self._opacity_anim.stop()
         self._opacity_anim.setStartValue(0.0)
         self._opacity_anim.setEndValue(1.0)
         self._opacity_anim.start()
+        
         self._pos_anim.stop()
-        self._pos_anim.setStartValue(QPoint(pos.x(), pos.y() + 10))
-        self._pos_anim.setEndValue(pos)
+        self._pos_anim.setStartValue(QPoint(target_x, target_y - 10))
+        self._pos_anim.setEndValue(QPoint(target_x, target_y))
         self._pos_anim.start()
 
     def dismiss(self) -> None:
