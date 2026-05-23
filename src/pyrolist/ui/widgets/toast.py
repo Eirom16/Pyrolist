@@ -33,7 +33,7 @@ class ToastNotification(QWidget):
         msg.setFont(AppFont.body(13))
         msg.setWordWrap(True)
         msg.setMaximumWidth(280)
-        msg.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent;")
+        msg.setStyleSheet(f" background: transparent;")
         layout.addWidget(msg)
         self.setStyleSheet(f"ToastNotification {{ background-color: {tokens.CURRENT.bg_surface}; border: 1px solid rgba({r},{g},{b},0.40); border-radius: 14px; }}")
         self.adjustSize()

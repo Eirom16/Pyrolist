@@ -102,7 +102,7 @@ class SongContextMenu(GlassPanel):
             text.setStyleSheet(f"color: {tokens.CURRENT.error}; background: transparent;")
         else:
             icon = Icon.label(icon_name, 16, tokens.CURRENT.text_secondary)
-            text.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent;")
+            text.setStyleSheet(f" background: transparent;")
             
         icon.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         text.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)

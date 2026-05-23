@@ -52,11 +52,11 @@ class EqBandSlider(QWidget):
         color = tokens.CURRENT.accent if db != 0 else tokens.CURRENT.text_secondary
         self.value_label.setStyleSheet(f"color: {color}; background: transparent;")
         if hasattr(self, "_freq_label") and self._freq_label:
-            self._freq_label.setStyleSheet(f"color: {tokens.CURRENT.text_disabled}; background: transparent;")
+            self._freq_label.setStyleSheet(f" background: transparent;")
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange, QEvent.Type.ApplicationPaletteChange):
+        if event.type() in (QEvent.Type.PaletteChange,):
             if not getattr(self, '_in_style_change', False):
                 self._in_style_change = True
                 try:
@@ -159,7 +159,7 @@ class EqualizerSettingsScreen(QWidget):
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange, QEvent.Type.ApplicationPaletteChange):
+        if event.type() in (QEvent.Type.PaletteChange,):
             if not getattr(self, '_in_style_change', False):
                 self._in_style_change = True
                 try:

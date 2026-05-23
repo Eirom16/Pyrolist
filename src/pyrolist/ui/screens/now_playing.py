@@ -141,14 +141,14 @@ class NowPlayingScreen(QWidget):
         self.btn_collapse.setStyleSheet(f"""
             QPushButton {{
                 background: transparent;
-                color: {tokens.CURRENT.text_secondary};
+                
                 border: none;
                 padding: 6px 16px;
                 border-radius: 8px;
             }}
             QPushButton:hover {{
                 background: {tokens.CURRENT.bg_elevated};
-                color: {tokens.CURRENT.text_primary};
+                
             }}
         """)
         self.btn_collapse.setFixedHeight(36)
@@ -306,7 +306,7 @@ class NowPlayingScreen(QWidget):
         msg = QLabel("Reproduce una canción para ver las letras")
         msg.setFont(QFont("Inter", 14))
         from pyrolist.ui.design import tokens
-        msg.setStyleSheet(f"color: {tokens.CURRENT.text_disabled};")
+        msg.setStyleSheet(f"")
         msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lyrics_layout.addWidget(msg)
         
@@ -428,7 +428,7 @@ class NowPlayingScreen(QWidget):
             self.artwork.setText(Icon.get("library_music"))
             self.artwork.setFont(Icon.font(120))
             from pyrolist.ui.design import tokens
-            self.artwork.setStyleSheet(f"background: {tokens.CURRENT.bg_high}; color: {tokens.CURRENT.text_disabled}; border-radius: 24px;")
+            self.artwork.setStyleSheet(f"background: {tokens.CURRENT.bg_high};  border-radius: 24px;")
 
     def update_state(self, status):
         self._is_playing = status.state == PlayerState.PLAYING
@@ -455,7 +455,7 @@ class NowPlayingScreen(QWidget):
         loading_lbl.setFont(QFont("Inter", 14))
         loading_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         from pyrolist.ui.design import tokens
-        loading_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_disabled}; margin-top: 32px;")
+        loading_lbl.setStyleSheet(f" margin-top: 32px;")
         self.lyrics_layout.addWidget(loading_lbl)
 
     def set_lyrics(self, lyrics):
@@ -473,7 +473,7 @@ class NowPlayingScreen(QWidget):
             no_lyrics.setFont(QFont("Inter", 14))
             no_lyrics.setAlignment(Qt.AlignmentFlag.AlignCenter)
             from pyrolist.ui.design import tokens
-            no_lyrics.setStyleSheet(f"color: {tokens.CURRENT.text_disabled};")
+            no_lyrics.setStyleSheet(f"")
             self.lyrics_layout.addWidget(no_lyrics)
             return
 
@@ -537,7 +537,7 @@ class NowPlayingScreen(QWidget):
             notice = QLabel("Sincronización no disponible para esta pista")
             notice.setFont(QFont("Inter", 11, QFont.Weight.Medium))
             notice.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            notice.setStyleSheet(f"color: {tokens.CURRENT.text_disabled}; padding-bottom: 24px; padding-top: 12px;")
+            notice.setStyleSheet(f" padding-bottom: 24px; padding-top: 12px;")
             self.lyrics_layout.insertWidget(0, notice)
             
             for _, lbl in self._lyric_lines:
@@ -696,7 +696,7 @@ class NowPlayingScreen(QWidget):
             msg.setFont(QFont("Inter", 14))
             msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
             from pyrolist.ui.design import tokens
-            msg.setStyleSheet(f"color: {tokens.CURRENT.text_disabled};")
+            msg.setStyleSheet(f"")
             self.related_layout.addWidget(msg)
             return
 
@@ -759,7 +759,7 @@ class NowPlayingScreen(QWidget):
             self.btn_like.setStyleSheet(f"""
                 QPushButton {{
                     background-color: transparent;
-                    color: {tokens.CURRENT.text_secondary};
+                    
                     border: none;
                     border-radius: 24px;
                 }}

@@ -1,5 +1,72 @@
 PYROLIST_QSS = """
 
+/* ─── Dynamically mapped cards & buttons ───────────────────── */
+
+/* SongCard, AlbumCard, ArtistCard, PlaylistCard texts */
+QLabel[textRole="primary"] { color: #F1F0FF; background: transparent; }
+QLabel[textRole="secondary"] { color: #9B9BC0; background: transparent; }
+
+/* SongCard */
+SongCard QLabel#thumbnail_placeholder { background: #1E1E38; color: #9B9BC0; border-radius: 8px; }
+SongCard QLabel#thumbnail_image { background: transparent; border-radius: 8px; }
+SongCard IconButton#btn_like[liked="false"] {
+    color: #9B9BC0;
+}
+SongCard IconButton#btn_like[liked="false"]:hover {
+    background-color: rgba(167,139,250,0.15); /* like_color hover */
+}
+SongCard IconButton#btn_play {
+    color: #F1F0FF;
+}
+SongCard IconButton#btn_play:hover {
+    background-color: rgba(167, 139, 250, 0.15);
+    color: #A78BFA;
+}
+SongCard QToolButton#menu_btn {
+    color: #9B9BC0;
+    border: none;
+    background: transparent;
+    border-radius: 16px;
+}
+SongCard QToolButton#menu_btn:hover {
+    background-color: rgba(167, 139, 250, 0.15);
+    color: #A78BFA;
+}
+
+/* AlbumCard, ArtistCard, PlaylistCard */
+#albumCard, #artistCard, #playlistCard {
+    background-color: #10101E;
+    border-radius: 12px;
+    border: 1px solid rgba(167,139,250,0.12);
+}
+#albumCard:hover, #artistCard:hover, #playlistCard:hover {
+    background-color: #16162A;
+    border-color: rgba(167,139,250,0.33);
+}
+
+#albumCard QLabel#thumbnail_placeholder, #artistCard QLabel#thumbnail_placeholder, #playlistCard QLabel#thumbnail_placeholder {
+    background: #1E1E38;
+    color: #9B9BC0;
+    border-radius: 12px;
+}
+#artistCard QLabel#thumbnail_placeholder { border-radius: 75px; }
+
+/* Genre Buttons */
+QPushButton[isGenreBtn="true"] {
+    background: #16162A;
+    color: #F1F0FF;
+    border: 1px solid rgba(167,139,250,0.12);
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 700;
+}
+QPushButton[isGenreBtn="true"]:hover {
+    background: #1E1E38;
+    border-color: rgba(167,139,250,0.55);
+}
+
+
+
 /* ─── Global fonts ─────────────────────────────────────────── */
 * {
     letter-spacing: 0px;

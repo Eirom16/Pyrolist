@@ -58,7 +58,7 @@ class OfflineBannerWidget(QWidget):
                 }}
             """)
             
-            self.label.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; font-weight: 500; border: none; background: transparent;")
+            self.label.setStyleSheet(f" font-weight: 500; border: none; background: transparent;")
             
             self.badge.setStyleSheet(f"""
                 QLabel {{

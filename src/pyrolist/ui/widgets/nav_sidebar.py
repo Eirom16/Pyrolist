@@ -36,7 +36,7 @@ class NavButton(QPushButton):
         self.setToolTip(label)
 
         row = QHBoxLayout(self)
-        row.setContentsMargins(14, 0, 12, 0)
+        row.setContentsMargins(7, 0, 7, 0)
         row.setSpacing(12)
 
         from pyrolist.ui.design import tokens
@@ -88,7 +88,7 @@ class NavButton(QPushButton):
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
+        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange, QEvent.Type.ApplicationPaletteChange):
             if hasattr(self, 'icon_label') and self.icon_label:
                 if not getattr(self, '_in_style_change', False):
                     self._in_style_change = True
@@ -136,14 +136,14 @@ class NavSidebar(QWidget):
 
         self._logo_row = QWidget()
         logo_layout = QHBoxLayout(self._logo_row)
-        logo_layout.setContentsMargins(8, 0, 8, 12)
+        logo_layout.setContentsMargins(0, 0, 0, 12)
         logo_layout.setSpacing(10)
         from pyrolist.config.paths import AppDirs
         icon_path = AppDirs.root / "assets" / "icon.png"
         if icon_path.exists():
             self._app_icon = QLabel()
             pixmap = QPixmap(str(icon_path))
-            self._app_icon.setPixmap(pixmap.scaled(28, 28, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+            self._app_icon.setPixmap(pixmap.scaled(44, 44, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
             self._app_icon_is_custom = True
         else:
             self._app_icon = Icon.label("music_note", 26, "#A78BFA")
@@ -251,7 +251,7 @@ class NavSidebar(QWidget):
         self._profile_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: transparent;
-                color: {tokens.CURRENT.text_secondary};
+                
                 border: none;
                 border-radius: 12px;
                 padding: 8px 10px;
@@ -259,7 +259,7 @@ class NavSidebar(QWidget):
             }}
             QPushButton:hover {{
                 background-color: rgba({r},{g},{b},0.08);
-                color: {tokens.CURRENT.text_primary};
+                
             }}
         """)
 
@@ -342,6 +342,13 @@ class NavSidebar(QWidget):
             self._app_title.setStyleSheet(f"color: {accent}; background: transparent;")
         if hasattr(self, '_app_icon') and self._app_icon:
             if hasattr(self, '_app_icon_is_custom') and self._app_icon_is_custom:
+                from PySide6.QtWidgets import QGraphicsColorizeEffect
+                from PySide6.QtGui import QColor
+                self._logo_effect = QGraphicsColorizeEffect()
+                self._logo_effect.setColor(QColor(accent))
+                self._logo_effect.setStrength(1.0)
+                self._app_icon.setGraphicsEffect(self._logo_effect)
+                self._app_icon.update()
                 return
             if isinstance(self._app_icon, QLabel) and self._app_icon.text():
                 self._app_icon.setStyleSheet(f"color: {accent}; background: transparent;")
@@ -378,7 +385,7 @@ class NavSidebar(QWidget):
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
+        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange, QEvent.Type.ApplicationPaletteChange):
             if not getattr(self, '_in_style_change', False):
                 self._in_style_change = True
                 try:

@@ -62,8 +62,8 @@ class GlassComboBox(QPushButton):
                 border-color: {tokens.CURRENT.accent};
             }}
         """)
-        self.label.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent;")
-        self.chevron.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent;")
+        self.label.setStyleSheet(f" background: transparent;")
+        self.chevron.setStyleSheet(f" background: transparent;")
 
     def addItems(self, items: list[str]) -> None:
         self._items = list(items)

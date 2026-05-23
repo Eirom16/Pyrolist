@@ -32,11 +32,11 @@ class WelcomeScreen(QWidget):
         self._title.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         if logo_path.exists():
-            logo = QLabel()
+            self._logo = QLabel()
             pixmap = QPixmap(str(logo_path))
-            logo.setPixmap(pixmap.scaledToWidth(180, Qt.TransformationMode.SmoothTransformation))
-            logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            layout.addWidget(logo)
+            self._logo.setPixmap(pixmap.scaledToWidth(180, Qt.TransformationMode.SmoothTransformation))
+            self._logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(self._logo)
 
         self._subtitle = QLabel("Cliente de YouTube Music para Linux")
         self._subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -84,6 +84,14 @@ class WelcomeScreen(QWidget):
     def _apply_theme_styles(self) -> None:
         t = tokens.CURRENT
         self._title.setStyleSheet(f"color: {t.accent}; background: transparent;")
+        if hasattr(self, '_logo') and self._logo:
+            from PySide6.QtWidgets import QGraphicsColorizeEffect
+            from PySide6.QtGui import QColor
+            self._logo_effect = QGraphicsColorizeEffect()
+            self._logo_effect.setColor(QColor(t.accent))
+            self._logo_effect.setStrength(1.0)
+            self._logo.setGraphicsEffect(self._logo_effect)
+            self._logo.update()
         self._subtitle.setStyleSheet(f"color: {t.text_secondary}; font-size: 14px; background: transparent;")
         self._card.setStyleSheet(f"""
             background-color: {t.bg_elevated};
@@ -98,7 +106,7 @@ class WelcomeScreen(QWidget):
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange, QEvent.Type.ApplicationPaletteChange):
+        if event.type() in (QEvent.Type.PaletteChange,):
             if not getattr(self, '_in_style_change', False):
                 self._in_style_change = True
                 try:

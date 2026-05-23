@@ -74,6 +74,11 @@ class MainWindow(QMainWindow):
         self._connect_player_callbacks()
         self._setup_integrations()
         self._setup_shortcuts()
+        
+        # Apply initial theme properly
+        theme_mode = getattr(settings.appearance, 'theme_mode', 'dark')
+        accent = getattr(settings.appearance, 'accent_color', '#A78BFA')
+        self._apply_theme_and_accent(theme_mode, accent)
 
     def _setup_shortcuts(self) -> None:
         from PySide6.QtGui import QShortcut, QKeySequence
@@ -686,7 +691,7 @@ class MainWindow(QMainWindow):
         dialog = QDialog(self)
         dialog.setWindowTitle("Añadir a Playlist")
         dialog.setFixedWidth(400)
-        dialog.setStyleSheet(f"background-color: {tokens.CURRENT.bg_surface}; color: {tokens.CURRENT.text_primary};")
+        dialog.setStyleSheet(f"background-color: {tokens.CURRENT.bg_surface}; ")
         
         layout = QVBoxLayout(dialog)
         layout.setContentsMargins(16, 16, 16, 16)
@@ -712,7 +717,7 @@ class MainWindow(QMainWindow):
             btn = QPushButton(p_title)
             btn.setStyleSheet(f"""
                 QPushButton {{
-                    background: {tokens.CURRENT.bg_high}; color: {tokens.CURRENT.text_primary}; border: none; border-radius: 8px; padding: 12px; text-align: left;
+                    background: {tokens.CURRENT.bg_high};  border: none; border-radius: 8px; padding: 12px; text-align: left;
                 }}
                 QPushButton:hover {{ background: {tokens.CURRENT.accent_dim}; }}
             """)
@@ -791,7 +796,7 @@ class MainWindow(QMainWindow):
             btn_like.setStyleSheet(f"""
                 QPushButton {{
                     background-color: transparent;
-                    color: {tokens.CURRENT.text_secondary};
+                    
                     border: none;
                     border-radius: 18px;
                 }}
@@ -1585,10 +1590,11 @@ class MainWindow(QMainWindow):
         
         # Capture current screen pixmap before changing styling for transition animation
         old_pixmap = None
-        try:
-            old_pixmap = self.grab()
-        except Exception as e:
-            logger.error(f"Failed to grab screenshot: {e}")
+        if self.isVisible():
+            try:
+                old_pixmap = self.grab()
+            except Exception as e:
+                logger.error(f"Failed to grab screenshot: {e}")
 
         self._last_theme_key = theme_key
         self._last_accent = accent
@@ -1690,14 +1696,40 @@ class MainWindow(QMainWindow):
         new_qss = new_qss.replace('#4A4A6A', tokens.CURRENT.text_disabled)
         new_qss = new_qss.replace('#4a4a6a', tokens.CURRENT.text_disabled.lower())
         
+        # Re-apply qt_material with dynamic values
+        from qt_material import apply_stylesheet
+        material_theme = "light_purple.xml" if active_mode == "light" else "dark_purple.xml"
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance()
+        if app:
+            apply_stylesheet(
+                app,
+                theme=material_theme,
+                extra={
+                    "primaryColor": accent,
+                    "primaryLightColor": bright_hex,
+                    "secondaryColor": tokens.CURRENT.bg_high,
+                    "secondaryLightColor": tokens.CURRENT.bg_elevated,
+                    "secondaryDarkColor": tokens.CURRENT.bg_base,
+                    "primaryTextColor": tokens.CURRENT.text_primary,
+                    "secondaryTextColor": tokens.CURRENT.text_secondary,
+                    "density_scale": "-1",
+                    "pyside6": True,
+                    "linux": True,
+                },
+            )
+            
         groove_color = "#D0D0DF" if active_mode == "light" else "#2A2A4A"
         new_qss = new_qss.replace('#2A2A4A', groove_color)
         new_qss = new_qss.replace('#2a2a4a', groove_color.lower())
 
-        from PySide6.QtWidgets import QApplication
-        app = QApplication.instance()
         if app:
-            app.setStyleSheet(new_qss)
+            # Strip qt_material's global font override so it doesn't break icons and typography
+            base_qss = app.styleSheet()
+            base_qss = base_qss.replace('font-family: Roboto;', '')
+            base_qss = base_qss.replace('font-size: 13px;', '')
+            base_qss = base_qss.replace('line-height: 13px;', '')
+            app.setStyleSheet(base_qss + new_qss)
             logger.info(f"Theme applied successfully: {active_mode} mode, accent {accent}")
 
         # Create overlay to sweep and fade out old design state

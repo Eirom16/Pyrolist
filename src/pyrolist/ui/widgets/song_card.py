@@ -45,7 +45,7 @@ class SongCard(QWidget):
             pixmap = QPixmap()
             if QPixmapCache.find(cache_key, pixmap):
                 self.thumbnail.setPixmap(pixmap)
-                self.thumbnail.setStyleSheet("background: transparent; border-radius: 8px;")
+                self.thumbnail.setObjectName("thumbnail_image")
             else:
                 from pyrolist.utils.image_cache import load_scaled_async
                 def on_loaded(bytes_data):
@@ -54,7 +54,7 @@ class SongCard(QWidget):
                         if pix.loadFromData(bytes_data):
                             QPixmapCache.insert(cache_key, pix)
                             self.thumbnail.setPixmap(pix)
-                            self.thumbnail.setStyleSheet("background: transparent; border-radius: 8px;")
+                            self.thumbnail.setObjectName("thumbnail_image")
                 load_scaled_async(path, 48, 48, self, on_loaded)
 
     def _build_ui(self):
@@ -104,6 +104,7 @@ class SongCard(QWidget):
         # Like button
         from pyrolist.ui.design import tokens
         self.btn_like = IconButton(size=36, active_color=tokens.CURRENT.like_color)
+        self.btn_like.setObjectName("btn_like")
         self.btn_like.setText(Icon.get("favorite"))
         self.btn_like.setFont(Icon.font(20, filled=self._is_liked))
         self.btn_like.setFixedSize(36, 36)
@@ -114,6 +115,7 @@ class SongCard(QWidget):
 
         # Play button
         self.btn_play = IconButton(size=36)
+        self.btn_play.setObjectName("btn_play")
         self.btn_play.setText(Icon.get("play_arrow"))
         self.btn_play.setFont(Icon.font(22))
         self.btn_play.setFixedSize(36, 36)
@@ -124,6 +126,7 @@ class SongCard(QWidget):
 
         # Context menu trigger
         self.menu_btn = QToolButton()
+        self.menu_btn.setObjectName("menu_btn")
         self.menu_btn.setText(Icon.get("more_vert"))
         self.menu_btn.setFont(Icon.font(20))
         self.menu_btn.setFixedSize(32, 32)
@@ -131,7 +134,7 @@ class SongCard(QWidget):
         self.menu_btn.clicked.connect(self._show_context_menu)
         layout.addWidget(self.menu_btn)
 
-        self._update_card_styles()
+        
 
         # Allow clicking anywhere on card
         self.mousePressEvent = self._handle_click
@@ -156,9 +159,9 @@ class SongCard(QWidget):
         """)
         
         if not self.thumbnail.pixmap():
-            self.thumbnail.setStyleSheet(f"background: {bg_high}; color: {text_secondary}; border-radius: 8px;")
+            self.thumbnail.setObjectName("thumbnail_placeholder")
         else:
-            self.thumbnail.setStyleSheet("background: transparent; border-radius: 8px;")
+            self.thumbnail.setObjectName("thumbnail_image")
             
         self.title_label.setStyleSheet(f"color: {text_primary}; background: transparent;")
         self.artist_label.setStyleSheet(f"color: {text_secondary}; background: transparent;")
@@ -271,17 +274,6 @@ class SongCard(QWidget):
         self._current_menu._trigger_widget = self.menu_btn
         pos = self.menu_btn.mapToGlobal(self.menu_btn.rect().bottomLeft())
         self._current_menu.popup_at(pos)
-
-    def changeEvent(self, event) -> None:
-        from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange, QEvent.Type.ApplicationPaletteChange):
-            if not getattr(self, '_in_style_change', False):
-                self._in_style_change = True
-                try:
-                    self._update_card_styles()
-                finally:
-                    self._in_style_change = False
-        super().changeEvent(event)
 
     def _get_bg_opacity(self) -> float:
         return self._bg_opacity

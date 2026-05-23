@@ -163,7 +163,7 @@ class PlaylistScreen(QWidget):
         if not playlist_tracks:
             from pyrolist.ui.design import tokens
             msg = QLabel("Esta playlist no contiene canciones descargadas.")
-            msg.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; font-size: 16px; padding: 40px; background: transparent;")
+            msg.setStyleSheet(f" font-size: 16px; padding: 40px; background: transparent;")
             msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self.content_layout.addWidget(msg)
             return
@@ -221,14 +221,14 @@ class PlaylistScreen(QWidget):
         btn_back.setStyleSheet(f"""
             QPushButton {{
                 background: transparent;
-                color: {tokens.CURRENT.text_secondary};
+                
                 border: none;
                 padding: 6px 12px;
                 border-radius: 8px;
             }}
             QPushButton:hover {{
                 background: {tokens.CURRENT.bg_elevated};
-                color: {tokens.CURRENT.text_primary};
+                
             }}
         """)
         btn_back.setFixedHeight(36)
@@ -416,7 +416,7 @@ class PlaylistScreen(QWidget):
             self.btn_dl.setStyleSheet(f"""
                 QPushButton {{
                     background-color: {accent};
-                    color: {tokens.CURRENT.text_on_accent};
+                    
                     border: none;
                     border-radius: 16px;
                     padding: 8px 16px;
@@ -428,7 +428,7 @@ class PlaylistScreen(QWidget):
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange, QEvent.Type.ApplicationPaletteChange):
+        if event.type() in (QEvent.Type.PaletteChange,):
             if not getattr(self, '_in_style_change', False):
                 self._in_style_change = True
                 try:

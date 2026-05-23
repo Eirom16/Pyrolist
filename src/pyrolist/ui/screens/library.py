@@ -127,7 +127,7 @@ class LibraryScreen(QWidget):
         # Hidden by default, shown only when playlists tab is active
         self.fab.hide()
         
-        self._update_library_styles()
+        
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -434,7 +434,7 @@ class LibraryScreen(QWidget):
         dialog = QDialog(self)
         dialog.setWindowTitle("Crear Nueva Playlist")
         dialog.setFixedWidth(400)
-        dialog.setStyleSheet(f"background-color: {tokens.CURRENT.bg_surface}; color: {tokens.CURRENT.text_primary};")
+        dialog.setStyleSheet(f"background-color: {tokens.CURRENT.bg_surface}; ")
         
         layout = QVBoxLayout(dialog)
         
@@ -443,7 +443,7 @@ class LibraryScreen(QWidget):
         title_input.setStyleSheet(f"""
             QLineEdit {{
                 background: {tokens.CURRENT.bg_elevated}; border: 1px solid {tokens.CURRENT.border}; border-radius: 8px; padding: 12px;
-                color: {tokens.CURRENT.text_primary}; font-size: 14px;
+                 font-size: 14px;
             }}
         """)
         layout.addWidget(title_input)
@@ -453,7 +453,7 @@ class LibraryScreen(QWidget):
         desc_input.setStyleSheet(f"""
             QLineEdit {{
                 background: {tokens.CURRENT.bg_elevated}; border: 1px solid {tokens.CURRENT.border}; border-radius: 8px; padding: 12px;
-                color: {tokens.CURRENT.text_primary}; font-size: 14px;
+                 font-size: 14px;
             }}
         """)
         layout.addWidget(desc_input)
@@ -467,7 +467,7 @@ class LibraryScreen(QWidget):
         bright_hex = c.lighter(125).name()
         button_box.setStyleSheet(f"""
             QPushButton {{
-                background: {accent}; color: {tokens.CURRENT.text_on_accent}; border: none; border-radius: 8px; padding: 8px 16px; font-weight: bold;
+                background: {accent};  border: none; border-radius: 8px; padding: 8px 16px; font-weight: bold;
             }}
             QPushButton:hover {{ background: {bright_hex}; }}
         """)
@@ -514,7 +514,7 @@ class LibraryScreen(QWidget):
             btn.setStyleSheet(f"""
                 QPushButton {{
                     background: transparent;
-                    color: {tokens.CURRENT.text_secondary};
+                    
                     padding: 8px 18px;
                     border: 1px solid transparent;
                     border-radius: 18px;
@@ -524,7 +524,7 @@ class LibraryScreen(QWidget):
                 }}
                 QPushButton:hover {{
                     background: {tokens.CURRENT.bg_elevated};
-                    color: {tokens.CURRENT.text_primary};
+                    
                 }}
             """)
 
@@ -545,7 +545,7 @@ class LibraryScreen(QWidget):
         self.fab.setStyleSheet(f"""
             QPushButton {{
                 background-color: {accent};
-                color: {tokens.CURRENT.text_on_accent};
+                
                 border: none;
                 border-radius: 28px;
                 font-family: 'Inter';
@@ -560,20 +560,3 @@ class LibraryScreen(QWidget):
             }}
         """)
 
-    def _update_library_styles(self) -> None:
-        from pyrolist.ui.design import tokens
-        if hasattr(self, 'header_label'):
-            self.header_label.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent;")
-        self._update_tab_styles()
-        self._update_fab_style()
-
-    def changeEvent(self, event) -> None:
-        from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange, QEvent.Type.ApplicationPaletteChange):
-            if not getattr(self, '_in_style_change', False):
-                self._in_style_change = True
-                try:
-                    self._update_library_styles()
-                finally:
-                    self._in_style_change = False
-        super().changeEvent(event)

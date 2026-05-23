@@ -118,14 +118,14 @@ class ArtistScreen(QWidget):
         btn_back.setStyleSheet(f"""
             QPushButton {{
                 background: transparent;
-                color: {tokens.CURRENT.text_secondary};
+                
                 border: none;
                 padding: 6px 12px;
                 border-radius: 8px;
             }}
             QPushButton:hover {{
                 background: {tokens.CURRENT.bg_elevated};
-                color: {tokens.CURRENT.text_primary};
+                
             }}
         """)
         btn_back.setFixedHeight(36)

@@ -47,7 +47,7 @@ class _FilterChip(QPushButton):
         self.setStyleSheet(f"""
             QPushButton {{
                 background: {tokens.CURRENT.bg_surface};
-                color: {tokens.CURRENT.text_secondary};
+                
                 border: 1px solid {tokens.CURRENT.border};
                 border-radius: 17px;
                 padding: 0 20px;
@@ -57,18 +57,18 @@ class _FilterChip(QPushButton):
             }}
             QPushButton:hover {{
                 background: {tokens.CURRENT.bg_elevated};
-                color: {tokens.CURRENT.text_primary};
+                
             }}
             QPushButton:checked {{
                 background: {accent};
-                color: {tokens.CURRENT.text_on_accent};
+                
                 border: 1px solid {accent};
             }}
         """)
 
     def changeEvent(self, event):
         from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange, QEvent.Type.ApplicationPaletteChange):
+        if event.type() in (QEvent.Type.PaletteChange,):
             if not getattr(self, '_in_style_change', False):
                 self._in_style_change = True
                 try:
@@ -157,16 +157,16 @@ class _TopResultCard(QWidget):
     def _update_child_styles(self):
         from pyrolist.ui.design import tokens
         if not self._has_thumbnail:
-            self.thumb.setStyleSheet(f"background: {tokens.CURRENT.bg_surface}; color: {tokens.CURRENT.text_disabled}; border-radius: 12px;")
+            self.thumb.setStyleSheet(f"background: {tokens.CURRENT.bg_surface};  border-radius: 12px;")
         else:
             self.thumb.setStyleSheet(f"border-radius: 12px; background: transparent;")
         self.type_lbl.setStyleSheet(f"color: {tokens.CURRENT.accent}; background: transparent;")
-        self.title_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent;")
-        self.artist_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent;")
+        self.title_lbl.setStyleSheet(f" background: transparent;")
+        self.artist_lbl.setStyleSheet(f" background: transparent;")
 
     def changeEvent(self, event):
         from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange, QEvent.Type.ApplicationPaletteChange):
+        if event.type() in (QEvent.Type.PaletteChange,):
             if not getattr(self, '_in_style_change', False):
                 self._in_style_change = True
                 try:
@@ -309,11 +309,11 @@ class SearchScreen(QWidget):
                 border-bottom: 1px solid {tokens.CURRENT.border};
             """)
         if hasattr(self, '_query_label') and self._query_label:
-            self._query_label.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent;")
+            self._query_label.setStyleSheet(f" background: transparent;")
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange, QEvent.Type.ApplicationPaletteChange):
+        if event.type() in (QEvent.Type.PaletteChange,):
             if not getattr(self, '_in_style_change', False):
                 self._in_style_change = True
                 try:
@@ -414,7 +414,7 @@ class SearchScreen(QWidget):
             from pyrolist.ui.design import tokens
             empty = QLabel("No se encontraron resultados en esta categoría")
             empty.setFont(QFont("Inter", 13))
-            empty.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; padding: 32px; background: transparent;")
+            empty.setStyleSheet(f" padding: 32px; background: transparent;")
             empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self._results_layout.addWidget(empty)
             self._results_layout.addStretch()

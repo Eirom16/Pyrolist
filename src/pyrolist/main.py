@@ -102,6 +102,7 @@ def main() -> None:
     app.setApplicationName("Pyrolist")
     app.setApplicationVersion("1.1.9")
     app.setOrganizationName("pyrolist")
+    app.setDesktopFileName("pyrolist.desktop")
 
     setup_vlc_env()
     vlc_ok = check_vlc_available()
@@ -143,7 +144,13 @@ def main() -> None:
     )
 
     from pyrolist.ui.stylesheet import PYROLIST_QSS
-    app.setStyleSheet(app.styleSheet() + PYROLIST_QSS)
+    
+    # Strip qt_material's global font override so it doesn't break icons and typography
+    base_qss = app.styleSheet()
+    base_qss = base_qss.replace('font-family: Roboto;', '')
+    base_qss = base_qss.replace('font-size: 13px;', '')
+    base_qss = base_qss.replace('line-height: 13px;', '')
+    app.setStyleSheet(base_qss + PYROLIST_QSS)
 
     with qasync.QEventLoop(app) as loop:
         asyncio.set_event_loop(loop)

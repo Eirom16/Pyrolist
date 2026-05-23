@@ -174,8 +174,8 @@ class StatCard(QFrame):
                 border-radius: 24px;
             }}
         """)
-        self.val_label.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; border: none; background: transparent;")
-        self.title_label.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; border: none; background: transparent;")
+        self.val_label.setStyleSheet(f" border: none; background: transparent;")
+        self.title_label.setStyleSheet(f" border: none; background: transparent;")
 
 
 class StatsScreen(QWidget):
@@ -212,11 +212,11 @@ class StatsScreen(QWidget):
         
         self.header = QLabel("Tus Estadísticas")
         self.header.setFont(QFont("Inter", 24, QFont.Weight.Bold))
-        self.header.setStyleSheet(f"color: {tokens.CURRENT.text_primary};")
+        self.header.setStyleSheet(f"")
         
         self.subtitle = QLabel("Analiza tus hábitos musicales y descubre tus canciones favoritas")
         self.subtitle.setFont(QFont("Inter", 12))
-        self.subtitle.setStyleSheet(f"color: {tokens.CURRENT.text_secondary};")
+        self.subtitle.setStyleSheet(f"")
         
         header_col.addWidget(self.header)
         header_col.addWidget(self.subtitle)
@@ -257,7 +257,7 @@ class StatsScreen(QWidget):
         
         self.songs_title = QLabel("Tus 5 Más Escuchadas")
         self.songs_title.setFont(QFont("Inter", 14, QFont.Weight.Bold))
-        self.songs_title.setStyleSheet(f"color: {tokens.CURRENT.text_primary};")
+        self.songs_title.setStyleSheet(f"")
         self.songs_col.addWidget(self.songs_title)
         
         self.songs_container = QVBoxLayout()
@@ -271,7 +271,7 @@ class StatsScreen(QWidget):
         
         self.chart_title = QLabel("Actividad de Escucha")
         self.chart_title.setFont(QFont("Inter", 14, QFont.Weight.Bold))
-        self.chart_title.setStyleSheet(f"color: {tokens.CURRENT.text_primary};")
+        self.chart_title.setStyleSheet(f"")
         self.chart_col.addWidget(self.chart_title)
         
         self.bar_chart = CustomBarChart([])
@@ -334,7 +334,7 @@ class StatsScreen(QWidget):
             
             empty_lbl = QLabel("No hay suficientes reproducciones registradas.")
             empty_lbl.setFont(QFont("Inter", 11))
-            empty_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_secondary};")
+            empty_lbl.setStyleSheet(f"")
             empty_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self.songs_container.addWidget(empty_lbl)
             
@@ -419,10 +419,10 @@ class StatsScreen(QWidget):
         self._fade_in_content()
 
     def _update_stats_styles(self) -> None:
-        self.header.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent;")
-        self.subtitle.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent;")
-        self.songs_title.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent;")
-        self.chart_title.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent;")
+        self.header.setStyleSheet(f" background: transparent;")
+        self.subtitle.setStyleSheet(f" background: transparent;")
+        self.songs_title.setStyleSheet(f" background: transparent;")
+        self.chart_title.setStyleSheet(f" background: transparent;")
         
         # Update cards
         self.time_card._apply_theme_style()
@@ -436,7 +436,7 @@ class StatsScreen(QWidget):
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange, QEvent.Type.ApplicationPaletteChange):
+        if event.type() in (QEvent.Type.PaletteChange,):
             if not getattr(self, '_in_style_change', False):
                 self._in_style_change = True
                 try:

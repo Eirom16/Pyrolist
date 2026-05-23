@@ -87,7 +87,7 @@ class AccountsSettingsScreen(QWidget):
         line.setStyleSheet(f"""
             QLineEdit {{
                 background-color: {tokens.CURRENT.bg_elevated};
-                color: {tokens.CURRENT.text_primary};
+                
                 border: 1px solid {tokens.CURRENT.border};
                 border-radius: 8px;
                 padding: 6px 12px;
@@ -266,7 +266,7 @@ class AccountsSettingsScreen(QWidget):
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange, QEvent.Type.ApplicationPaletteChange):
+        if event.type() in (QEvent.Type.PaletteChange,):
             if not getattr(self, '_in_style_change', False):
                 self._in_style_change = True
                 try:

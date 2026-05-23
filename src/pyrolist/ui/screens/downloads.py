@@ -260,17 +260,6 @@ class DownloadItemWidget(QFrame):
                 self.thumb.setPixmap(pixmap)
                 self._update_item_styles()
 
-    def changeEvent(self, event) -> None:
-        from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange, QEvent.Type.ApplicationPaletteChange):
-            if not getattr(self, '_in_style_change', False):
-                self._in_style_change = True
-                try:
-                    self._update_item_styles()
-                finally:
-                    self._in_style_change = False
-        super().changeEvent(event)
-
     def set_selection_mode(self, enabled: bool):
         self.selection_mode = enabled
         if enabled:
@@ -501,17 +490,6 @@ class DownloadPlaylistItemWidget(QFrame):
                 self.thumb.setPixmap(pixmap)
                 self._update_playlist_item_styles()
 
-    def changeEvent(self, event) -> None:
-        from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange, QEvent.Type.ApplicationPaletteChange):
-            if not getattr(self, '_in_style_change', False):
-                self._in_style_change = True
-                try:
-                    self._update_playlist_item_styles()
-                finally:
-                    self._in_style_change = False
-        super().changeEvent(event)
-
 class DownloadsScreen(QWidget):
     like_requested = Signal(str, object)
     delete_download_requested = Signal(str)
@@ -547,7 +525,7 @@ class DownloadsScreen(QWidget):
         
         self.header = QLabel("Descargas")
         self.header.setFont(QFont("Inter", 24, QFont.Weight.Bold))
-        self.header.setStyleSheet(f"color: {tokens.CURRENT.text_primary};")
+        self.header.setStyleSheet(f"")
         header_row_layout.addWidget(self.header)
         header_row_layout.addStretch()
         
@@ -754,7 +732,7 @@ class DownloadsScreen(QWidget):
                     from pyrolist.ui.design import tokens
                     empty_text = "No hay \u00e1lbumes descargados." if self._current_tab == "albums" else "No hay playlists descargadas."
                     msg = QLabel(empty_text)
-                    msg.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; font-size: 16px; padding: 40px;")
+                    msg.setStyleSheet(f" font-size: 16px; padding: 40px;")
                     msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
                     self.content_layout.insertWidget(0, msg)
                 else:
@@ -817,32 +795,6 @@ class DownloadsScreen(QWidget):
                             self._items[vid].set_error("Error")
         except asyncio.CancelledError:
             raise
-
-    def _update_downloads_styles(self) -> None:
-        from pyrolist.ui.design import tokens
-        if hasattr(self, "header"):
-            self.header.setStyleSheet(f"color: {tokens.CURRENT.text_primary};")
-        if hasattr(self, "tab_btns"):
-            for key, btn in self.tab_btns.items():
-                btn.setStyleSheet(self._tab_style(key == self._current_tab))
-        
-        for label in self.findChildren(QLabel):
-            if label != getattr(self, "header", None) and label.parent() == getattr(self, "scroll_content", None):
-                label.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; font-size: 16px; padding: 40px; background: transparent; border: none;")
-        
-        if hasattr(self, "btn_select"):
-            self._update_toolbar_styles()
-
-    def changeEvent(self, event) -> None:
-        from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange, QEvent.Type.ApplicationPaletteChange):
-            if not getattr(self, '_in_style_change', False):
-                self._in_style_change = True
-                try:
-                    self._update_downloads_styles()
-                finally:
-                    self._in_style_change = False
-        super().changeEvent(event)
 
     def _update_toolbar_styles(self) -> None:
         from pyrolist.ui.design import tokens
@@ -995,14 +947,14 @@ class DownloadsScreen(QWidget):
         msg_box.setStyleSheet(f"""
             QMessageBox {{
                 background-color: {tokens.CURRENT.bg_surface};
-                color: {tokens.CURRENT.text_primary};
+                
             }}
             QLabel {{
-                color: {tokens.CURRENT.text_primary};
+                
             }}
             QPushButton {{
                 background-color: {tokens.CURRENT.bg_elevated};
-                color: {tokens.CURRENT.text_primary};
+                
                 border: 1px solid {tokens.CURRENT.border};
                 border-radius: 6px;
                 padding: 6px 16px;
@@ -1051,14 +1003,14 @@ class DownloadsScreen(QWidget):
         msg_box.setStyleSheet(f"""
             QMessageBox {{
                 background-color: {tokens.CURRENT.bg_surface};
-                color: {tokens.CURRENT.text_primary};
+                
             }}
             QLabel {{
-                color: {tokens.CURRENT.text_primary};
+                
             }}
             QPushButton {{
                 background-color: {tokens.CURRENT.bg_elevated};
-                color: {tokens.CURRENT.text_primary};
+                
                 border: 1px solid {tokens.CURRENT.border};
                 border-radius: 6px;
                 padding: 6px 16px;

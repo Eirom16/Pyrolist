@@ -24,12 +24,12 @@ class AboutScreen(QWidget):
         from pyrolist.config.paths import AppDirs
         logo_path = AppDirs.root / "assets" / "logo.png"
         if logo_path.exists():
-            logo = QLabel()
+            self._logo = QLabel()
             pixmap = QPixmap(str(logo_path))
-            logo.setPixmap(pixmap.scaledToWidth(200, Qt.TransformationMode.SmoothTransformation))
-            logo.setAlignment(Qt.AlignmentFlag.AlignLeft)
-            logo.setStyleSheet("background: transparent; margin-bottom: 10px;")
-            layout.addWidget(logo)
+            self._logo.setPixmap(pixmap.scaledToWidth(200, Qt.TransformationMode.SmoothTransformation))
+            self._logo.setAlignment(Qt.AlignmentFlag.AlignLeft)
+            self._logo.setStyleSheet("background: transparent; margin-bottom: 10px;")
+            layout.addWidget(self._logo)
 
         self.name = QLabel("Pyrolist")
         self.name.setFont(AppFont.display(32))
@@ -119,14 +119,22 @@ class AboutScreen(QWidget):
     def _update_about_styles(self) -> None:
         from pyrolist.ui.design import tokens
         self.name.setStyleSheet(f"color: {tokens.CURRENT.accent}; background: transparent;")
+        if hasattr(self, '_logo') and self._logo:
+            from PySide6.QtWidgets import QGraphicsColorizeEffect
+            from PySide6.QtGui import QColor
+            self._logo_effect = QGraphicsColorizeEffect()
+            self._logo_effect.setColor(QColor(tokens.CURRENT.accent))
+            self._logo_effect.setStrength(1.0)
+            self._logo.setGraphicsEffect(self._logo_effect)
+            self._logo.update()
         if hasattr(self, "version") and self.version:
-            self.version.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent;")
+            self.version.setStyleSheet(f" background: transparent;")
         if hasattr(self, "description") and self.description:
-            self.description.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent;")
+            self.description.setStyleSheet(f" background: transparent;")
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
+        if event.type() in (QEvent.Type.PaletteChange,):
             if not getattr(self, '_in_style_change', False):
                 self._in_style_change = True
                 try:

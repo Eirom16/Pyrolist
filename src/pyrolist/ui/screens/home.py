@@ -77,7 +77,7 @@ class HomeScreen(QWidget):
         card.setStyleSheet(f"""
             QPushButton {{
                 background: {tokens.CURRENT.bg_elevated};
-                color: {tokens.CURRENT.text_primary};
+                
                 border: 1px solid {tokens.CURRENT.border};
                 border-radius: 12px;
                 font-size: 14px;
@@ -98,7 +98,7 @@ class HomeScreen(QWidget):
         from pyrolist.ui.design import tokens as _tokens
         self._header = QLabel("Inicio")
         self._header.setFont(AppFont.display(24))
-        self._header.setStyleSheet(f"color: {_tokens.CURRENT.text_primary};")
+        self._header.setStyleSheet(f"")
         layout.addWidget(self._header)
 
         self.scroll = QScrollArea()
@@ -212,7 +212,7 @@ class HomeScreen(QWidget):
                 from pyrolist.ui.design import tokens
                 title = QLabel("Para ti")
                 title.setFont(AppFont.display(24))
-                title.setStyleSheet(f"color: {tokens.CURRENT.text_primary};")
+                title.setStyleSheet(f"")
                 self.content_layout.addWidget(title)
                 
                 # Fetch liked video IDs for heart state
@@ -240,7 +240,7 @@ class HomeScreen(QWidget):
                     from pyrolist.ui.design import tokens
                     title = QLabel("Top Charts")
                     title.setFont(AppFont.display(24))
-                    title.setStyleSheet(f"color: {tokens.CURRENT.text_primary};")
+                    title.setStyleSheet(f"")
                     self.content_layout.addWidget(title)
                     
                     await self._display_charts(charts_data)
@@ -276,7 +276,7 @@ class HomeScreen(QWidget):
             from pyrolist.ui.design import tokens
             header = QLabel(str(section_title))
             header.setFont(AppFont.heading(16))
-            header.setStyleSheet(f"color: {tokens.CURRENT.text_primary};")
+            header.setStyleSheet(f"")
             section_layout.addWidget(header)
             
             # Items can be in 'contents' or direct in section
@@ -444,7 +444,7 @@ class HomeScreen(QWidget):
         from pyrolist.ui.design import tokens
         title = QLabel("Explorar por género")
         title.setFont(AppFont.display(24))
-        title.setStyleSheet(f"color: {tokens.CURRENT.text_primary};")
+        title.setStyleSheet(f"")
         self.content_layout.addWidget(title)
 
         genres_section = QWidget()
@@ -463,11 +463,12 @@ class HomeScreen(QWidget):
 
         header = QLabel("Sugerencias")
         header.setFont(AppFont.heading(18))
-        header.setStyleSheet(f"color: {tokens.CURRENT.text_primary};")
+        header.setStyleSheet(f"")
         section_layout.addWidget(header)
 
         hint = QLabel("Haz clic en un genero para buscar")
-        hint.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; font-size: 14px; padding: 10px;")
+        hint.setProperty("textRole", "secondary")
+        hint.setStyleSheet(f" font-size: 14px; padding: 10px;")
         section_layout.addWidget(hint)
 
         self.content_layout.addWidget(section)
@@ -479,12 +480,13 @@ class HomeScreen(QWidget):
         title = QLabel("Bienvenido a Pyrolist")
         title.setFont(QFont("Inter", 20, QFont.Weight.Bold))
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; padding: 20px; background: transparent;")
+        title.setStyleSheet(f" padding: 20px; background: transparent;")
         self.content_layout.addWidget(title)
 
-        search_hint = QLabel("Ve a Buscar y escribe el nombre de una cancion")
+        search_hint = QLabel("Ve a Buscar y escribe el nombre de una cancion", self.scroll)
+        search_hint.setProperty("textRole", "secondary")
         search_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        search_hint.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; font-size: 14px; padding: 10px; background: transparent;")
+        search_hint.setStyleSheet(f" font-size: 14px; padding: 10px; background: transparent;")
         self.content_layout.addWidget(search_hint)
 
         self.content_layout.addStretch()
@@ -497,7 +499,7 @@ class HomeScreen(QWidget):
 
         header = QLabel("Explorar")
         header.setFont(QFont("Inter", 16, QFont.Weight.Bold))
-        header.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent;")
+        header.setStyleSheet(f" background: transparent;")
         section_layout.addWidget(header)
 
         mood_cats = explore.get("moodCategories", [])
@@ -523,8 +525,9 @@ class HomeScreen(QWidget):
 
             title = item.get("title", {}).get("text", "Sección")
             header = QLabel(title)
+            header.setProperty("textRole", "primary")
             header.setFont(QFont("Inter", 16, QFont.Weight.Bold))
-            header.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent;")
+            header.setStyleSheet(f" background: transparent;")
             section_layout.addWidget(header)
 
             contents = item.get("contents", [])
@@ -578,39 +581,3 @@ class HomeScreen(QWidget):
 
             self.content_layout.addWidget(section)
 
-    def _update_home_styles(self) -> None:
-        from pyrolist.ui.design import tokens
-        for label in self.findChildren(QLabel):
-            font_size = label.font().pointSize()
-            if font_size >= 14:
-                label.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent;")
-            else:
-                label.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent;")
-        
-        for btn in self.findChildren(QPushButton):
-            if hasattr(self, "_genres") and any(btn.text() == name for name, _ in self._genres):
-                btn.setStyleSheet(f"""
-                    QPushButton {{
-                        background: {tokens.CURRENT.bg_elevated};
-                        color: {tokens.CURRENT.text_primary};
-                        border: 1px solid {tokens.CURRENT.border};
-                        border-radius: 12px;
-                        font-size: 14px;
-                        font-weight: 700;
-                    }}
-                    QPushButton:hover {{
-                        background: {tokens.CURRENT.bg_high};
-                        border-color: {tokens.CURRENT.accent}55;
-                    }}
-                """)
-
-    def changeEvent(self, event) -> None:
-        from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange, QEvent.Type.ApplicationPaletteChange):
-            if not getattr(self, '_in_style_change', False):
-                self._in_style_change = True
-                try:
-                    self._update_home_styles()
-                finally:
-                    self._in_style_change = False
-        super().changeEvent(event)

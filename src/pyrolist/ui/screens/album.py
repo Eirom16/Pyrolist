@@ -179,14 +179,14 @@ class AlbumScreen(QWidget):
         btn_back.setStyleSheet(f"""
             QPushButton {{
                 background: transparent;
-                color: {tokens.CURRENT.text_secondary};
+                
                 border: none;
                 padding: 6px 12px;
                 border-radius: 8px;
             }}
             QPushButton:hover {{
                 background: {tokens.CURRENT.bg_elevated};
-                color: {tokens.CURRENT.text_primary};
+                
             }}
         """)
         btn_back.setFixedHeight(36)
@@ -215,7 +215,7 @@ class AlbumScreen(QWidget):
         
         title_lbl = QLabel(data.get('title', 'Unknown'))
         title_lbl.setFont(QFont("Inter", 32, QFont.Weight.Bold))
-        title_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent;")
+        title_lbl.setStyleSheet(f" background: transparent;")
         title_lbl.setWordWrap(True)
         info_layout.addWidget(title_lbl)
         
@@ -233,7 +233,7 @@ class AlbumScreen(QWidget):
             
         meta_lbl = QLabel(meta_str)
         meta_lbl.setFont(QFont("Inter", 11))
-        meta_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent;")
+        meta_lbl.setStyleSheet(f" background: transparent;")
         info_layout.addWidget(meta_lbl)
 
         # Download actions row
@@ -381,7 +381,7 @@ class AlbumScreen(QWidget):
             self.btn_dl.setStyleSheet(f"""
                 QPushButton {{
                     background-color: {accent};
-                    color: {tokens.CURRENT.text_on_accent};
+                    
                     border: none;
                     border-radius: 16px;
                     padding: 8px 16px;
@@ -393,7 +393,7 @@ class AlbumScreen(QWidget):
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange, QEvent.Type.ApplicationPaletteChange):
+        if event.type() in (QEvent.Type.PaletteChange,):
             if not getattr(self, '_in_style_change', False):
                 self._in_style_change = True
                 try:

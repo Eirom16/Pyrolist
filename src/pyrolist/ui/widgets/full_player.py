@@ -173,13 +173,13 @@ class FullPlayerDialog(QDialog):
         no_lyrics.setFont(Icon.font(48))
         no_lyrics.setAlignment(Qt.AlignmentFlag.AlignCenter)
         from pyrolist.ui.design import tokens
-        no_lyrics.setStyleSheet(f"color: {tokens.CURRENT.text_disabled}; padding: 40px;")
+        no_lyrics.setStyleSheet(f" padding: 40px;")
         self.lyrics_content_layout.addWidget(no_lyrics)
 
         msg = QLabel("Reproduce una canción para ver las letras")
         msg.setFont(AppFont.body(14))
         msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        msg.setStyleSheet(f"color: {tokens.CURRENT.text_disabled};")
+        msg.setStyleSheet(f"")
         self.lyrics_content_layout.addWidget(msg)
         self.lyrics_content_layout.addStretch()
 
@@ -292,7 +292,7 @@ class FullPlayerDialog(QDialog):
         loading.setFont(AppFont.body(14))
         loading.setAlignment(Qt.AlignmentFlag.AlignCenter)
         from pyrolist.ui.design import tokens
-        loading.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; padding: 40px;")
+        loading.setStyleSheet(f" padding: 40px;")
         self.lyrics_content_layout.addWidget(loading)
 
         try:
@@ -364,7 +364,7 @@ class FullPlayerDialog(QDialog):
                     lbl = QLabel(clean)
                     lbl.setFont(AppFont.title(16)) # Use title font for better readability
                     from pyrolist.ui.design import tokens
-                    lbl.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent; padding: 4px 0;")
+                    lbl.setStyleSheet(f" background: transparent; padding: 4px 0;")
                     lbl.setWordWrap(True)
                     self.lyrics_content_layout.addWidget(lbl)
                     self._lyric_lines.append((timestamp_ms, lbl))
@@ -380,7 +380,7 @@ class FullPlayerDialog(QDialog):
                 no_lyrics = QLabel("No hay letras disponibles")
                 no_lyrics.setFont(AppFont.body(14))
                 no_lyrics.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                no_lyrics.setStyleSheet(f"color: {tokens.CURRENT.text_disabled};")
+                no_lyrics.setStyleSheet(f"")
                 self.lyrics_content_layout.addWidget(no_lyrics)
         except Exception:
             while self.lyrics_content_layout.count():
@@ -412,12 +412,12 @@ class FullPlayerDialog(QDialog):
             # Revert old
             if self._current_lyric_index != -1:
                 old_ts, old_lbl = self._lyric_lines[self._current_lyric_index]
-                old_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent; padding: 4px 0;")
+                old_lbl.setStyleSheet(f" background: transparent; padding: 4px 0;")
                 old_lbl.setFont(AppFont.title(16))
             
             # Highlight new
             new_ts, new_lbl = self._lyric_lines[active_idx]
-            new_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent; padding: 4px 0;")
+            new_lbl.setStyleSheet(f" background: transparent; padding: 4px 0;")
             new_lbl.setFont(AppFont.heading(20)) # Make it even more prominent if needed, or 18
             
             self._current_lyric_index = active_idx

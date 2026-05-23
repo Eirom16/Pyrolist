@@ -73,7 +73,7 @@ class AlbumCard(QWidget):
         layout.addWidget(self.artist_label)
         layout.addStretch()
         
-        self._update_card_styles()
+        
 
     def _update_card_styles(self) -> None:
         from pyrolist.ui.design import tokens
@@ -121,13 +121,3 @@ class AlbumCard(QWidget):
             self.clicked.emit()
         super().mousePressEvent(event)
 
-    def changeEvent(self, event) -> None:
-        from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange, QEvent.Type.ApplicationPaletteChange):
-            if not getattr(self, '_in_style_change', False):
-                self._in_style_change = True
-                try:
-                    self._update_card_styles()
-                finally:
-                    self._in_style_change = False
-        super().changeEvent(event)

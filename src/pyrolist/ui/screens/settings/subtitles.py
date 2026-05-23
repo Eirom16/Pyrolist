@@ -50,7 +50,7 @@ class ValueAdjuster(QWidget):
                 background-color: {tokens.CURRENT.bg_elevated};
                 border: 1px solid {tokens.CURRENT.border};
                 border-radius: 8px;
-                color: {tokens.CURRENT.text_primary};
+                
                 font-weight: bold;
             }}
             QPushButton:hover {{
@@ -60,7 +60,7 @@ class ValueAdjuster(QWidget):
         """
         self.btn_dec.setStyleSheet(style)
         self.btn_inc.setStyleSheet(style)
-        self.lbl_val.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent;")
+        self.lbl_val.setStyleSheet(f" background: transparent;")
 
     def _dec(self):
         self.value -= self.step

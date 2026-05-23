@@ -149,7 +149,7 @@ class AccentColorPicker(QWidget):
                 QPushButton {{
                     border: 2px dashed rgba({r},{g},{b},0.4);
                     border-radius: 14px;
-                    color: {tokens.CURRENT.text_secondary};
+                    
                     background: transparent;
                 }}
                 QPushButton:hover {{

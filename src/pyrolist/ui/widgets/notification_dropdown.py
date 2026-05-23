@@ -33,7 +33,7 @@ class DownloadProgressRow(QWidget):
 
         self.title_lbl = QLabel(f"{self.artist} - {self.title}")
         self.title_lbl.setFont(QFont("Inter", 11, QFont.Weight.Medium))
-        self.title_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_primary};")
+        self.title_lbl.setStyleSheet(f"")
         header_layout.addWidget(self.title_lbl, stretch=1)
 
         self.cancel_btn = QPushButton()
@@ -55,7 +55,7 @@ class DownloadProgressRow(QWidget):
         # Subtext row (percentage + speed)
         self.sub_lbl = QLabel("En cola...")
         self.sub_lbl.setFont(QFont("Inter", 9))
-        self.sub_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_secondary};")
+        self.sub_lbl.setStyleSheet(f"")
         layout.addWidget(self.sub_lbl)
 
         self._update_styles()
@@ -207,7 +207,7 @@ class NotificationDropdown(GlassPanel):
 
         self.title_lbl = QLabel("Notificaciones")
         self.title_lbl.setFont(QFont("Inter", 13, QFont.Weight.Bold))
-        self.title_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_primary};")
+        self.title_lbl.setStyleSheet(f"")
         header_layout.addWidget(self.title_lbl, stretch=1)
 
         self.clear_btn = QPushButton("Limpiar")
@@ -247,12 +247,12 @@ class NotificationDropdown(GlassPanel):
         self.empty_icon = QLabel(Icon.get("notifications"))
         self.empty_icon.setFont(Icon.font(36))
         self.empty_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.empty_icon.setStyleSheet(f"color: {tokens.CURRENT.text_disabled};")
+        self.empty_icon.setStyleSheet(f"")
         empty_layout.addWidget(self.empty_icon)
         self.empty_lbl = QLabel("No tienes notificaciones")
         self.empty_lbl.setFont(QFont("Inter", 11))
         self.empty_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.empty_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_secondary};")
+        self.empty_lbl.setStyleSheet(f"")
         empty_layout.addWidget(self.empty_lbl)
         self._inner_layout.addWidget(self.empty_widget)
 
@@ -264,7 +264,7 @@ class NotificationDropdown(GlassPanel):
         
         self.active_hdr = QLabel("  Descargas en curso")
         self.active_hdr.setFont(QFont("Inter", 10, QFont.Weight.Bold))
-        self.active_hdr.setStyleSheet(f"color: {tokens.CURRENT.text_secondary};")
+        self.active_hdr.setStyleSheet(f"")
         self.active_layout.addWidget(self.active_hdr)
         self._inner_layout.addWidget(self.active_container)
         self.active_container.hide()
@@ -277,7 +277,7 @@ class NotificationDropdown(GlassPanel):
 
         self.history_hdr = QLabel("  Historial")
         self.history_hdr.setFont(QFont("Inter", 10, QFont.Weight.Bold))
-        self.history_hdr.setStyleSheet(f"color: {tokens.CURRENT.text_secondary};")
+        self.history_hdr.setStyleSheet(f"")
         self.history_layout.addWidget(self.history_hdr)
         self._inner_layout.addWidget(self.history_container)
         self.history_container.hide()
@@ -326,7 +326,7 @@ class NotificationDropdown(GlassPanel):
         if hasattr(self, "title_lbl") and self.title_lbl:
             self.title_lbl.setStyleSheet(f"color: {text_primary}; background: transparent;")
         if hasattr(self, "empty_icon") and self.empty_icon:
-            self.empty_icon.setStyleSheet(f"color: {tokens.CURRENT.text_disabled}; background: transparent;")
+            self.empty_icon.setStyleSheet(f" background: transparent;")
         if hasattr(self, "empty_lbl") and self.empty_lbl:
             self.empty_lbl.setStyleSheet(f"color: {text_secondary}; background: transparent;")
         if hasattr(self, "active_hdr") and self.active_hdr:

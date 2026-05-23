@@ -157,7 +157,7 @@ class MiniPlayerWidget(QWidget):
 
         self.artist = QLabel("")
         self.artist.setFont(AppFont.label(10))
-        self.artist.setStyleSheet(f"color: {tokens.CURRENT.text_secondary};")
+        self.artist.setStyleSheet(f"")
         self.artist.setMaximumWidth(220)
         info_layout.addWidget(self.artist)
 
@@ -172,7 +172,7 @@ class MiniPlayerWidget(QWidget):
 
         self.time_current = QLabel("0:00")
         self.time_current.setFont(AppFont.mono(10))
-        self.time_current.setStyleSheet(f"color: {tokens.CURRENT.text_disabled};")
+        self.time_current.setStyleSheet(f"")
         self.time_current.setFixedWidth(36)
         self.time_current.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         progress_layout.addWidget(self.time_current)
@@ -184,7 +184,7 @@ class MiniPlayerWidget(QWidget):
 
         self.time_total = QLabel("0:00")
         self.time_total.setFont(AppFont.mono(10))
-        self.time_total.setStyleSheet(f"color: {tokens.CURRENT.text_disabled};")
+        self.time_total.setStyleSheet(f"")
         self.time_total.setFixedWidth(36)
         self.time_total.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         progress_layout.addWidget(self.time_total)
@@ -269,7 +269,7 @@ class MiniPlayerWidget(QWidget):
             self.artwork.setPixmap(QPixmap())
             self.artwork.setText(Icon.get("library_music"))
             self.artwork.setFont(Icon.font(28))
-            self.artwork.setStyleSheet(f"background: {tokens.CURRENT.bg_high}; color: {tokens.CURRENT.text_disabled}; border-radius: 10px;")
+            self.artwork.setStyleSheet(f"background: {tokens.CURRENT.bg_high};  border-radius: 10px;")
 
     async def _load_thumbnail(self, url: str):
         path = await _image_cache.download(url)
@@ -360,7 +360,7 @@ class MiniPlayerWidget(QWidget):
         if not self.artwork.pixmap() or self.artwork.pixmap().isNull():
             self.artwork.setStyleSheet(f"""
                 background: {tokens.CURRENT.bg_high};
-                color: {tokens.CURRENT.text_disabled};
+                
                 border-radius: 10px;
             """)
         else:
@@ -368,18 +368,18 @@ class MiniPlayerWidget(QWidget):
 
         # 3. Label text styling
         self.title.setColor(tokens.CURRENT.text_primary)
-        self.artist.setStyleSheet(f"color: {tokens.CURRENT.text_secondary};")
-        self.time_current.setStyleSheet(f"color: {tokens.CURRENT.text_secondary};")
-        self.time_total.setStyleSheet(f"color: {tokens.CURRENT.text_secondary};")
+        self.artist.setStyleSheet(f"")
+        self.time_current.setStyleSheet(f"")
+        self.time_total.setStyleSheet(f"")
 
         # 4. Button styles
-        self.btn_prev.setStyleSheet(f"QPushButton {{ color: {tokens.CURRENT.text_primary}; border: none; background: transparent; }}")
-        self.btn_next.setStyleSheet(f"QPushButton {{ color: {tokens.CURRENT.text_primary}; border: none; background: transparent; }}")
-        self.btn_expand.setStyleSheet(f"QPushButton {{ color: {tokens.CURRENT.text_secondary}; border: none; background: transparent; }}")
+        self.btn_prev.setStyleSheet(f"QPushButton {{  border: none; background: transparent; }}")
+        self.btn_next.setStyleSheet(f"QPushButton {{  border: none; background: transparent; }}")
+        self.btn_expand.setStyleSheet(f"QPushButton {{  border: none; background: transparent; }}")
 
     def changeEvent(self, event):
         from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange, QEvent.Type.ApplicationPaletteChange):
+        if event.type() in (QEvent.Type.PaletteChange,):
             if not getattr(self, "_in_style_change", False):
                 self._in_style_change = True
                 try:

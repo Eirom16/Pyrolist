@@ -121,17 +121,17 @@ class _SuggestionRow(QWidget):
             _SuggestionRow:hover {{ background: rgba({c.red()},{c.green()},{c.blue()},0.05); }}
         """)
         if not self._has_thumbnail:
-            self.icon_label.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent;")
+            self.icon_label.setStyleSheet(f" background: transparent;")
         else:
             self.icon_label.setStyleSheet(f"background: {tokens.CURRENT.bg_high}; border-radius: 4px;")
             
-        self.title_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent;")
+        self.title_lbl.setStyleSheet(f" background: transparent;")
         if self.sub_lbl:
-            self.sub_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent;")
+            self.sub_lbl.setStyleSheet(f" background: transparent;")
             
         if self.del_btn:
             self.del_btn.setStyleSheet(f"""
-                QPushButton {{ background: transparent; color: {tokens.CURRENT.text_secondary}; border: none; border-radius: 14px; }}
+                QPushButton {{ background: transparent;  border: none; border-radius: 14px; }}
                 QPushButton:hover {{ background: rgba({c.red()},{c.green()},{c.blue()},0.08); }}
             """)
 
@@ -240,7 +240,7 @@ class _SearchDropdown(GlassPanel):
         if label:
             lbl = QLabel(f"  {label}")
             lbl.setFont(QFont("Inter", 11, QFont.Weight.Medium))
-            lbl.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; margin: 6px 16px 2px 16px;")
+            lbl.setStyleSheet(f" margin: 6px 16px 2px 16px;")
             self._layout.addWidget(lbl)
 
     def add_row(self, row: _SuggestionRow):
@@ -616,14 +616,14 @@ class GlobalSearchBar(QWidget):
                     border: 1px solid {accent};
                     background-color: {tokens.CURRENT.bg_elevated};
                 }}
-                QLineEdit::placeholder {{ color: {tokens.CURRENT.text_secondary}; }}
+                QLineEdit::placeholder {{  }}
             """)
 
         if hasattr(self, '_clear_btn') and self._clear_btn:
             self._clear_btn.setStyleSheet(f"""
                 QPushButton {{
                     background: transparent;
-                    color: {tokens.CURRENT.text_secondary};
+                    
                     border: none;
                     border-radius: 16px;
                 }}

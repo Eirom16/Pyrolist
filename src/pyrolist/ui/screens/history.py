@@ -36,7 +36,7 @@ class HistoryScreen(QWidget):
         from pyrolist.ui.design import tokens
         header = QLabel("Historial")
         header.setFont(QFont("Inter", 24, QFont.Weight.Bold))
-        header.setStyleSheet(f"color: {tokens.CURRENT.text_primary};")
+        header.setStyleSheet(f"")
         layout.addWidget(header)
 
         self.scroll = QScrollArea()
@@ -98,7 +98,7 @@ class HistoryScreen(QWidget):
         header = QLabel("Reproducido recientemente")
         header.setFont(QFont("Inter", 16, QFont.Weight.Bold))
         from pyrolist.ui.design import tokens
-        header.setStyleSheet(f"color: {tokens.CURRENT.text_primary};")
+        header.setStyleSheet(f"")
 
         has_items = False
         
@@ -177,22 +177,3 @@ class HistoryScreen(QWidget):
         self.content_layout.addStretch()
         self._fade_in_content()
 
-    def _update_history_styles(self) -> None:
-        from pyrolist.ui.design import tokens
-        for label in self.findChildren(QLabel):
-            font_size = label.font().pointSize()
-            if font_size >= 14:
-                label.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent;")
-            else:
-                label.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent;")
-
-    def changeEvent(self, event) -> None:
-        from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange, QEvent.Type.ApplicationPaletteChange):
-            if not getattr(self, '_in_style_change', False):
-                self._in_style_change = True
-                try:
-                    self._update_history_styles()
-                finally:
-                    self._in_style_change = False
-        super().changeEvent(event)

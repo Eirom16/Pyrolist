@@ -45,7 +45,7 @@ class RippleButton(QPushButton):
             "primary": f"""
                 QPushButton {{
                     background-color: {accent};
-                    color: {tokens.CURRENT.text_on_accent};
+                    
                     border: none;
                     border-radius: 20px;
                     padding: 10px 26px;
@@ -55,7 +55,7 @@ class RippleButton(QPushButton):
                 }}
                 QPushButton:hover {{ background-color: {bright_hex}; }}
                 QPushButton:pressed {{ background-color: {dark_hex}; }}
-                QPushButton:disabled {{ background-color: {tokens.CURRENT.bg_high}; color: {tokens.CURRENT.text_disabled}; }}
+                QPushButton:disabled {{ background-color: {tokens.CURRENT.bg_high};  }}
             """,
             "secondary": f"""
                 QPushButton {{
@@ -76,14 +76,14 @@ class RippleButton(QPushButton):
             "ghost": f"""
                 QPushButton {{
                     background-color: transparent;
-                    color: {tokens.CURRENT.text_secondary};
+                    
                     border: none;
                     border-radius: 20px;
                     padding: 10px 20px;
                     font-family: 'Inter';
                     font-size: 14px;
                 }}
-                QPushButton:hover {{ background-color: {tokens.CURRENT.bg_elevated}; color: {tokens.CURRENT.text_primary}; }}
+                QPushButton:hover {{ background-color: {tokens.CURRENT.bg_elevated};  }}
             """,
             "danger": f"""
                 QPushButton {{
@@ -103,7 +103,7 @@ class RippleButton(QPushButton):
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange, QEvent.Type.ApplicationPaletteChange):
+        if event.type() in (QEvent.Type.PaletteChange,):
             if not getattr(self, '_in_style_change', False):
                 self._in_style_change = True
                 try:

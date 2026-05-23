@@ -78,11 +78,11 @@ class QueuePanel(QWidget):
             }}
         """)
         if hasattr(self, "header_lbl") and self.header_lbl:
-            self.header_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent;")
+            self.header_lbl.setStyleSheet(f" background: transparent;")
 
     def changeEvent(self, event):
         from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange, QEvent.Type.ApplicationPaletteChange):
+        if event.type() in (QEvent.Type.PaletteChange,):
             if not getattr(self, '_in_style_change', False):
                 self._in_style_change = True
                 try:
