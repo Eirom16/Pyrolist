@@ -22,9 +22,17 @@ class IconButton(QPushButton):
         if icon:
             self.setIcon(icon)
             self.setIconSize(QSize(size - 12, size - 12))
-        self.setStyleSheet("QPushButton { border: none; background: transparent; }")
+        
+        # Base style, size will be overridden if setFont is called
+        self.setStyleSheet(f"QPushButton {{ border: none; background: transparent; font-family: 'Material Symbols Rounded'; font-size: {size // 2 + 4}px; }}")
 
         self._scale = 1.0
+        
+    def setFont(self, font):
+        super().setFont(font)
+        sz = font.pixelSize() if font.pixelSize() > 0 else font.pointSize()
+        fam = font.family()
+        self.setStyleSheet(f"QPushButton {{ border: none; background: transparent; font-family: '{fam}'; font-size: {sz}px; }}")
         self._bg_anim = QPropertyAnimation(self, b"bg_opacity", self)
         self._bg_anim.setDuration(150)
         self._bg_anim.setEasingCurve(QEasingCurve.Type.OutCubic)

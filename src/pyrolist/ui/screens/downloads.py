@@ -203,10 +203,16 @@ class DownloadItemWidget(QFrame):
             song = await repo.get_song(self.video_id)
             is_liked = song.is_liked if song else False
             
+            import shiboken6
+            if not shiboken6.isValid(self) or not hasattr(self, 'btn_like') or not shiboken6.isValid(self.btn_like):
+                return
+                
             # Apply initial style
             self.btn_like.setFont(Icon.font(20, filled=is_liked))
             self.btn_like.set_active(is_liked)
             self._update_item_styles()
+        except RuntimeError:
+            pass # C++ object deleted during await
         except Exception as e:
             logger.error(f"Error checking like state for {self.video_id}: {e}")
 

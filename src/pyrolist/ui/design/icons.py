@@ -186,5 +186,5 @@ class Icon:
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         # Make the label big enough so the icon glyph is not clipped
         label.setFixedSize(max(size + 8, 28), max(size + 8, 28))
-        label.setStyleSheet(f"color: {color}; background: transparent; font-family: '{MATERIAL_FONT}';")
+        label.setStyleSheet(f"color: {color}; background: transparent; font-family: '{MATERIAL_FONT}'; font-size: {size}px;")
         return label

@@ -14,7 +14,7 @@ from functools import partial
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QLineEdit, QPushButton, QScrollArea,
-    QSizePolicy, QGraphicsDropShadowEffect
+    QSizePolicy, QGraphicsDropShadowEffect, QFrame
 )
 from PySide6.QtCore import Signal, Qt, QTimer, QPoint
 from PySide6.QtGui import QFont, QColor, QPixmap
@@ -285,23 +285,30 @@ class GlobalSearchBar(QWidget):
         bar_layout = QHBoxLayout(self.bar_widget)
         bar_layout.setContentsMargins(24, 10, 24, 10)
         bar_layout.setSpacing(12)
+        
+        self.search_container = QFrame()
+        self.search_container.setObjectName("searchContainer")
+        self.search_container.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        search_layout = QHBoxLayout(self.search_container)
+        search_layout.setContentsMargins(16, 0, 16, 0)
+        search_layout.setSpacing(12)
 
         # Search icon
         self._search_icon = QLabel()
+        self._search_icon.setObjectName("searchIcon")
         self._search_icon.setFixedSize(28, 28)
         self._search_icon.setText(Icon.get("search"))
         self._search_icon.setFont(Icon.font(20))
         self._search_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        bar_layout.addWidget(self._search_icon)
+        search_layout.addWidget(self._search_icon)
 
         # Input field
         self.input = QLineEdit()
         self.input.setObjectName("globalSearchInput")
         self.input.setPlaceholderText("¿Qué quieres escuchar hoy?")
-        self._update_search_bar_styles()
         self.input.textChanged.connect(self._on_text_changed)
         self.input.returnPressed.connect(self._on_return_pressed)
-        bar_layout.addWidget(self.input)
+        search_layout.addWidget(self.input)
 
         # Clear button, hidden when empty.
         self._clear_btn = QPushButton()
@@ -311,7 +318,11 @@ class GlobalSearchBar(QWidget):
         self._clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._clear_btn.clicked.connect(self._clear_input)
         self._clear_btn.setVisible(False)
-        bar_layout.addWidget(self._clear_btn)
+        search_layout.addWidget(self._clear_btn)
+        
+        bar_layout.addWidget(self.search_container)
+        
+        self._update_search_bar_styles()
 
         # Notification Button & Dropdown
         from pyrolist.ui.widgets.notification_button import NotificationButton
@@ -598,25 +609,42 @@ class GlobalSearchBar(QWidget):
             """)
             
         if hasattr(self, '_search_icon') and self._search_icon:
-            self._search_icon.setStyleSheet(f"color: {accent}; background: transparent;")
+            self._search_icon.setStyleSheet(f"""
+                #searchIcon {{
+                    color: {accent};
+                    background: transparent;
+                    font-family: 'Material Symbols Rounded';
+                    font-size: 20px;
+                }}
+            """)
             
-        if hasattr(self, 'input') and self.input:
-            self.input.setStyleSheet(f"""
-                QLineEdit {{
+        if hasattr(self, 'search_container') and self.search_container:
+            self.search_container.setStyleSheet(f"""
+                #searchContainer {{
                     background-color: {tokens.CURRENT.bg_surface};
                     border: 1px solid {tokens.CURRENT.border};
                     border-radius: 24px;
+                }}
+            """)
+
+        if hasattr(self, 'input') and self.input:
+            self.input.setStyleSheet(f"""
+                QLineEdit#globalSearchInput {{
+                    background: transparent;
+                    background-color: transparent;
+                    border: none;
                     color: {text_primary};
-                    padding: 12px 24px;
+                    padding: 8px 0px;
                     font-size: 15px;
                     font-family: Inter;
                     selection-background-color: {accent};
                 }}
-                QLineEdit:focus {{
-                    border: 1px solid {accent};
-                    background-color: {tokens.CURRENT.bg_elevated};
+                QLineEdit#globalSearchInput:focus {{
+                    background: transparent;
+                    background-color: transparent;
+                    border: none;
+                    outline: none;
                 }}
-                QLineEdit::placeholder {{  }}
             """)
 
         if hasattr(self, '_clear_btn') and self._clear_btn:

@@ -68,7 +68,7 @@ class NavButton(QPushButton):
 
         color = accent if active else tokens.CURRENT.text_secondary
         weight = "700" if active else "500"
-        self.icon_label.setStyleSheet(f"color: {color}; background: transparent;")
+        self.icon_label.setStyleSheet(f"color: {color}; background: transparent; font-family: 'Material Symbols Rounded'; font-size: 24px;")
         self.text_label.setStyleSheet(f"color: {color}; background: transparent; font-weight: {weight};")
         
         bg = f"rgba({r},{g},{b},0.14)" if active else "transparent"
@@ -351,7 +351,7 @@ class NavSidebar(QWidget):
                 self._app_icon.update()
                 return
             if isinstance(self._app_icon, QLabel) and self._app_icon.text():
-                self._app_icon.setStyleSheet(f"color: {accent}; background: transparent;")
+                self._app_icon.setStyleSheet(f"color: {accent}; background: transparent; font-size: 24px;")
 
     def _update_sidebar_styles(self) -> None:
         from pyrolist.ui.design import tokens
@@ -374,6 +374,7 @@ class NavSidebar(QWidget):
                     border: none;
                     border-radius: 10px;
                     color: {text_secondary};
+                    font-size: 24px;
                 }}
                 QPushButton:hover {{
                     background: {tokens.CURRENT.bg_elevated};

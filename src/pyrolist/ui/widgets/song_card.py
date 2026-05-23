@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QToolButton
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
 from PySide6.QtCore import Signal, Qt, Property, QPropertyAnimation, QEasingCurve
 from PySide6.QtGui import QFont, QPixmap
 import asyncio
@@ -125,7 +125,7 @@ class SongCard(QWidget):
         layout.addWidget(self.btn_play)
 
         # Context menu trigger
-        self.menu_btn = QToolButton()
+        self.menu_btn = QPushButton()
         self.menu_btn.setObjectName("menu_btn")
         self.menu_btn.setText(Icon.get("more_vert"))
         self.menu_btn.setFont(Icon.font(20))
@@ -134,10 +134,9 @@ class SongCard(QWidget):
         self.menu_btn.clicked.connect(self._show_context_menu)
         layout.addWidget(self.menu_btn)
 
-        
-
         # Allow clicking anywhere on card
         self.mousePressEvent = self._handle_click
+        self._update_card_styles()
 
     def _update_card_styles(self) -> None:
         from pyrolist.ui.design import tokens
@@ -152,7 +151,7 @@ class SongCard(QWidget):
         
         self.setStyleSheet(f"""
             #songCard {{
-                background-color: rgba({r}, {g}, {b}, {self._bg_opacity * 0.08});
+                background-color: transparent;
                 border-radius: 12px;
                 padding: 6px;
             }}
@@ -201,18 +200,17 @@ class SongCard(QWidget):
         """)
         
         self.menu_btn.setStyleSheet(f"""
-            QToolButton {{
+            QPushButton#menu_btn {{
                 background: transparent;
                 color: {text_secondary};
                 border: none;
                 border-radius: 16px;
+                font-family: 'Material Symbols Rounded';
+                font-size: 22px;
             }}
-            QToolButton:hover {{
+            QPushButton#menu_btn:hover {{
                 background-color: rgba({r}, {g}, {b}, 0.15);
                 color: {accent};
-            }}
-            QToolButton::menu-indicator {{
-                image: none;
             }}
         """)
         
@@ -280,20 +278,39 @@ class SongCard(QWidget):
 
     def _set_bg_opacity(self, value: float) -> None:
         self._bg_opacity = value
-        from pyrolist.ui.design import tokens
-        from PySide6.QtGui import QColor
-        accent = tokens.CURRENT.accent
-        c = QColor(accent)
-        r, g, b = c.red(), c.green(), c.blue()
-        self.setStyleSheet(f"""
-            #songCard {{
-                background-color: rgba({r}, {g}, {b}, {value * 0.08});
-                border-radius: 12px;
-                padding: 6px;
-            }}
-        """)
+        self.update()
 
     bg_opacity = Property(float, _get_bg_opacity, _set_bg_opacity)
+
+    def paintEvent(self, event) -> None:
+        from pyrolist.ui.design import tokens
+        from PySide6.QtGui import QPainter, QColor
+        from PySide6.QtCore import Qt
+        
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        
+        if self._bg_opacity > 0.0:
+            accent = tokens.CURRENT.accent
+            c = QColor(accent)
+            c.setAlphaF(self._bg_opacity * 0.08)
+            painter.setBrush(c)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawRoundedRect(self.rect(), 12, 12)
+            
+        painter.end()
+        super().paintEvent(event)
+
+    def changeEvent(self, event) -> None:
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
+            if not getattr(self, '_in_style_change', False):
+                self._in_style_change = True
+                try:
+                    self._update_card_styles()
+                finally:
+                    self._in_style_change = False
+        super().changeEvent(event)
 
     def enterEvent(self, event) -> None:
         self._bg_anim.stop()

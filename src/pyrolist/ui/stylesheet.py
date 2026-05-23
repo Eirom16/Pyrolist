@@ -22,13 +22,15 @@ SongCard IconButton#btn_play:hover {
     background-color: rgba(167, 139, 250, 0.15);
     color: #A78BFA;
 }
-SongCard QToolButton#menu_btn {
+SongCard QPushButton#menu_btn {
     color: #9B9BC0;
     border: none;
     background: transparent;
     border-radius: 16px;
+    font-size: 22px;
+    font-family: 'Material Symbols Rounded';
 }
-SongCard QToolButton#menu_btn:hover {
+SongCard QPushButton#menu_btn:hover {
     background-color: rgba(167, 139, 250, 0.15);
     color: #A78BFA;
 }
