@@ -273,7 +273,8 @@ class NowPlayingScreen(QWidget):
 
         # Right Side (Tabs: Queue, Lyrics, Related)
         right_panel = QWidget()
-        right_panel.setFixedWidth(460)
+        right_panel.setMinimumWidth(560)
+        right_panel.setMaximumWidth(700)
         right_layout = QVBoxLayout(right_panel)
         right_layout.setContentsMargins(0, 0, 0, 0)
 
