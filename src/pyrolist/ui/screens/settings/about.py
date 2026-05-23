@@ -43,7 +43,7 @@ class AboutScreen(QWidget):
                 from importlib.metadata import version as pkg_version
                 ver = pkg_version("pyrolist")
             except Exception:
-                ver = "1.1.8"
+                ver = "1.1.9"
         self.version = QLabel(f"Versión {ver}")
         self.version.setFont(AppFont.body(14))
         layout.addWidget(self.version)
