@@ -1126,7 +1126,18 @@ class MainWindow(QMainWindow):
 
         try:
             logger.info(f"Getting fresh stream for: {item.title}")
-            stream_info = await self.extractor.get_stream_info(item.video_id)
+            
+            import asyncio
+            extraction_task = asyncio.create_task(self.extractor.get_stream_info(item.video_id))
+            
+            # Give immediate feedback by stopping or fading out the old song
+            if self.player.status.state == PlayerState.PLAYING:
+                if self.settings.player.crossfade_enabled:
+                    await self.crossfade_manager.fade_out(self.player, duration_sec=1.2)
+                else:
+                    await self.player.stop()
+
+            stream_info = await extraction_task
             
             # Check if user clicked another song while we were extracting
             if self.queue.current is not item:
@@ -1145,9 +1156,7 @@ class MainWindow(QMainWindow):
 
             if item.stream_url:
                 logger.info(f"Playing: {item.title} - URL length: {len(item.stream_url)}, format: {stream_info.get('format', 'unknown')}")
-                if self.settings.player.crossfade_enabled and self.player.status.state == PlayerState.PLAYING:
-                    await self.crossfade_manager.fade_out(self.player, duration_sec=1.2)
-
+                
                 success = await self.player.play_url(item.stream_url, item.video_id)
                 if success:
                     self._run_async(self._save_play_history(item))

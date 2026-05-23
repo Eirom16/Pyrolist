@@ -268,6 +268,7 @@ class SongCard(QWidget):
         else:
             self._current_menu.download.connect(self._on_download_clicked)
             
+        self._current_menu._trigger_widget = self.menu_btn
         pos = self.menu_btn.mapToGlobal(self.menu_btn.rect().bottomLeft())
         self._current_menu.popup_at(pos)
 

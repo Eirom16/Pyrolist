@@ -101,7 +101,7 @@ class GlassPanel(QWidget):
 
     def eventFilter(self, watched, event) -> bool:
         from PySide6.QtCore import QEvent
-        from PySide6.QtWidgets import QWidget, QPushButton
+        from PySide6.QtWidgets import QWidget, QAbstractButton
         if event.type() == QEvent.Type.MouseButtonPress:
             if getattr(self, "_just_opened", False):
                 return False
@@ -113,7 +113,7 @@ class GlassPanel(QWidget):
                     trigger_local = trigger.mapFromGlobal(pos)
                     if trigger.rect().contains(trigger_local):
                         self.dismiss()
-                        if isinstance(trigger, QPushButton):
+                        if isinstance(trigger, QAbstractButton):
                             return True
                         return False
                 self.dismiss()

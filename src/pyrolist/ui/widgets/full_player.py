@@ -364,7 +364,7 @@ class FullPlayerDialog(QDialog):
                     lbl = QLabel(clean)
                     lbl.setFont(AppFont.title(16)) # Use title font for better readability
                     from pyrolist.ui.design import tokens
-                    lbl.setStyleSheet(f"color: {tokens.CURRENT.text_disabled}; background: transparent; padding: 4px 0;")
+                    lbl.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent; padding: 4px 0;")
                     lbl.setWordWrap(True)
                     self.lyrics_content_layout.addWidget(lbl)
                     self._lyric_lines.append((timestamp_ms, lbl))
@@ -412,13 +412,13 @@ class FullPlayerDialog(QDialog):
             # Revert old
             if self._current_lyric_index != -1:
                 old_ts, old_lbl = self._lyric_lines[self._current_lyric_index]
-                old_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_disabled}; background: transparent; padding: 4px 0;")
+                old_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent; padding: 4px 0;")
                 old_lbl.setFont(AppFont.title(16))
             
             # Highlight new
             new_ts, new_lbl = self._lyric_lines[active_idx]
             new_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent; padding: 4px 0;")
-            new_lbl.setFont(AppFont.heading(18)) # Bigger for active
+            new_lbl.setFont(AppFont.heading(20)) # Make it even more prominent if needed, or 18
             
             self._current_lyric_index = active_idx
             
