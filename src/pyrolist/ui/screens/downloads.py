@@ -201,6 +201,12 @@ class DownloadItemWidget(QFrame):
             QProgressBar::chunk {{ background: {accent}; border-radius: 2px; }}
         """)
 
+    def changeEvent(self, event) -> None:
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
+            self._update_item_styles()
+        super().changeEvent(event)
+
     def _on_like(self):
         self.like_requested.emit(self.video_id, self.btn_like)
 
@@ -490,6 +496,12 @@ class DownloadPlaylistItemWidget(QFrame):
             }}
         """)
 
+    def changeEvent(self, event) -> None:
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
+            self._update_playlist_item_styles()
+        super().changeEvent(event)
+
     def _on_header_clicked(self, event):
         pos = event.position().toPoint()
         child = self.header.childAt(pos)
@@ -565,6 +577,7 @@ class DownloadsScreen(QWidget):
         
         # Header Row
         self.header_row = QWidget()
+        self.header_row.setStyleSheet("background: transparent; border: none;")
         header_row_layout = QHBoxLayout(self.header_row)
         header_row_layout.setContentsMargins(0, 0, 0, 0)
         
@@ -612,6 +625,7 @@ class DownloadsScreen(QWidget):
 
         # Tabs
         self.tabs = QWidget()
+        self.tabs.setStyleSheet("background: transparent; border: none;")
         tabs_layout = QHBoxLayout(self.tabs)
         tabs_layout.setSpacing(16)
         
@@ -1097,3 +1111,9 @@ class DownloadsScreen(QWidget):
         self._update_toolbar_styles()
         for key, btn in self.tab_btns.items():
             btn.setStyleSheet(self._tab_style(key == self._current_tab))
+
+    def changeEvent(self, event) -> None:
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
+            self._apply_theme_styles()
+        super().changeEvent(event)

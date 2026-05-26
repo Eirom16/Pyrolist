@@ -48,19 +48,26 @@ class ValueAdjuster(QWidget):
         style = f"""
             QPushButton {{
                 background-color: {tokens.CURRENT.bg_elevated};
+                color: {tokens.CURRENT.text_primary};
                 border: 1px solid {tokens.CURRENT.border};
                 border-radius: 8px;
-                
                 font-weight: bold;
             }}
             QPushButton:hover {{
                 background-color: {tokens.CURRENT.bg_high};
+                color: {tokens.CURRENT.accent};
                 border-color: {tokens.CURRENT.accent};
             }}
         """
         self.btn_dec.setStyleSheet(style)
         self.btn_inc.setStyleSheet(style)
-        self.lbl_val.setStyleSheet(f" background: transparent;")
+        self.lbl_val.setStyleSheet(f" background: transparent; color: {tokens.CURRENT.text_primary};")
+
+    def changeEvent(self, event) -> None:
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
+            self._style_buttons()
+        super().changeEvent(event)
 
     def _dec(self):
         self.value -= self.step

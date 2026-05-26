@@ -378,7 +378,7 @@ class PlaylistScreen(QWidget):
                     artist=artist_names,
                     duration=duration,
                     thumbnail_url=track_thumbnail_url,
-                    on_play=partial(self._handle_play, video_id, title, artist_names, i),
+                    on_play=partial(self._handle_play, video_id, title, artist_names, i, thumbnail_url=track_thumbnail_url),
                     video_id=video_id
                 )
                 card.download_requested.connect(self.download_requested.emit)
@@ -398,13 +398,13 @@ class PlaylistScreen(QWidget):
                 self.cover.setPixmap(pixmap)
                 self.cover.setStyleSheet("background: transparent; border-radius: 8px;")
 
-    def _handle_play(self, video_id, title, artists, index=0):
+    def _handle_play(self, video_id, title, artists, index=0, thumbnail_url=""):
         if video_id == "local" or (hasattr(self, "_local_tracks_meta") and self._local_tracks_meta):
             if self.on_play_local_playlist:
                 self.on_play_local_playlist(self._local_tracks_meta, index)
                 return
         if self.on_play_song:
-            self.on_play_song(video_id, title, artists, "", 0, "")
+            self.on_play_song(video_id, title, artists, "", 0, thumbnail_url)
 
     def _update_dl_button_style(self) -> None:
         if hasattr(self, 'btn_dl') and isinstance(self.btn_dl, QPushButton):

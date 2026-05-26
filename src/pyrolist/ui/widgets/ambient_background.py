@@ -57,6 +57,7 @@ class AmbientBackgroundWidget(QWidget):
             AmbientBlob(QColor(15, 15, 15), 0.8, 0.8, 0.9),
             AmbientBlob(QColor(20, 20, 20), 0.5, 0.5, 1.0)
         ]
+        self._raw_colors = []
         
         self._anim = QVariantAnimation(self)
         self._anim.setDuration(15000) # 15 seconds for a full fluid movement cycle
@@ -73,6 +74,7 @@ class AmbientBackgroundWidget(QWidget):
         
         self._generate_new_targets()
         self._anim.start()
+        self.update_theme_styles()
 
     def _generate_new_targets(self):
         """Genera nuevas posiciones objetivo para que los blobs se muevan suavemente."""
@@ -108,6 +110,21 @@ class AmbientBackgroundWidget(QWidget):
             blob.current_color = QColor(r, g, b)
         self.update()
 
+    def update_theme_styles(self):
+        """Refreshes the dynamic blob colors when the theme changes."""
+        from pyrolist.ui.design import tokens
+        from PySide6.QtGui import QColor
+        is_light = QColor(tokens.CURRENT.bg_base).lightness() > 128
+        
+        if getattr(self, "_using_default_colors", True) or not getattr(self, "_raw_colors", None):
+            self._using_default_colors = True
+            if is_light:
+                self._raw_colors = [QColor(230, 230, 250), QColor(240, 248, 255), QColor(245, 245, 250)]
+            else:
+                self._raw_colors = [QColor(30, 20, 50), QColor(20, 40, 50), QColor(40, 20, 40)]
+        
+        self._set_colors(self._raw_colors)
+
     def set_image(self, image_data: bytes):
         """Actualiza el fondo extrayendo colores de los bytes de la imagen."""
         from pyrolist.ui.design import tokens
@@ -115,10 +132,12 @@ class AmbientBackgroundWidget(QWidget):
         is_light = QColor(tokens.CURRENT.bg_base).lightness() > 128
         
         if not image_data:
+            self._using_default_colors = True
             if is_light:
                 default_colors = [QColor(230, 230, 250), QColor(240, 248, 255), QColor(245, 245, 250)]
             else:
                 default_colors = [QColor(30, 20, 50), QColor(20, 40, 50), QColor(40, 20, 40)]
+            self._raw_colors = default_colors
             self._set_colors(default_colors)
             return
             
@@ -135,7 +154,11 @@ class AmbientBackgroundWidget(QWidget):
             import shiboken6
             if shiboken6.isValid(self):
                 from PySide6.QtCore import QTimer
-                QTimer.singleShot(0, self, lambda: self._set_colors(colors))
+                def apply_colors():
+                    self._using_default_colors = False
+                    self._raw_colors = colors
+                    self._set_colors(colors)
+                QTimer.singleShot(0, self, apply_colors)
 
         future = _executor.submit(extract_colors_from_image, image_data)
         future.add_done_callback(on_done)

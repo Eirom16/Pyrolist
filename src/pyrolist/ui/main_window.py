@@ -49,7 +49,16 @@ class MainWindow(QMainWindow):
         self._nav_history: list[int] = []  # stack of previous screen indices for back navigation
         self._theme_base_qss = ""
         self._theme_refresh_pending = False
+        
+        # Debounce timer for theme changes
+        self._theme_apply_timer = QTimer(self)
+        self._theme_apply_timer.setSingleShot(True)
+        self._theme_apply_timer.timeout.connect(self._apply_theme_and_accent_debounced)
+        self._pending_theme_mode = "dark"
+        self._pending_accent = "#A78BFA"
+        self._cached_base_qss = {}  # In-memory QSS cache for light and dark modes
 
+        
         self.yt = YouTubeMusicClient(settings)
         self.extractor = StreamExtractor(settings)
         
@@ -77,10 +86,10 @@ class MainWindow(QMainWindow):
         self._setup_integrations()
         self._setup_shortcuts()
         
-        # Apply initial theme properly
+        # Apply initial theme properly (immediately on startup to prevent flash)
         theme_mode = getattr(settings.appearance, 'theme_mode', 'dark')
         accent = getattr(settings.appearance, 'accent_color', '#A78BFA')
-        self._apply_theme_and_accent(theme_mode, accent)
+        self._apply_theme_and_accent(theme_mode, accent, immediate=True)
 
     def _setup_shortcuts(self) -> None:
         from PySide6.QtGui import QShortcut, QKeySequence
@@ -1611,8 +1620,20 @@ class MainWindow(QMainWindow):
         theme_mode = getattr(self.settings.appearance, 'theme_mode', 'dark')
         self._apply_theme_and_accent(theme_mode, accent)
 
-    def _apply_theme_and_accent(self, theme_mode: str, accent: str) -> None:
-        """Regenerate QSS with custom theme colors and dynamic accent."""
+    def _apply_theme_and_accent(self, theme_mode: str, accent: str, immediate: bool = False) -> None:
+        self._pending_theme_mode = theme_mode
+        self._pending_accent = accent
+        if immediate:
+            self._apply_theme_and_accent_debounced()
+        else:
+            self._theme_apply_timer.stop()
+            self._theme_apply_timer.start(150) # 150ms debounce
+
+    def _apply_theme_and_accent_debounced(self) -> None:
+        """Regenerate QSS with custom theme colors and dynamic accent (debounced and optimized)."""
+        theme_mode = self._pending_theme_mode
+        accent = self._pending_accent
+
         theme_key = (theme_mode, accent)
         if hasattr(self, '_last_theme_key') and self._last_theme_key == theme_key:
             return
@@ -1723,32 +1744,38 @@ class MainWindow(QMainWindow):
         app = QApplication.instance()
         
         if app:
-            from qt_material import apply_stylesheet
-            theme_xml = "light_purple.xml" if active_mode == "light" else "dark_purple.xml"
-            try:
-                apply_stylesheet(
-                    app,
-                    theme=theme_xml,
-                    extra={
-                        "primaryColor": accent,
-                        "primaryLightColor": accent,
-                        "secondaryColor": "#FFFFFF" if active_mode == "light" else "#1E1E2E",
-                        "secondaryLightColor": "#DFDFE8" if active_mode == "light" else "#2A2A3E",
-                        "secondaryDarkColor": "#F3F3F9" if active_mode == "light" else "#13131F",
-                        "primaryTextColor": "#121224" if active_mode == "light" else "#FFFFFF",
-                        "secondaryTextColor": "#5C5C8A" if active_mode == "light" else "#B0B0C0",
-                        "density_scale": "-1",
-                        "pyside6": True,
-                        "linux": True,
-                    },
-                )
-                base_qss = app.styleSheet()
-                base_qss = base_qss.replace('font-family: Roboto;', '')
-                base_qss = base_qss.replace('font-size: 13px;', '')
-                base_qss = base_qss.replace('line-height: 13px;', '')
-                self._theme_base_qss = base_qss
-            except Exception as e:
-                logger.error(f"Error applying qt_material stylesheet: {e}")
+            if active_mode not in self._cached_base_qss:
+                from qt_material import build_stylesheet
+                theme_xml = "light_purple.xml" if active_mode == "light" else "dark_purple.xml"
+                try:
+                    base_qss = build_stylesheet(
+                        theme=theme_xml,
+                        extra={
+                            "primaryColor": "#A78BFA",  # Static placeholder accent for cache
+                            "primaryLightColor": "#A78BFA",
+                            "secondaryColor": "#FFFFFF" if active_mode == "light" else "#1E1E2E",
+                            "secondaryLightColor": "#DFDFE8" if active_mode == "light" else "#2A2A3E",
+                            "secondaryDarkColor": "#F3F3F9" if active_mode == "light" else "#13131F",
+                            "primaryTextColor": "#121224" if active_mode == "light" else "#FFFFFF",
+                            "secondaryTextColor": "#5C5C8A" if active_mode == "light" else "#B0B0C0",
+                            "density_scale": "-1",
+                            "pyside6": True,
+                            "linux": True,
+                        },
+                    )
+                    base_qss = base_qss.replace('font-family: Roboto;', '')
+                    base_qss = base_qss.replace('font-size: 13px;', '')
+                    base_qss = base_qss.replace('line-height: 13px;', '')
+                    self._cached_base_qss[active_mode] = base_qss
+                except Exception as e:
+                    logger.error(f"Error building qt_material stylesheet: {e}")
+                    self._cached_base_qss[active_mode] = ""
+            
+            # Fetch base QSS from cache
+            base_qss_template = self._cached_base_qss.get(active_mode, "")
+            
+            # Swap static placeholder color with user selected accent in <0.1ms
+            self._theme_base_qss = base_qss_template.replace("#A78BFA", accent).replace("#a78bfa", accent.lower())
             
         groove_color = "#D0D0DF" if active_mode == "light" else "#2A2A4A"
         new_qss = new_qss.replace('#2A2A4A', groove_color)

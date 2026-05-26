@@ -46,10 +46,10 @@ class LibraryScreen(QWidget):
     def _handle_download(self, vid, title, artist, thumb):
         self.download_requested.emit(vid, title, artist, thumb)
 
-    def _handle_play(self, video_id, title, artists):
+    def _handle_play(self, video_id, title, artists, thumbnail_url):
         try:
             if self.on_play_song:
-                self.on_play_song(video_id, title, artists, "", 0, "")
+                self.on_play_song(video_id, title, artists, "", 0, thumbnail_url)
         except Exception as e:
             logger.error(f"Play error: {e}")
 
@@ -224,7 +224,7 @@ class LibraryScreen(QWidget):
                                 artist=artist_names,
                                 duration=duration_str,
                                 thumbnail_url=thumbnail_url,
-                                on_play=partial(self._handle_play, video_id, title, artist_names),
+                                on_play=partial(self._handle_play, video_id, title, artist_names, thumbnail_url),
                                 video_id=video_id,
                                 is_liked=True,
                             )
@@ -242,7 +242,7 @@ class LibraryScreen(QWidget):
                             artist=song.artist,
                             duration=self._format_duration(song.duration_ms),
                             thumbnail_url=song.thumbnail_url or "",
-                            on_play=partial(self._handle_play, song.video_id, song.title, song.artist),
+                            on_play=partial(self._handle_play, song.video_id, song.title, song.artist, song.thumbnail_url or ""),
                             video_id=song.video_id,
                             is_liked=True
                         )

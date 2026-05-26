@@ -160,22 +160,13 @@ class FullPlayerDialog(QDialog):
         self.lyrics_area = QScrollArea()
         self.lyrics_area.setWidgetResizable(True)
         self.lyrics_area.setFrameShape(QFrame.Shape.NoFrame)
-        self.lyrics_area.setStyleSheet("""
-            QScrollArea {
-                background-color: rgba(10, 10, 18, 0.35);
-                border: 1px solid rgba(255, 255, 255, 0.05);
-                border-radius: 16px;
-            }
-            QScrollArea > QWidget > QWidget {
-                background: transparent;
-            }
-        """)
+        self.lyrics_area.setStyleSheet("QScrollArea { background: transparent; border: none; }")
 
         self.lyrics_content = QWidget()
         self.lyrics_content.setStyleSheet("background: transparent;")
         self.lyrics_content_layout = QVBoxLayout(self.lyrics_content)
         self.lyrics_content_layout.setSpacing(6)
-        self.lyrics_content_layout.setContentsMargins(24, 24, 24, 80)
+        self.lyrics_content_layout.setContentsMargins(16, 16, 16, 80)
 
         # Initial "no lyrics" placeholder
         no_lyrics = QLabel(Icon.get("lyrics"))
@@ -371,7 +362,7 @@ class FullPlayerDialog(QDialog):
                     
                     lbl = QLabel(clean)
                     lbl.setFont(AppFont.title(18)) # Use title font for better readability
-                    lbl.setStyleSheet("background: transparent; color: rgba(255, 255, 255, 0.55); padding: 6px 12px;")
+                    lbl.setStyleSheet("background: transparent; color: rgba(255, 255, 255, 0.55); font-size: 18pt; font-family: 'Inter'; padding: 6px 12px;")
                     lbl.setWordWrap(True)
                     self.lyrics_content_layout.addWidget(lbl)
                     self._lyric_lines.append((timestamp_ms, lbl))
@@ -419,12 +410,12 @@ class FullPlayerDialog(QDialog):
             # Revert old
             if self._current_lyric_index != -1:
                 old_ts, old_lbl = self._lyric_lines[self._current_lyric_index]
-                old_lbl.setStyleSheet("background: transparent; color: rgba(255, 255, 255, 0.55); padding: 6px 12px;")
+                old_lbl.setStyleSheet("background: transparent; color: rgba(255, 255, 255, 0.55); font-size: 18pt; font-family: 'Inter'; padding: 6px 12px;")
                 old_lbl.setFont(AppFont.title(18))
             
             # Highlight new
             new_ts, new_lbl = self._lyric_lines[active_idx]
-            new_lbl.setStyleSheet("background: transparent; color: #FFFFFF; padding: 6px 12px;")
+            new_lbl.setStyleSheet("background: transparent; color: #FFFFFF; font-size: 22pt; font-family: 'Inter'; padding: 6px 12px;")
             new_lbl.setFont(AppFont.heading(22)) # Make it even more prominent
             
             self._current_lyric_index = active_idx

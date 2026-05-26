@@ -211,7 +211,7 @@ class ArtistScreen(QWidget):
                         artist=artist_names,
                         duration=duration,
                         thumbnail_url=track_thumbnail_url,
-                        on_play=partial(self._handle_play, video_id, title, artist_names)
+                        on_play=partial(self._handle_play, video_id, title, artist_names, track_thumbnail_url)
                     )
                     card.download_requested.connect(lambda *a: self.download_requested.emit(*a))
                     card.play_next_requested.connect(lambda *a: self.play_next_requested.emit(*a))
@@ -261,6 +261,6 @@ class ArtistScreen(QWidget):
                 self.cover.setPixmap(pixmap)
                 self.cover.setStyleSheet("background: transparent; border-radius: 100px;")
 
-    def _handle_play(self, video_id, title, artists):
+    def _handle_play(self, video_id, title, artists, thumbnail_url):
         if self.on_play_song:
-            self.on_play_song(video_id, title, artists, "", 0, "")
+            self.on_play_song(video_id, title, artists, "", 0, thumbnail_url)

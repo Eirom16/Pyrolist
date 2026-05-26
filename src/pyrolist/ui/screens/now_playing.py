@@ -18,14 +18,13 @@ class LyricLabel(QLabel):
         super().__init__(text)
         self.setAlignment(align_flag)
         self.setWordWrap(True)
-        # Increase font size dynamically for superb readability (+6 instead of +4)
-        self.setFont(QFont("Inter", base_font_size + 6, QFont.Weight.Black))
-        # Better vertical spacing for compact premium look
-        self.setContentsMargins(16, 8, 16, 8)
-        self.setStyleSheet("background: transparent;")
-        
         self.base_font_size = base_font_size
         self._progress = 0.0
+        
+        # Force dynamic point size via setFont AND setStyleSheet inline to bypass QSS stylesheet overrides
+        self.setFont(QFont("Inter", base_font_size + 8, QFont.Weight.Black))
+        self.setStyleSheet(f"background: transparent; font-size: {base_font_size + 8}pt; font-family: 'Inter';")
+        self.setContentsMargins(16, 8, 16, 8)
         
         self.anim = QPropertyAnimation(self, b"progress")
         self.anim.setDuration(450)
@@ -50,15 +49,15 @@ class LyricLabel(QLabel):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
         
-        p = self._progress
+        # Clamp progress to strictly [0.0, 1.0] to prevent OutBack easing curve overshooting color calculations
+        p = max(0.0, min(1.0, self._progress))
         
-        # We always want white text for premium dynamic legibility
-        # Active color is fully opaque white, inactive is beautiful semi-transparent white
-        alpha = int(130 + (255 - 130) * p)
+        # Always white text for premium dynamic legibility
+        alpha = int(140 + (255 - 140) * p) # 140 is more readable for inactive floating text
         text_color = QColor(255, 255, 255, alpha)
         
-        # Subtle premium drop shadow for readability
-        shadow_alpha = int(90 + (170 - 90) * p)
+        # Soft dark outline only for active/activating text, preventing muddy overlap on inactive text
+        shadow_alpha = int(170 * p)
         shadow_color = QColor(0, 0, 0, shadow_alpha)
         
         # Setup scale transformation
@@ -73,18 +72,26 @@ class LyricLabel(QLabel):
         
         flags = int(self.alignment()) | Qt.TextFlag.TextWordWrap
         font = self.font()
-        # Bold weight for active lyric, medium/semi-bold for inactive
+        font.setFamily("Inter")
+        # Explicitly enforce size in point size inside the painter to bypass QSS
+        current_size = self.base_font_size + (8 * p)
+        font.setPointSize(int(current_size))
         font.setWeight(QFont.Weight.Black if p > 0.5 else QFont.Weight.Bold)
         painter.setFont(font)
         
-        # Draw shadow first
+        # Draw soft 8-directional shadow outline for robust contrast
         painter.setPen(shadow_color)
-        shadow_rect = self.contentsRect().translated(1.5, 1.5)
-        painter.drawText(shadow_rect, flags, self.text())
-        
+        offsets = [
+            (-1, -1), (1, -1), (-1, 1), (1, 1),
+            (0, -1.5), (0, 1.5), (-1.5, 0), (1.5, 0)
+        ]
+        rect = self.contentsRect()
+        for dx, dy in offsets:
+            painter.drawText(rect.translated(dx, dy), flags, self.text())
+            
         # Draw main text
         painter.setPen(text_color)
-        painter.drawText(self.contentsRect(), flags, self.text())
+        painter.drawText(rect, flags, self.text())
         
         painter.restore()
 
@@ -312,27 +319,17 @@ class NowPlayingScreen(QWidget):
         self.queue_tab = QueuePanel(self.play_queue_item_cb)
         self.tabs.addTab(self.queue_tab, "A CONTINUACIÓN")
 
-        # Tab: Lyrics (LETRA)
         self.lyrics_scroll = QScrollArea()
         self.lyrics_scroll.setWidgetResizable(True)
         self.lyrics_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.lyrics_scroll.setStyleSheet("""
-            QScrollArea {
-                background-color: rgba(10, 10, 18, 0.35);
-                border: 1px solid rgba(255, 255, 255, 0.05);
-                border-radius: 16px;
-            }
-            QScrollArea > QWidget > QWidget {
-                background: transparent;
-            }
-        """)
+        self.lyrics_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; } QScrollArea > QWidget > QWidget { background: transparent; }")
         
         self.lyrics_container = QWidget()
         self.lyrics_container.setObjectName("lyricsContainer")
         self.lyrics_container.setStyleSheet("#lyricsContainer { background: transparent; }")
         self.lyrics_layout = QVBoxLayout(self.lyrics_container)
         self.lyrics_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        self.lyrics_layout.setContentsMargins(24, 24, 24, 80)
+        self.lyrics_layout.setContentsMargins(16, 16, 16, 80)
         self.lyrics_scroll.setWidget(self.lyrics_container)
         
         self._lyric_lines = []
@@ -418,16 +415,20 @@ class NowPlayingScreen(QWidget):
         """Sync button visuals with current queue state."""
         from pyrolist.ui.design import tokens
         from pyrolist.audio.queue import RepeatMode
+        from PySide6.QtGui import QColor
+        
+        is_light = QColor(tokens.CURRENT.bg_base).lightness() > 128
+        inactive_color = "rgba(18, 18, 36, 0.55)" if is_light else "rgba(255, 255, 255, 0.5)"
         
         # Shuffle
-        color = tokens.CURRENT.accent if self.queue.shuffle_enabled else "rgba(255,255,255,0.5)"
+        color = tokens.CURRENT.accent if self.queue.shuffle_enabled else inactive_color
         self.btn_shuffle.setStyleSheet(f"QPushButton {{ color: {color}; border: none; background: transparent; }}")
         
         # Repeat
         mode = self.queue.repeat_mode
         if mode == RepeatMode.OFF:
             self.btn_repeat.setText(Icon.get("repeat"))
-            self.btn_repeat.setStyleSheet("QPushButton { color: rgba(255,255,255,0.5); border: none; background: transparent; }")
+            self.btn_repeat.setStyleSheet(f"QPushButton {{ color: {inactive_color}; border: none; background: transparent; }}")
             self.btn_repeat.setFont(Icon.font(24))
         elif mode == RepeatMode.ALL:
             self.btn_repeat.setText(Icon.get("repeat"))
@@ -458,7 +459,12 @@ class NowPlayingScreen(QWidget):
             self.artwork.setText(Icon.get("library_music"))
             self.artwork.setFont(Icon.font(120))
             from pyrolist.ui.design import tokens
-            self.artwork.setStyleSheet("background: rgba(255,255,255,0.08); color: #FFFFFF; border-radius: 24px;")
+            from PySide6.QtGui import QColor
+            is_light = QColor(tokens.CURRENT.bg_base).lightness() > 128
+            bg = "rgba(0, 0, 0, 0.05)" if is_light else "rgba(255, 255, 255, 0.08)"
+            fg = "#121224" if is_light else "#FFFFFF"
+            self.artwork.setStyleSheet(f"background: {bg}; color: {fg}; border-radius: 24px;")
+            self.ambient_bg.set_image(None)
 
     def update_state(self, status):
         self._is_playing = status.state == PlayerState.PLAYING
@@ -481,10 +487,11 @@ class NowPlayingScreen(QWidget):
         self._lyric_lines.clear()
         self._current_lyric_index = -1
         
+        from pyrolist.ui.design import tokens
         loading_lbl = QLabel("Buscando letras...")
         loading_lbl.setFont(QFont("Inter", 14))
         loading_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        loading_lbl.setStyleSheet("color: rgba(255, 255, 255, 0.7); margin-top: 32px;")
+        loading_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; margin-top: 32px;")
         self.lyrics_layout.addWidget(loading_lbl)
 
     def set_lyrics(self, lyrics):
@@ -498,10 +505,11 @@ class NowPlayingScreen(QWidget):
         self._current_lyric_index = -1
         
         if not lyrics:
+            from pyrolist.ui.design import tokens
             no_lyrics = QLabel("No hay letras disponibles")
             no_lyrics.setFont(QFont("Inter", 14))
             no_lyrics.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            no_lyrics.setStyleSheet("color: rgba(255, 255, 255, 0.7);")
+            no_lyrics.setStyleSheet(f"color: {tokens.CURRENT.text_secondary};")
             self.lyrics_layout.addWidget(no_lyrics)
             return
 
@@ -556,6 +564,8 @@ class NowPlayingScreen(QWidget):
                     continue
             
             lbl = LyricLabel(clean, align_flag, font_size)
+            # Set vertical spacing dynamically based on settings line_spacing
+            lbl.setContentsMargins(16, int(line_spacing * 6), 16, int(line_spacing * 6))
             self.lyrics_layout.addWidget(lbl)
             self._lyric_lines.append((timestamp_ms, lbl))
             
@@ -565,7 +575,7 @@ class NowPlayingScreen(QWidget):
             notice = QLabel("Sincronización no disponible para esta pista")
             notice.setFont(QFont("Inter", 11, QFont.Weight.Medium))
             notice.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            notice.setStyleSheet("color: rgba(255, 255, 255, 0.5); padding-bottom: 24px; padding-top: 12px;")
+            notice.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; padding-bottom: 24px; padding-top: 12px; opacity: 0.75;")
             self.lyrics_layout.insertWidget(0, notice)
             
             for _, lbl in self._lyric_lines:
@@ -574,7 +584,7 @@ class NowPlayingScreen(QWidget):
                     
         self.lyrics_layout.addStretch()
         # Force layout to compute geometries immediately
-        self.lyrics_container.adjustSize()
+        self.lyrics_container.updateGeometry()
 
     def _highlight_lyric(self, position_ms: int):
         if not hasattr(self, '_lyric_lines') or not self._lyric_lines:
@@ -643,7 +653,7 @@ class NowPlayingScreen(QWidget):
         if not hasattr(self, '_lyric_lines') or not self._lyric_lines:
             return
             
-        font_size = 18
+        font_size = 22
         alignment = "center"
         line_spacing = 1.5
         if self.settings:
@@ -657,13 +667,24 @@ class NowPlayingScreen(QWidget):
         elif alignment == "right":
             align_flag = Qt.AlignmentFlag.AlignRight
             
-        padding = int(line_spacing * 4)
-        from pyrolist.ui.design import tokens
+        # Update spacing and font sizes dynamically in real-time
+        vertical_padding = int(line_spacing * 6)
         
         for idx, (ts, lbl) in enumerate(self._lyric_lines):
-            if ts == -1:
-                continue
-            lbl.setAlignment(align_flag)
+            if isinstance(lbl, LyricLabel):
+                lbl.setAlignment(align_flag)
+                lbl.base_font_size = font_size
+                # Instantly apply the new font size via setFont AND setStyleSheet inline to bypass QSS
+                lbl.setFont(QFont("Inter", font_size + 8, QFont.Weight.Black))
+                lbl.setStyleSheet(f"background: transparent; font-size: {font_size + 8}pt; font-family: 'Inter';")
+                lbl.setContentsMargins(16, vertical_padding, 16, vertical_padding)
+                lbl.update()
+            elif isinstance(lbl, QLabel) and ts == -1:
+                # Dynamically resize blank spacers based on line_spacing
+                lbl.setFixedHeight(int(line_spacing * 10))
+                
+        # Force the layout to compute geometries and resize the scroll container immediately
+        self.lyrics_container.updateGeometry()
 
     async def _load_thumbnail(self, url: str):
         from loguru import logger
@@ -715,6 +736,7 @@ class NowPlayingScreen(QWidget):
                 logger.debug(f"NowPlaying: artwork pixmap SET successfully")
         else:
             logger.warning(f"NowPlaying: image download failed for url={url[:80]}")
+            self.ambient_bg.set_image(None)
 
     def set_related(self, tracks, play_callback):
         """Populate the SIMILARES tab with related songs."""
@@ -786,6 +808,9 @@ class NowPlayingScreen(QWidget):
         like_c = QColor(tokens.CURRENT.like_color)
         lr, lg, lb = like_c.red(), like_c.green(), like_c.blue()
         
+        is_light = QColor(tokens.CURRENT.bg_base).lightness() > 128
+        inactive_color = "rgba(18, 18, 36, 0.55)" if is_light else "rgba(255, 255, 255, 0.5)"
+        
         self.btn_like.setText(Icon.get("favorite"))
         if liked:
             self.btn_like.setStyleSheet(f"QPushButton {{ color: {tokens.CURRENT.like_color}; background: transparent; border: none; }}")
@@ -795,7 +820,7 @@ class NowPlayingScreen(QWidget):
             self.btn_like.setStyleSheet(f"""
                 QPushButton {{
                     background-color: transparent;
-                    
+                    color: {inactive_color};
                     border: none;
                     border-radius: 24px;
                 }}
@@ -820,8 +845,13 @@ class NowPlayingScreen(QWidget):
         from pyrolist.ui.design.icons import Icon
         from PySide6.QtGui import QColor, QPixmap
         
+        # Determine theme mode (light vs dark)
+        is_light = QColor(tokens.CURRENT.bg_base).lightness() > 128
+        
         # 1. Update collapse button
-        self.btn_collapse.setIcon(Icon.icon("expand_more", "#FFFFFF", 24))
+        icon_color = "#121224" if is_light else "#FFFFFF"
+        hover_bg = "rgba(0, 0, 0, 0.06)" if is_light else "rgba(255, 255, 255, 0.1)"
+        self.btn_collapse.setIcon(Icon.icon("expand_more", icon_color, 24))
         self.btn_collapse.setText("")
         self.btn_collapse.setStyleSheet(f"""
             QPushButton {{
@@ -831,15 +861,21 @@ class NowPlayingScreen(QWidget):
                 border-radius: 8px;
             }}
             QPushButton:hover {{
-                background: rgba(255, 255, 255, 0.1);
+                background: {hover_bg};
             }}
         """)
         
-        # Force high-contrast colors since ambient background is active and saturated
-        self.title.setStyleSheet("color: #FFFFFF;")
-        self.artist.setStyleSheet("color: rgba(255,255,255,0.7);")
-        self.time_current.setStyleSheet("color: rgba(255,255,255,0.7);")
-        self.time_total.setStyleSheet("color: rgba(255,255,255,0.7);")
+        # 2. Update control buttons styling dynamically based on the theme
+        text_primary = tokens.CURRENT.text_primary
+        text_secondary = tokens.CURRENT.text_secondary
+        
+        self.title.setStyleSheet(f"color: {text_primary};")
+        self.artist.setStyleSheet(f"color: {text_secondary};")
+        self.time_current.setStyleSheet(f"color: {text_secondary};")
+        self.time_total.setStyleSheet(f"color: {text_secondary};")
+        
+        self.btn_prev.setStyleSheet(f"QPushButton {{ color: {text_primary}; border: none; background: transparent; }}")
+        self.btn_next.setStyleSheet(f"QPushButton {{ color: {text_primary}; border: none; background: transparent; }}")
         
         self.tabs.setStyleSheet(f"""
             QTabWidget {{
@@ -857,7 +893,7 @@ class NowPlayingScreen(QWidget):
                 background: transparent;
             }}
             QTabBar::tab {{
-                color: rgba(255,255,255,0.5);
+                color: {text_secondary};
                 background: transparent;
                 padding: 10px 16px;
                 border: none;
@@ -871,19 +907,25 @@ class NowPlayingScreen(QWidget):
             }}
         """)
         
-        # 2. Update shuffle and repeat states
+        # 3. Update shuffle and repeat states
         self.update_shuffle_repeat_state()
         
-        # 3. Update lyrics style
+        # 4. Update lyrics style
         self.update_lyrics_style()
         
-        # 4. If artwork is a placeholder, refresh its background/foreground color
+        # 5. If artwork is a placeholder, refresh its background/foreground color
         if not hasattr(self, "artwork") or not self.artwork.pixmap() or self.artwork.pixmap().isNull():
-            self.artwork.setStyleSheet("background: rgba(255,255,255,0.08); color: #FFFFFF; border-radius: 24px;")
+            bg = "rgba(0, 0, 0, 0.05)" if is_light else "rgba(255, 255, 255, 0.08)"
+            fg = "#121224" if is_light else "#FFFFFF"
+            self.artwork.setStyleSheet(f"background: {bg}; color: {fg}; border-radius: 24px;")
         else:
             self.artwork.setStyleSheet("background: transparent;")
-
-        # 5. Update the like button state dynamically
+ 
+        # 6. Update the like button state dynamically
         video_id = self.player.status.current_video_id
         if video_id:
             self.set_liked_state(self.btn_like._is_active)
+            
+        # 7. Propagate theme styles to the ambient background
+        if hasattr(self, "ambient_bg"):
+            self.ambient_bg.update_theme_styles()

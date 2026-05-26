@@ -124,33 +124,8 @@ def main() -> None:
     settings = AppSettings.load(AppDirs.settings_file)
     setup_logging()
 
-    from qt_material import apply_stylesheet
-    accent = settings.appearance.accent_color or "#7C4DFF"
-    apply_stylesheet(
-        app,
-        theme="dark_purple.xml",
-        extra={
-            "primaryColor": accent,
-            "primaryLightColor": accent,
-            "secondaryColor": "#1E1E2E",
-            "secondaryLightColor": "#2A2A3E",
-            "secondaryDarkColor": "#13131F",
-            "primaryTextColor": "#FFFFFF",
-            "secondaryTextColor": "#B0B0C0",
-            "density_scale": "-1",
-            "pyside6": True,
-            "linux": True,
-        },
-    )
+    # Styles are applied immediately within MainWindow during initialization
 
-    from pyrolist.ui.stylesheet import PYROLIST_QSS
-    
-    # Strip qt_material's global font override so it doesn't break icons and typography
-    base_qss = app.styleSheet()
-    base_qss = base_qss.replace('font-family: Roboto;', '')
-    base_qss = base_qss.replace('font-size: 13px;', '')
-    base_qss = base_qss.replace('line-height: 13px;', '')
-    app.setStyleSheet(base_qss + PYROLIST_QSS)
 
     with qasync.QEventLoop(app) as loop:
         asyncio.set_event_loop(loop)
