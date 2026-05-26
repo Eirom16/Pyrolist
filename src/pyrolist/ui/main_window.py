@@ -500,8 +500,29 @@ class MainWindow(QMainWindow):
         self._track_task(task)
         return task
 
-    def _play_song_sync(self, video_id: str, title: str, artist: str, album: str, duration_ms: int, thumbnail_url: str) -> None:
-        self._run_async(self._play_song(video_id, title, artist, album, duration_ms, thumbnail_url))
+    def _play_song_sync(
+        self,
+        video_id: str,
+        title: str,
+        artist: str,
+        album: str,
+        duration_ms: int,
+        thumbnail_url: str,
+        queue_items: list[QueueItem] | None = None,
+        queue_index: int = 0,
+    ) -> None:
+        self._run_async(
+            self._play_song(
+                video_id,
+                title,
+                artist,
+                album,
+                duration_ms,
+                thumbnail_url,
+                queue_items,
+                queue_index,
+            )
+        )
 
     def _on_download_requested(self, video_id, title, artist, thumb_url):
         logger.info(f"Download requested: {title} by {artist}")

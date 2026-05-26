@@ -1,9 +1,11 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea, QPushButton
-from PySide6.QtCore import Qt, Signal, QRectF
+from PySide6.QtCore import Qt, Signal, QRectF, QSize
 from PySide6.QtGui import QFont, QPixmap, QPainter, QPen, QColor
 from functools import partial
 from loguru import logger
 import asyncio
+import random
+from pyrolist.audio.queue import QueueItem
 from pyrolist.ui.widgets.song_card import SongCard
 from pyrolist.ui.widgets.icon_button import IconButton
 from pyrolist.ui.design.icons import Icon
@@ -56,6 +58,9 @@ class AlbumScreen(QWidget):
         self._album_data = None
         self._thumbnail_url = ""
         self._current_load_task = None
+        self.btn_play = None
+        self.btn_shuffle = None
+        self.btn_dl = None
         self._build_ui()
 
         # Wire up DownloadManager signals for real-time progress update
@@ -151,6 +156,10 @@ class AlbumScreen(QWidget):
 
     async def _display_album(self, data: dict):
         self._clear_content()
+        self._album_data = data
+        self.btn_play = None
+        self.btn_shuffle = None
+        self.btn_dl = None
         
         if not data:
             self.content_layout.addWidget(QLabel("Álbum no encontrado"))
@@ -220,10 +229,11 @@ class AlbumScreen(QWidget):
         info_layout.addWidget(title_lbl)
         
         artists = data.get('artists', [])
-        artist_names = ", ".join([a.get('name', '') for a in artists]) if isinstance(artists, list) else str(artists)
+        artist_names = self._artist_names(artists)
         
         year = data.get('year', '')
-        track_count = data.get('trackCount', 0) or len(data.get('tracks', []))
+        tracks = data.get('tracks', [])
+        track_count = data.get('trackCount', 0) or len(tracks)
         
         meta_str = f"{artist_names}"
         if year:
@@ -236,11 +246,34 @@ class AlbumScreen(QWidget):
         meta_lbl.setStyleSheet(f" background: transparent;")
         info_layout.addWidget(meta_lbl)
 
-        # Download actions row
+        # Header actions row
         dl_layout = QHBoxLayout()
         dl_layout.setSpacing(12)
         dl_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
         dl_layout.setContentsMargins(0, 8, 0, 0)
+
+        has_playable_tracks = any(track.get('videoId') or track.get('video_id') for track in tracks)
+
+        self.btn_play = QPushButton(" Reproducir")
+        self.btn_play.setIconSize(QSize(18, 18))
+        self.btn_play.setFont(QFont("Inter", 11, QFont.Weight.Bold))
+        self.btn_play.setFixedHeight(40)
+        self.btn_play.setMinimumWidth(128)
+        self.btn_play.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_play.setEnabled(has_playable_tracks)
+        self.btn_play.clicked.connect(lambda checked=False: self._handle_play_entire(False))
+
+        self.btn_shuffle = QPushButton(" Aleatorio")
+        self.btn_shuffle.setIconSize(QSize(18, 18))
+        self.btn_shuffle.setFont(QFont("Inter", 11, QFont.Weight.DemiBold))
+        self.btn_shuffle.setFixedHeight(40)
+        self.btn_shuffle.setMinimumWidth(118)
+        self.btn_shuffle.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_shuffle.setEnabled(has_playable_tracks)
+        self.btn_shuffle.clicked.connect(lambda checked=False: self._handle_play_entire(True))
+
+        dl_layout.addWidget(self.btn_play)
+        dl_layout.addWidget(self.btn_shuffle)
 
         self.label_offline_status = QLabel("📥 Disponible sin conexión")
         self.label_offline_status.setFont(QFont("Inter", 11, QFont.Weight.Bold))
@@ -265,14 +298,16 @@ class AlbumScreen(QWidget):
                 btn_label = f" Descargar restantes ({data.get('downloaded_count')}/{track_count} completas)"
 
             self.btn_dl = QPushButton(btn_label)
-            self.btn_dl.setIcon(Icon.icon("download", color="#0A0A14"))
-            self._update_dl_button_style()
+            self.btn_dl.setIconSize(QSize(18, 18))
+            self.btn_dl.setFont(QFont("Inter", 11, QFont.Weight.DemiBold))
+            self.btn_dl.setFixedHeight(40)
             self.btn_dl.setCursor(Qt.CursorShape.PointingHandCursor)
 
             def on_dl_click():
                 self.btn_dl.setText(" Descargando... 0%")
-                self.btn_dl.setIcon(Icon.icon("hourglass_empty", color="#0A0A14"))
+                self.btn_dl.setIcon(Icon.icon("hourglass_empty", color=tokens.CURRENT.text_primary, size=18))
                 self.btn_dl.setEnabled(False)
+                self._update_dl_button_style()
                 self.progress_circle.set_progress(0.0)
                 self.progress_circle.show()
                 self.download_album_requested.emit(
@@ -291,11 +326,12 @@ class AlbumScreen(QWidget):
                 total_progress = sum(t.progress for t in active_tasks)
                 overall_pct = total_progress / len(active_tasks)
                 self.btn_dl.setText(f" Descargando... {int(overall_pct)}%")
-                self.btn_dl.setIcon(Icon.icon("hourglass_empty", color="#0A0A14"))
+                self.btn_dl.setIcon(Icon.icon("hourglass_empty", color=tokens.CURRENT.text_primary, size=18))
                 self.btn_dl.setEnabled(False)
                 self.progress_circle.set_progress(overall_pct)
                 self.progress_circle.show()
 
+        self._update_dl_button_style()
         info_layout.addLayout(dl_layout)
         info_layout.addStretch()
 
@@ -312,7 +348,6 @@ class AlbumScreen(QWidget):
         self.content_layout.addStretch()
         
         # Tracks
-        tracks = data.get('tracks', [])
         for i, track in enumerate(tracks):
             title = track.get('title', 'Unknown')
             video_id = track.get('videoId', '')
@@ -322,7 +357,7 @@ class AlbumScreen(QWidget):
             if not track_artists:
                 track_artist_names = artist_names
             else:
-                track_artist_names = ", ".join([a.get('name', '') for a in track_artists]) if isinstance(track_artists, list) else str(track_artists)
+                track_artist_names = self._artist_names(track_artists, fallback=artist_names)
             
             duration = track.get('duration', '')
             
@@ -368,27 +403,209 @@ class AlbumScreen(QWidget):
                 self.cover.setPixmap(rounded)
                 self.cover.setStyleSheet("background: transparent;")
 
+    def _artist_names(self, artists, fallback: str = "") -> str:
+        if isinstance(artists, list):
+            names = []
+            for artist in artists:
+                if isinstance(artist, dict):
+                    name = artist.get('name', '')
+                else:
+                    name = str(artist)
+                if name:
+                    names.append(name)
+            return ", ".join(names) or fallback
+        if artists:
+            return str(artists)
+        return fallback
+
+    def _duration_to_ms(self, value) -> int:
+        if value is None or value == "":
+            return 0
+        if isinstance(value, (int, float)):
+            return int(value * 1000)
+        text = str(value).strip()
+        try:
+            if ":" not in text:
+                return int(float(text) * 1000)
+            total_seconds = 0
+            for part in text.split(":"):
+                total_seconds = total_seconds * 60 + int(part)
+            return total_seconds * 1000
+        except (TypeError, ValueError):
+            return 0
+
+    def _track_duration_ms(self, track: dict) -> int:
+        for key in ('duration_seconds', 'durationSeconds', 'lengthSeconds'):
+            if key in track:
+                return self._duration_to_ms(track.get(key))
+        return self._duration_to_ms(track.get('duration'))
+
+    def _track_thumbnail_url(self, track: dict, fallback: str = "") -> str:
+        thumbnails = track.get('thumbnails', [])
+        if thumbnails:
+            return thumbnails[-1].get('url', '') or fallback
+        thumbnail = track.get('thumbnail') or track.get('thumbnail_url')
+        if isinstance(thumbnail, list) and thumbnail:
+            return thumbnail[-1].get('url', '') or fallback
+        if isinstance(thumbnail, dict):
+            return thumbnail.get('url', '') or fallback
+        if thumbnail:
+            return str(thumbnail)
+        return fallback
+
+    def _build_queue_items(self) -> list[QueueItem]:
+        data = self._album_data or {}
+        album_title = data.get('title', '')
+        album_artists = self._artist_names(data.get('artists', []))
+        items: list[QueueItem] = []
+
+        for track in data.get('tracks', []):
+            video_id = track.get('videoId') or track.get('video_id')
+            if not video_id:
+                continue
+
+            track_artist_names = self._artist_names(
+                track.get('artists', []),
+                fallback=album_artists,
+            )
+            items.append(
+                QueueItem(
+                    video_id=video_id,
+                    title=track.get('title', 'Unknown'),
+                    artist=track_artist_names,
+                    album=album_title,
+                    duration_ms=self._track_duration_ms(track),
+                    thumbnail_url=self._track_thumbnail_url(track, self._thumbnail_url),
+                )
+            )
+        return items
+
     def _handle_play(self, video_id, title, artists):
         if self.on_play_song:
-            self.on_play_song(video_id, title, artists, "", 0, self._thumbnail_url)
+            queue_items = self._build_queue_items()
+            queue_index = next(
+                (i for i, item in enumerate(queue_items) if item.video_id == video_id),
+                0,
+            )
+            if queue_items:
+                item = queue_items[queue_index]
+                self.on_play_song(
+                    item.video_id,
+                    item.title,
+                    item.artist,
+                    item.album,
+                    item.duration_ms,
+                    item.thumbnail_url,
+                    queue_items,
+                    queue_index,
+                )
+            else:
+                self.on_play_song(video_id, title, artists, "", 0, self._thumbnail_url)
+
+    def _handle_play_entire(self, shuffle: bool) -> None:
+        if not self.on_play_song:
+            return
+
+        queue_items = self._build_queue_items()
+        if not queue_items:
+            return
+
+        if shuffle:
+            random.shuffle(queue_items)
+
+        item = queue_items[0]
+        self.on_play_song(
+            item.video_id,
+            item.title,
+            item.artist,
+            item.album,
+            item.duration_ms,
+            item.thumbnail_url,
+            queue_items,
+            0,
+        )
 
     def _update_dl_button_style(self) -> None:
-        if hasattr(self, 'btn_dl') and isinstance(self.btn_dl, QPushButton):
-            from pyrolist.ui.design import tokens
-            accent = tokens.CURRENT.accent
-            c = QColor(accent)
-            bright_hex = c.lighter(125).name()
-            self.btn_dl.setStyleSheet(f"""
+        from pyrolist.ui.design import tokens
+
+        def rgba(hex_color: str, alpha: float) -> str:
+            c = QColor(hex_color)
+            return f"rgba({c.red()},{c.green()},{c.blue()},{alpha})"
+
+        success = tokens.CURRENT.success
+        success_hover = QColor(success).lighter(112).name()
+        on_success = "#0A0A14"
+        secondary_bg = rgba(tokens.CURRENT.bg_high, 0.78)
+        secondary_hover = rgba(tokens.CURRENT.bg_elevated, 0.96)
+        disabled_bg = rgba(tokens.CURRENT.bg_high, 0.36)
+        text_primary = tokens.CURRENT.text_primary
+        text_secondary = tokens.CURRENT.text_secondary
+        text_disabled = tokens.CURRENT.text_disabled
+        border = tokens.CURRENT.border
+
+        if hasattr(self, 'btn_play') and isinstance(self.btn_play, QPushButton):
+            self.btn_play.setIcon(Icon.icon("play_arrow", color=on_success, size=18))
+            self.btn_play.setStyleSheet(f"""
                 QPushButton {{
-                    background-color: {accent};
-                    
+                    background-color: {success};
+                    color: {on_success};
                     border: none;
                     border-radius: 16px;
                     padding: 8px 16px;
                     font-weight: bold;
                     margin-top: 12px;
                 }}
-                QPushButton:hover {{ background-color: {bright_hex}; }}
+                QPushButton:hover:enabled {{ background-color: {success_hover}; }}
+                QPushButton:disabled {{
+                    background-color: {disabled_bg};
+                    color: {text_disabled};
+                }}
+            """)
+
+        if hasattr(self, 'btn_shuffle') and isinstance(self.btn_shuffle, QPushButton):
+            self.btn_shuffle.setIcon(Icon.icon("shuffle", color=text_primary, size=18))
+            self.btn_shuffle.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {secondary_bg};
+                    color: {text_primary};
+                    border: 1px solid {border};
+                    border-radius: 16px;
+                    padding: 8px 16px;
+                    font-weight: 600;
+                    margin-top: 12px;
+                }}
+                QPushButton:hover:enabled {{
+                    background-color: {secondary_hover};
+                    color: {text_primary};
+                }}
+                QPushButton:disabled {{
+                    background-color: {disabled_bg};
+                    color: {text_disabled};
+                }}
+            """)
+
+        if hasattr(self, 'btn_dl') and isinstance(self.btn_dl, QPushButton):
+            icon_name = "hourglass_empty" if "Descargando" in self.btn_dl.text() else "download"
+            icon_color = text_secondary if not self.btn_dl.isEnabled() else text_primary
+            self.btn_dl.setIcon(Icon.icon(icon_name, color=icon_color, size=18))
+            self.btn_dl.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {secondary_bg};
+                    color: {text_primary};
+                    border: 1px solid {border};
+                    border-radius: 16px;
+                    padding: 8px 16px;
+                    font-weight: 600;
+                    margin-top: 12px;
+                }}
+                QPushButton:hover:enabled {{
+                    background-color: {secondary_hover};
+                    color: {text_primary};
+                }}
+                QPushButton:disabled {{
+                    background-color: {disabled_bg};
+                    color: {text_secondary};
+                }}
             """)
 
     def changeEvent(self, event) -> None:
@@ -427,9 +644,11 @@ class AlbumScreen(QWidget):
         overall_pct = total_progress / len(album_tasks)
 
         if hasattr(self, 'btn_dl') and isinstance(self.btn_dl, QPushButton) and self.btn_dl.isVisible():
+            from pyrolist.ui.design import tokens
             self.btn_dl.setText(f" Descargando... {int(overall_pct)}%")
-            self.btn_dl.setIcon(Icon.icon("hourglass_empty", color="#0A0A14"))
+            self.btn_dl.setIcon(Icon.icon("hourglass_empty", color=tokens.CURRENT.text_primary, size=18))
             self.btn_dl.setEnabled(False)
+            self._update_dl_button_style()
 
             if hasattr(self, 'progress_circle'):
                 self.progress_circle.set_progress(overall_pct)

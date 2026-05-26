@@ -26,6 +26,7 @@ class PlayerStatus:
 
 
 class MusicPlayer:
+    END_REACHED_DURATION_TOLERANCE_MS = 1500
 
     def __init__(self):
         self._instance = vlc.Instance(
@@ -61,6 +62,7 @@ class MusicPlayer:
             self.status.state = PlayerState.LOADING
             self.status.current_video_id = video_id
             self.status.position_ms = 0
+            self.status.duration_ms = 0
             self._notify("state_changed", self.status)
 
             self._player.stop()
@@ -188,7 +190,8 @@ class MusicPlayer:
                 dur = self._player.get_length()
                 if pos >= 0:
                     self.status.position_ms = pos
-                    self.status.duration_ms = dur
+                    if dur > 0:
+                        self.status.duration_ms = dur
                     self._notify("position_changed", self.status)
             elif self._player.get_state() == vlc.State.Paused:
                 if self.status.state != PlayerState.PAUSED:
@@ -203,9 +206,35 @@ class MusicPlayer:
         except RuntimeError:
             pass
 
+    def _refresh_timing_from_player(self) -> None:
+        pos = self._player.get_time()
+        dur = self._player.get_length()
+        if pos >= 0:
+            self.status.position_ms = pos
+        if dur > 0:
+            self.status.duration_ms = dur
+
+    def _complete_position(self) -> None:
+        self._refresh_timing_from_player()
+        if self.status.duration_ms > 0:
+            remaining_ms = self.status.duration_ms - self.status.position_ms
+            if self.status.position_ms > self.status.duration_ms:
+                self.status.duration_ms = self.status.position_ms
+            elif (
+                self.status.position_ms > 0
+                and remaining_ms > self.END_REACHED_DURATION_TOLERANCE_MS
+            ):
+                self.status.duration_ms = self.status.position_ms
+            self.status.position_ms = self.status.duration_ms
+        elif self.status.position_ms > 0:
+            self.status.duration_ms = self.status.position_ms
+
     def _on_ended(self, event):
         def _handle():
+            self._complete_position()
+            self._notify("position_changed", self.status)
             self.status.state = PlayerState.IDLE
+            self._notify("state_changed", self.status)
             self._notify("track_ended", self.status)
         self._schedule(_handle)
 
