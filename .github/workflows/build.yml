@@ -219,13 +219,15 @@ jobs:
       - name: Instalar herramientas básicas en el contenedor
         run: |
           zypper refresh || true
-          zypper install -y git tar gzip
+          zypper install -y gawk git tar gzip
 
       - uses: actions/checkout@v4
 
       - name: Instalar herramientas de compilación
         run: |
+          zypper remove -y busybox-gawk || true
           zypper install -y \
+            gawk \
             rpm-build \
             python3-devel \
             python3-pip

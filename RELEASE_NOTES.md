@@ -23,3 +23,4 @@ Esta versión añade un changelog visible desde Acerca de, mejora la reproducci�
 
 - Versión subida a `1.2.0` / `v1.2.0`.
 - El workflow de GitHub Actions ahora usa este informe como cuerpo del release y mantiene las notas automáticas generadas por GitHub.
+- Se corrigió la instalación de dependencias del build openSUSE para evitar conflictos entre `busybox-gawk` y `rpm-build`.

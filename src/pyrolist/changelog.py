@@ -23,6 +23,7 @@ CURRENT_CHANGELOG: tuple[tuple[str, tuple[str, ...]], ...] = (
             "Se ajustó la sincronización de cola y modo aleatorio para evitar estados desactualizados.",
             "Se mejoró la legibilidad de letras sincronizadas en temas claros y oscuros.",
             "Se corrigieron detalles de interacción en paneles glass y componentes de búsqueda global.",
+            "Se ajustó el build openSUSE para evitar conflictos al instalar rpm-build.",
         ),
     ),
 )
