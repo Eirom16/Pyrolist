@@ -15,6 +15,9 @@ from pyrolist.db.repository import DownloadRepository
 class DownloadItemWidget(QFrame):
     like_requested = Signal(str, object)
     delete_requested = Signal(str)
+    play_next_requested = Signal(str, str, str, str)  # video_id, title, artist, thumbnail_url
+    add_to_queue_requested = Signal(str, str, str, str)  # video_id, title, artist, thumbnail_url
+    add_to_playlist_requested = Signal(str, str)  # video_id, title
 
     def __init__(self, video_id, title, artist, thumbnail_url, parent_playlist_title=None, on_play_local=None):
         super().__init__()
@@ -94,14 +97,16 @@ class DownloadItemWidget(QFrame):
         self.play_btn.hide()
         layout.addWidget(self.play_btn)
         
-        # Delete button
-        self.btn_delete = IconButton(size=36, active_color=tokens.CURRENT.error)
-        self.btn_delete.setText(Icon.get("delete"))
-        self.btn_delete.setFont(Icon.font(20))
-        self.btn_delete.setFixedSize(36, 36)
-        self.btn_delete.clicked.connect(self._on_delete)
-        self.btn_delete.hide()
-        layout.addWidget(self.btn_delete)
+        # Options menu button
+        self.menu_btn = QPushButton()
+        self.menu_btn.setObjectName("menu_btn")
+        self.menu_btn.setText(Icon.get("more_vert"))
+        self.menu_btn.setFont(Icon.font(20))
+        self.menu_btn.setFixedSize(36, 36)
+        self.menu_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.menu_btn.clicked.connect(self._show_context_menu)
+        self.menu_btn.hide()
+        layout.addWidget(self.menu_btn)
         
         self._update_item_styles()
 
@@ -109,6 +114,8 @@ class DownloadItemWidget(QFrame):
         from pyrolist.ui.design import tokens
         from PySide6.QtGui import QColor
         accent = tokens.CURRENT.accent
+        accent_c = QColor(accent)
+        acc_r, acc_g, acc_b = accent_c.red(), accent_c.green(), accent_c.blue()
         text_primary = tokens.CURRENT.text_primary
         text_secondary = tokens.CURRENT.text_secondary
         bg_surface = tokens.CURRENT.bg_surface
@@ -119,9 +126,6 @@ class DownloadItemWidget(QFrame):
         
         like_c = QColor(tokens.CURRENT.like_color)
         like_r, like_g, like_b = like_c.red(), like_c.green(), like_c.blue()
-        
-        err_c = QColor(tokens.CURRENT.error)
-        err_r, err_g, err_b = err_c.red(), err_c.green(), err_c.blue()
         
         self.setStyleSheet(f"""
             QFrame#downloadCard {{
@@ -149,6 +153,8 @@ class DownloadItemWidget(QFrame):
                 border: 2px solid {border};
                 border-radius: 10px;
                 color: {text_primary};
+                font-family: 'Material Symbols Rounded';
+                font-size: 12px;
             }}
             QPushButton:checked {{
                 background-color: {accent};
@@ -175,17 +181,19 @@ class DownloadItemWidget(QFrame):
             """)
             
         self.play_btn.setStyleSheet(f"background: transparent; color: {text_primary}; border: none;")
-        if hasattr(self, 'btn_delete'):
-            self.btn_delete.setStyleSheet(f"""
-                QPushButton {{
+        if hasattr(self, 'menu_btn'):
+            self.menu_btn.setStyleSheet(f"""
+                QPushButton#menu_btn {{
                     background-color: transparent;
                     color: {text_secondary};
                     border: none;
                     border-radius: 18px;
+                    font-family: 'Material Symbols Rounded';
+                    font-size: 20px;
                 }}
-                QPushButton:hover {{
-                    background-color: rgba({err_r}, {err_g}, {err_b}, 0.15);
-                    color: {tokens.CURRENT.error};
+                QPushButton#menu_btn:hover {{
+                    background-color: rgba({acc_r}, {acc_g}, {acc_b}, 0.15);
+                    color: {accent};
                 }}
             """)
         self.progress_bar.setStyleSheet(f"""
@@ -220,7 +228,7 @@ class DownloadItemWidget(QFrame):
         self.progress_bar.show()
         self.status_lbl.setText("Descargando...")
         self.play_btn.hide()
-        self.btn_delete.hide()
+        self.menu_btn.hide()
 
     def update_progress(self, percent, speed):
         self.progress_bar.setValue(int(percent))
@@ -232,7 +240,7 @@ class DownloadItemWidget(QFrame):
         self.status_lbl.setText("Completado")
         self.status_lbl.hide()
         self.play_btn.show()
-        self.btn_delete.show()
+        self.menu_btn.show()
 
     def set_error(self, msg):
         from pyrolist.ui.design import tokens
@@ -240,7 +248,7 @@ class DownloadItemWidget(QFrame):
         self.status_lbl.setText("Error")
         self.status_lbl.setStyleSheet(f"color: {tokens.CURRENT.error}; font-size: 12px; background: transparent; border: none;")
         self.play_btn.hide()
-        self.btn_delete.show()
+        self.menu_btn.show()
 
     def _on_play(self):
         if self.file_path and self.on_play_local:
@@ -254,6 +262,34 @@ class DownloadItemWidget(QFrame):
 
     def _on_delete(self):
         self.delete_requested.emit(self.video_id)
+
+    def _on_play_next_clicked(self):
+        if self.video_id:
+            self.play_next_requested.emit(
+                self.video_id, self.title, self.artist, self.thumbnail_url
+            )
+
+    def _on_add_to_queue_clicked(self):
+        if self.video_id:
+            self.add_to_queue_requested.emit(
+                self.video_id, self.title, self.artist, self.thumbnail_url
+            )
+
+    def _on_add_to_playlist_clicked(self):
+        if self.video_id:
+            self.add_to_playlist_requested.emit(self.video_id, self.title)
+
+    def _show_context_menu(self):
+        from pyrolist.ui.widgets.song_context_menu import SongContextMenu
+        self._current_menu = SongContextMenu(parent=self.window(), is_downloaded=True)
+        self._current_menu.play_next.connect(self._on_play_next_clicked)
+        self._current_menu.add_to_queue.connect(self._on_add_to_queue_clicked)
+        self._current_menu.add_to_playlist.connect(self._on_add_to_playlist_clicked)
+        self._current_menu.delete_download.connect(self._on_delete)
+        
+        self._current_menu._trigger_widget = self.menu_btn
+        pos = self.menu_btn.mapToGlobal(self.menu_btn.rect().bottomLeft())
+        self._current_menu.popup_at(pos)
 
     async def _load_thumbnail(self, url: str):
         from pyrolist.utils.image_cache import ImageCache
@@ -272,14 +308,14 @@ class DownloadItemWidget(QFrame):
             self.checkbox.show()
             self.btn_like.hide()
             self.play_btn.hide()
-            self.btn_delete.hide()
+            self.menu_btn.hide()
         else:
             self.checkbox.hide()
             self.checkbox.setChecked(False)
             self.btn_like.show()
             if self.file_path:
                 self.play_btn.show()
-                self.btn_delete.show()
+                self.menu_btn.show()
 
     def mousePressEvent(self, event) -> None:
         if getattr(self, "selection_mode", False):
@@ -499,6 +535,9 @@ class DownloadPlaylistItemWidget(QFrame):
 class DownloadsScreen(QWidget):
     like_requested = Signal(str, object)
     delete_download_requested = Signal(str)
+    play_next_requested = Signal(str, str, str, str)  # video_id, title, artist, thumbnail_url
+    add_to_queue_requested = Signal(str, str, str, str)  # video_id, title, artist, thumbnail_url
+    add_to_playlist_requested = Signal(str, str) # video_id, title
 
     def __init__(self, extractor, on_play_local, on_play_local_playlist=None, on_navigate=None):
         super().__init__()
@@ -695,6 +734,9 @@ class DownloadsScreen(QWidget):
         widget = DownloadItemWidget(vid, title, artist, thumb_url, parent_playlist_title, self.on_play_local)
         widget.like_requested.connect(self.like_requested.emit)
         widget.delete_requested.connect(self.delete_download_requested.emit)
+        widget.play_next_requested.connect(self.play_next_requested.emit)
+        widget.add_to_queue_requested.connect(self.add_to_queue_requested.emit)
+        widget.add_to_playlist_requested.connect(self.add_to_playlist_requested.emit)
         widget.checkbox.toggled.connect(self._update_selected_count)
         widget.set_selection_mode(getattr(self, "_selection_mode", False))
         self.content_layout.insertWidget(0, widget)

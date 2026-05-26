@@ -114,7 +114,7 @@ class NowPlayingScreen(QWidget):
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             radius = btn_size // 2
             btn.setObjectName("primaryPlayBtn")
-            btn.setStyleSheet(f"QPushButton#primaryPlayBtn {{ border-radius: {radius}px; }}")
+            btn.setStyleSheet(f"QPushButton#primaryPlayBtn {{ border-radius: {radius}px; font-family: 'Material Symbols Rounded'; font-size: {size}px; }}")
             return btn
 
         btn = IconButton(size=btn_size, active_color="rgba(255,255,255,0.2)")
@@ -163,12 +163,13 @@ class NowPlayingScreen(QWidget):
         outer_layout.addLayout(top_bar)
 
         layout = QHBoxLayout()
-        layout.setContentsMargins(40, 16, 40, 40)
+        layout.setContentsMargins(40, 16, 40, 120)
         layout.setSpacing(40)
 
         # Left Side (Artwork & Details + Controls)
         left_panel = QWidget()
         left_panel.setObjectName("nowPlayingLeftPanel")
+        left_panel.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         left_panel.setStyleSheet("#nowPlayingLeftPanel { background: transparent; }")
         left_layout = QVBoxLayout(left_panel)
         left_layout.setContentsMargins(0, 0, 0, 0)
@@ -180,6 +181,7 @@ class NowPlayingScreen(QWidget):
         self.artwork.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.artwork.setText(Icon.get("library_music"))
         self.artwork.setFont(Icon.font(120))
+        self.artwork.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         left_layout.addWidget(self.artwork, alignment=Qt.AlignmentFlag.AlignCenter)
 
         left_layout.addSpacing(24)
@@ -245,30 +247,30 @@ class NowPlayingScreen(QWidget):
         controls.setSpacing(16)
         controls.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self.btn_shuffle = self._make_btn("shuffle", 22, "#6B6B9B", 40)
+        self.btn_shuffle = self._make_btn("shuffle", 24, "#6B6B9B", 42)
         self.btn_shuffle.setObjectName("nowPlayingShuffleBtn")
         self.btn_shuffle.setAccessibleName("Reproducción aleatoria")
         self.btn_shuffle.clicked.connect(self._on_shuffle)
         controls.addWidget(self.btn_shuffle)
 
-        self.btn_prev = self._make_btn("skip_previous", 30, "#F1F0FF", 48)
+        self.btn_prev = self._make_btn("skip_previous", 32, "#F1F0FF", 50)
         self.btn_prev.setObjectName("nowPlayingPrevBtn")
         self.btn_prev.setAccessibleName("Pista anterior")
         self.btn_prev.clicked.connect(self._on_prev)
         controls.addWidget(self.btn_prev)
 
-        self.btn_play = self._make_btn("play_arrow", 38, "#0A0A14", 60, primary=True)
+        self.btn_play = self._make_btn("play_arrow", 40, "#0A0A14", 64, primary=True)
         self.btn_play.setAccessibleName("Reproducir o Pausar")
         self.btn_play.clicked.connect(self._on_play_pause)
         controls.addWidget(self.btn_play)
 
-        self.btn_next = self._make_btn("skip_next", 30, "#F1F0FF", 48)
+        self.btn_next = self._make_btn("skip_next", 32, "#F1F0FF", 50)
         self.btn_next.setObjectName("nowPlayingNextBtn")
         self.btn_next.setAccessibleName("Pista siguiente")
         self.btn_next.clicked.connect(self._on_next)
         controls.addWidget(self.btn_next)
 
-        self.btn_repeat = self._make_btn("repeat", 22, "#6B6B9B", 40)
+        self.btn_repeat = self._make_btn("repeat", 24, "#6B6B9B", 42)
         self.btn_repeat.setObjectName("nowPlayingRepeatBtn")
         self.btn_repeat.setAccessibleName("Repetir")
         self.btn_repeat.clicked.connect(self._on_repeat)
@@ -280,6 +282,7 @@ class NowPlayingScreen(QWidget):
         # Right Side (Tabs: Queue, Lyrics, Related)
         right_panel = QWidget()
         right_panel.setObjectName("nowPlayingRightPanel")
+        right_panel.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         right_panel.setStyleSheet("#nowPlayingRightPanel { background: transparent; }")
         right_panel.setMinimumWidth(560)
         right_panel.setMaximumWidth(700)
@@ -386,41 +389,32 @@ class NowPlayingScreen(QWidget):
             self.queue_tab.set_queue(self.queue.items, self._liked_video_ids if hasattr(self, "_liked_video_ids") else set())
 
     def _on_repeat(self):
-        from pyrolist.ui.design import tokens
-        from pyrolist.audio.queue import RepeatMode
-        from pyrolist.ui.design.icons import Icon
-        mode = self.queue.toggle_repeat()
-        if mode == RepeatMode.OFF:
-            self.btn_repeat.setIcon(Icon.icon("repeat", "rgba(255,255,255,0.5)", 24))
-            self.btn_repeat.setText("")
-            self.btn_repeat.setStyleSheet("QPushButton { border: none; background: transparent; }")
-        elif mode == RepeatMode.ALL:
-            self.btn_repeat.setIcon(Icon.icon("repeat", tokens.CURRENT.accent, 24))
-            self.btn_repeat.setText("")
-            self.btn_repeat.setStyleSheet("QPushButton { border: none; background: transparent; }")
-        elif mode == RepeatMode.ONE:
-            self.btn_repeat.setIcon(Icon.icon("repeat_one", tokens.CURRENT.accent, 24))
-            self.btn_repeat.setText("")
-            self.btn_repeat.setStyleSheet("QPushButton { border: none; background: transparent; }")
+        self.queue.toggle_repeat()
+        self.update_shuffle_repeat_state()
 
     def update_shuffle_repeat_state(self):
         """Sync button visuals with current queue state."""
         from pyrolist.ui.design import tokens
         from pyrolist.audio.queue import RepeatMode
-        from pyrolist.ui.design.icons import Icon
+        
+        # Shuffle
         color = tokens.CURRENT.accent if self.queue.shuffle_enabled else "rgba(255,255,255,0.5)"
         self.btn_shuffle.setStyleSheet(f"QPushButton {{ color: {color}; border: none; background: transparent; }}")
+        
+        # Repeat
         mode = self.queue.repeat_mode
         if mode == RepeatMode.OFF:
-            self.btn_repeat.setIcon(Icon.icon("repeat", "rgba(255,255,255,0.5)", 24))
-            self.btn_repeat.setText("")
+            self.btn_repeat.setText(Icon.get("repeat"))
+            self.btn_repeat.setStyleSheet("QPushButton { color: rgba(255,255,255,0.5); border: none; background: transparent; }")
+            self.btn_repeat.setFont(Icon.font(24))
         elif mode == RepeatMode.ALL:
-            self.btn_repeat.setIcon(Icon.icon("repeat", tokens.CURRENT.accent, 24))
-            self.btn_repeat.setText("")
+            self.btn_repeat.setText(Icon.get("repeat"))
+            self.btn_repeat.setStyleSheet(f"QPushButton {{ color: {tokens.CURRENT.accent}; border: none; background: transparent; }}")
+            self.btn_repeat.setFont(Icon.font(24))
         elif mode == RepeatMode.ONE:
-            self.btn_repeat.setIcon(Icon.icon("repeat_one", tokens.CURRENT.accent, 24))
-            self.btn_repeat.setText("")
-        self.btn_repeat.setStyleSheet("QPushButton { border: none; background: transparent; }")
+            self.btn_repeat.setText(Icon.get("repeat_one"))
+            self.btn_repeat.setStyleSheet(f"QPushButton {{ color: {tokens.CURRENT.accent}; border: none; background: transparent; }}")
+            self.btn_repeat.setFont(Icon.font(24))
 
     def _find_main_window(self):
         w = self.parent()
@@ -652,6 +646,8 @@ class NowPlayingScreen(QWidget):
             lbl.setAlignment(align_flag)
 
     async def _load_thumbnail(self, url: str):
+        from loguru import logger
+        logger.debug(f"NowPlaying._load_thumbnail called with url={url[:80]}")
         # Request a higher-resolution thumbnail
         high_res_url = url
         if 'w120' in url:
@@ -661,8 +657,10 @@ class NowPlayingScreen(QWidget):
         
         path = await _image_cache.download(high_res_url)
         if not path:
+            logger.debug(f"NowPlaying: high_res download failed, trying original")
             path = await _image_cache.download(url)
         if path:
+            logger.debug(f"NowPlaying: image downloaded to {path}")
             try:
                 with open(path, "rb") as f:
                     self.ambient_bg.set_image(f.read())
@@ -670,6 +668,7 @@ class NowPlayingScreen(QWidget):
                 pass
             
             pixmap = QPixmap(str(path))
+            logger.debug(f"NowPlaying: QPixmap null={pixmap.isNull()}, size={pixmap.width()}x{pixmap.height()}")
             if not pixmap.isNull():
                 size = 280
                 radius = 20
@@ -693,6 +692,9 @@ class NowPlayingScreen(QWidget):
                 self.artwork.setPixmap(rounded)
                 self.artwork.setText("")
                 self.artwork.setStyleSheet("background: transparent;")
+                logger.debug(f"NowPlaying: artwork pixmap SET successfully")
+        else:
+            logger.warning(f"NowPlaying: image download failed for url={url[:80]}")
 
     def set_related(self, tracks, play_callback):
         """Populate the SIMILARES tab with related songs."""

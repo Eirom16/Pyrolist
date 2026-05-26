@@ -45,6 +45,8 @@ class PlaylistCard(QWidget):
                 color: #FFFFFF;
                 border-radius: 10px;
                 border: 1px solid rgba(0, 0, 0, 0.2);
+                font-family: 'Material Symbols Rounded';
+                font-size: 11px;
             }
         """)
         self.offline_badge.move(138, 10)
@@ -158,6 +160,8 @@ class PlaylistCard(QWidget):
                 border: 2px solid {border_color};
                 border-radius: 12px;
                 color: #FFFFFF;
+                font-family: 'Material Symbols Rounded';
+                font-size: 14px;
             }}
             QPushButton:checked {{
                 background-color: {accent};

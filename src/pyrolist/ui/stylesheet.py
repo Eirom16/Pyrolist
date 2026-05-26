@@ -458,25 +458,45 @@ QFrame#settingsSeparator {
 }
 
 /* ─── Now Playing Screen ───────────────────────────────────── */
+#nowPlayingScreen, #nowPlayingLeftPanel, #nowPlayingRightPanel,
+#lyricsContainer, #relatedContainer {
+    background: transparent;
+}
 QLabel#nowPlayingTitle {
     color: #F1F0FF;
+    background: transparent;
 }
 QLabel#nowPlayingArtist {
     color: #9B9BC0;
+    background: transparent;
 }
 QLabel#nowPlayingTimeCurrent, QLabel#nowPlayingTimeTotal {
     color: #9B9BC0;
+    background: transparent;
 }
 QLabel#nowPlayingArtwork {
-    background-color: #16162A;
+    background-color: rgba(255,255,255,0.08);
     border-radius: 24px;
+}
+QTabWidget#nowPlayingTabs {
+    background: transparent;
+    border: none;
+}
+QTabWidget#nowPlayingTabs::pane {
+    background: transparent;
+    border: none;
 }
 QTabWidget#nowPlayingTabs QTabBar::tab {
     color: #9B9BC0;
+    background: transparent;
 }
 QTabWidget#nowPlayingTabs QTabBar::tab:selected {
     color: #A78BFA;
     border-bottom: 2px solid #A78BFA;
+}
+/* ─── Mini Player Internal Containers ──────────────────────── */
+#miniPlayerInfo, #miniPlayerProgress {
+    background: transparent;
 }
 
 /* ─── Full Player Dialog ───────────────────────────────────── */

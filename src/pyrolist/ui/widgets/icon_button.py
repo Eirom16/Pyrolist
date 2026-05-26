@@ -24,21 +24,47 @@ class IconButton(QPushButton):
             self.setIconSize(QSize(size - 12, size - 12))
         
         # Base style, size will be overridden if setFont is called
-        self.setStyleSheet(f"QPushButton {{ border: none; background: transparent; font-family: 'Material Symbols Rounded'; font-size: {size // 2 + 4}px; }}")
+        self._icon_size = size // 2 + 4
+        self.setStyleSheet(f"QPushButton {{ border: none; background: transparent; font-family: 'Material Symbols Rounded'; font-size: {self._icon_size}px; }}")
 
         self._scale = 1.0
         
     def setFont(self, font):
         super().setFont(font)
         sz = font.pixelSize() if font.pixelSize() > 0 else font.pointSize()
-        fam = font.family()
-        self.setStyleSheet(f"QPushButton {{ border: none; background: transparent; font-family: '{fam}'; font-size: {sz}px; }}")
+        if sz > 0:
+            self._icon_size = sz
+        fam = font.family() or "Material Symbols Rounded"
+        self.setStyleSheet(f"QPushButton {{ border: none; background: transparent; font-family: '{fam}'; font-size: {self._icon_size}px; }}")
         self._bg_anim = QPropertyAnimation(self, b"bg_opacity", self)
         self._bg_anim.setDuration(150)
         self._bg_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
 
         self._scale_anim = QPropertyAnimation(self, b"icon_scale", self)
         self._scale_anim.setDuration(250)
+
+    def setStyleSheet(self, stylesheet: str) -> None:
+        sz = getattr(self, "_icon_size", 0)
+        if sz <= 0:
+            font = self.font()
+            sz = font.pixelSize() if font.pixelSize() > 0 else font.pointSize()
+            if sz <= 0:
+                sz = self.width() // 2 + 4 if self.width() > 0 else 18
+            self._icon_size = sz
+            
+        fam = "Material Symbols Rounded"
+        
+        font_rules = []
+        if "font-family" not in stylesheet:
+            font_rules.append(f"font-family: '{fam}';")
+        if "font-size" not in stylesheet:
+            font_rules.append(f"font-size: {sz}px;")
+            
+        if font_rules:
+            rules_str = " ".join(font_rules)
+            stylesheet = stylesheet + f"\nQPushButton, IconButton {{ {rules_str} }}"
+            
+        super().setStyleSheet(stylesheet)
 
     def set_active(self, active: bool) -> None:
         self._is_active = active

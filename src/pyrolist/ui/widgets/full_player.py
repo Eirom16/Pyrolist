@@ -122,25 +122,25 @@ class FullPlayerDialog(QDialog):
         controls.setSpacing(12)
         controls.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self.btn_shuffle = self._make_btn("shuffle", 20, tokens.CURRENT.text_secondary, 36)
+        self.btn_shuffle = self._make_btn("shuffle", 22, tokens.CURRENT.text_secondary, 38)
         self.btn_shuffle.setObjectName("fullPlayerShuffleBtn")
         controls.addWidget(self.btn_shuffle)
 
-        self.btn_prev = self._make_btn("skip_previous", 28, tokens.CURRENT.text_primary, 44)
+        self.btn_prev = self._make_btn("skip_previous", 30, tokens.CURRENT.text_primary, 46)
         self.btn_prev.setObjectName("fullPlayerPrevBtn")
         self.btn_prev.clicked.connect(self._on_prev)
         controls.addWidget(self.btn_prev)
 
-        self.btn_play = self._make_btn("play_arrow", 36, tokens.CURRENT.text_on_accent, 56, primary=True)
+        self.btn_play = self._make_btn("play_arrow", 38, tokens.CURRENT.text_on_accent, 58, primary=True)
         self.btn_play.clicked.connect(self._on_play_pause)
         controls.addWidget(self.btn_play)
 
-        self.btn_next = self._make_btn("skip_next", 28, tokens.CURRENT.text_primary, 44)
+        self.btn_next = self._make_btn("skip_next", 30, tokens.CURRENT.text_primary, 46)
         self.btn_next.setObjectName("fullPlayerNextBtn")
         self.btn_next.clicked.connect(self._on_next)
         controls.addWidget(self.btn_next)
 
-        self.btn_repeat = self._make_btn("repeat", 20, tokens.CURRENT.text_secondary, 36)
+        self.btn_repeat = self._make_btn("repeat", 22, tokens.CURRENT.text_secondary, 38)
         self.btn_repeat.setObjectName("fullPlayerRepeatBtn")
         controls.addWidget(self.btn_repeat)
 
@@ -201,7 +201,7 @@ class FullPlayerDialog(QDialog):
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             radius = btn_size // 2
             btn.setObjectName("primaryPlayBtn")
-            btn.setStyleSheet(f"QPushButton#primaryPlayBtn {{ border-radius: {radius}px; }}")
+            btn.setStyleSheet(f"QPushButton#primaryPlayBtn {{ border-radius: {radius}px; font-family: 'Material Symbols Rounded'; font-size: {size}px; }}")
             return btn
             
         btn = IconButton(size=btn_size, active_color=tokens.CURRENT.accent_dim)

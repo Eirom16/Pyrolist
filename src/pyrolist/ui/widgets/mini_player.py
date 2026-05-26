@@ -136,10 +136,10 @@ class MiniPlayerWidget(QWidget):
         # ── Artwork ──
         self.artwork = QLabel()
         self.artwork.setFixedSize(60, 60)
-        self.artwork.setScaledContents(True)
         self.artwork.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.artwork.setText(Icon.get("library_music"))
         self.artwork.setFont(Icon.font(28))
+        self.artwork.setStyleSheet("background: transparent;")
         
         self.artwork_overlay = ArtworkLoadingOverlay(self.artwork)
         self.artwork_overlay.setFixedSize(60, 60)
@@ -149,6 +149,7 @@ class MiniPlayerWidget(QWidget):
         # ── Song info ──
         info_widget = QWidget()
         info_widget.setObjectName("miniPlayerInfo")
+        info_widget.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         info_widget.setStyleSheet("#miniPlayerInfo { background: transparent; }")
         info_widget.setFixedWidth(220)
         info_layout = QVBoxLayout(info_widget)
@@ -173,6 +174,7 @@ class MiniPlayerWidget(QWidget):
         # ── Progress section (time + slider + time) ──
         progress_widget = QWidget()
         progress_widget.setObjectName("miniPlayerProgress")
+        progress_widget.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         progress_widget.setStyleSheet("#miniPlayerProgress { background: transparent; }")
         progress_layout = QHBoxLayout(progress_widget)
         progress_layout.setContentsMargins(4, 0, 4, 0)
@@ -205,24 +207,24 @@ class MiniPlayerWidget(QWidget):
         controls.setSpacing(4)
         controls.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
-        self.btn_prev = self._make_control_btn("skip_previous", size=26, color=tokens.CURRENT.text_primary, btn_size=40)
+        self.btn_prev = self._make_control_btn("skip_previous", size=28, color=tokens.CURRENT.text_primary, btn_size=42)
         self.btn_prev.setAccessibleName("Pista anterior")
         self.btn_prev.clicked.connect(lambda: self.on_prev.emit())
         controls.addWidget(self.btn_prev)
 
-        self.btn_play = self._make_control_btn("play_arrow", size=34, color=tokens.CURRENT.text_on_accent, btn_size=52, primary=True)
+        self.btn_play = self._make_control_btn("play_arrow", size=36, color=tokens.CURRENT.text_on_accent, btn_size=52, primary=True)
         self.btn_play.setAccessibleName("Reproducir o Pausar")
         self.btn_play.clicked.connect(lambda: self.on_play_pause.emit())
         controls.addWidget(self.btn_play)
 
-        self.btn_next = self._make_control_btn("skip_next", size=26, color=tokens.CURRENT.text_primary, btn_size=40)
+        self.btn_next = self._make_control_btn("skip_next", size=28, color=tokens.CURRENT.text_primary, btn_size=42)
         self.btn_next.setAccessibleName("Pista siguiente")
         self.btn_next.clicked.connect(lambda: self.on_next.emit())
         controls.addWidget(self.btn_next)
 
         controls.addSpacing(8)
 
-        self.btn_expand = self._make_control_btn("expand_less", size=22, color=tokens.CURRENT.text_secondary, btn_size=36)
+        self.btn_expand = self._make_control_btn("expand_less", size=24, color=tokens.CURRENT.text_secondary, btn_size=38)
         self.btn_expand.setAccessibleName("Expandir reproductor")
         self.btn_expand.clicked.connect(lambda: self.on_expand.emit())
         controls.addWidget(self.btn_expand)
@@ -411,6 +413,8 @@ class MiniPlayerWidget(QWidget):
                 color: {tokens.CURRENT.text_on_accent};
                 border: 1px solid rgba(255,255,255,{0.48 if not is_light else 0.70});
                 border-radius: 26px;
+                font-family: 'Material Symbols Rounded';
+                font-size: 36px;
             }}
             QPushButton#primaryPlayBtn:hover {{
                 background: {tokens.CURRENT.accent_bright};
