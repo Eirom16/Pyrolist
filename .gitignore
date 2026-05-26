@@ -57,4 +57,5 @@ Thumbs.db
 # Ignore other markdown files except README.md
 *.md
 !README.md
+!RELEASE_NOTES.md
 PROMPT_PYROLIST_PACKAGING.md

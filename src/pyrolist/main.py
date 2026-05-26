@@ -33,6 +33,7 @@ import warnings
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
 from loguru import logger
+from pyrolist import __version__
 from pyrolist.utils.vlc_check import check_vlc_available, show_vlc_error_and_exit, setup_vlc_env
 from pyrolist.config.paths import AppDirs
 from pyrolist.config.settings import AppSettings
@@ -100,7 +101,7 @@ def main() -> None:
             
     app = QApplication(sys.argv)
     app.setApplicationName("Pyrolist")
-    app.setApplicationVersion("1.1.9")
+    app.setApplicationVersion(__version__)
     app.setOrganizationName("pyrolist")
     app.setDesktopFileName("pyrolist")
 

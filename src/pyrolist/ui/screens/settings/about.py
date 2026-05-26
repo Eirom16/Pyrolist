@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import asyncio
-from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 from PySide6.QtCore import Qt
 
+from pyrolist.changelog import CURRENT_CHANGELOG, CURRENT_CHANGELOG_SUMMARY, CURRENT_CHANGELOG_VERSION
 from pyrolist.ui.design.fonts import AppFont
 from pyrolist.ui.screens.settings.components import page_title
 from pyrolist.ui.widgets.ripple_button import RippleButton
@@ -12,6 +13,8 @@ from pyrolist.ui.widgets.ripple_button import RippleButton
 class AboutScreen(QWidget):
     def __init__(self):
         super().__init__()
+        self._changelog_labels: list[QLabel] = []
+        self._changelog_icons: list[QLabel] = []
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -43,7 +46,7 @@ class AboutScreen(QWidget):
                 from importlib.metadata import version as pkg_version
                 ver = pkg_version("pyrolist")
             except Exception:
-                ver = "1.1.9"
+                ver = CURRENT_CHANGELOG_VERSION
         self.version = QLabel(f"Versión {ver}")
         self.version.setFont(AppFont.body(14))
         layout.addWidget(self.version)
@@ -55,6 +58,8 @@ class AboutScreen(QWidget):
         self.description.setFont(AppFont.body(14))
         self.description.setWordWrap(True)
         layout.addWidget(self.description)
+
+        layout.addWidget(self._build_changelog_card())
 
         github = RippleButton("Ver proyecto", "secondary")
         github.clicked.connect(lambda: __import__('webbrowser').open("https://github.com/Eirom16/Pyrolist"))
@@ -84,6 +89,68 @@ class AboutScreen(QWidget):
         layout.addStretch()
         
         self._update_about_styles()
+
+    def _build_changelog_card(self) -> QFrame:
+        from pyrolist.ui.design import tokens
+        from pyrolist.ui.design.icons import Icon
+
+        card = QFrame()
+        card.setObjectName("settingsCard")
+
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(20, 16, 20, 18)
+        card_layout.setSpacing(12)
+
+        header = QHBoxLayout()
+        header.setContentsMargins(0, 0, 0, 0)
+        header.setSpacing(10)
+
+        icon = Icon.label("new_releases", size=22, color=tokens.CURRENT.accent)
+        self._changelog_icons.append(icon)
+        header.addWidget(icon, alignment=Qt.AlignmentFlag.AlignTop)
+
+        title_col = QVBoxLayout()
+        title_col.setContentsMargins(0, 0, 0, 0)
+        title_col.setSpacing(3)
+
+        title = QLabel(f"Changelog v{CURRENT_CHANGELOG_VERSION}")
+        title.setFont(AppFont.body(16))
+        title.setWordWrap(True)
+        self._changelog_labels.append(title)
+        title_col.addWidget(title)
+
+        summary = QLabel(CURRENT_CHANGELOG_SUMMARY)
+        summary.setFont(AppFont.label(12))
+        summary.setWordWrap(True)
+        self._changelog_labels.append(summary)
+        title_col.addWidget(summary)
+
+        header.addLayout(title_col, stretch=1)
+        card_layout.addLayout(header)
+
+        for section_title, items in CURRENT_CHANGELOG:
+            section = QLabel(section_title.upper())
+            section.setFont(AppFont.label(11))
+            self._changelog_labels.append(section)
+            card_layout.addWidget(section)
+
+            for item in items:
+                row = QHBoxLayout()
+                row.setContentsMargins(0, 0, 0, 0)
+                row.setSpacing(8)
+
+                item_icon = Icon.label("check_circle", size=16, color=tokens.CURRENT.success)
+                self._changelog_icons.append(item_icon)
+                row.addWidget(item_icon, alignment=Qt.AlignmentFlag.AlignTop)
+
+                label = QLabel(item)
+                label.setFont(AppFont.label(12))
+                label.setWordWrap(True)
+                self._changelog_labels.append(label)
+                row.addWidget(label, stretch=1)
+                card_layout.addLayout(row)
+
+        return card
 
     async def _manual_check(self) -> None:
         from pyrolist.utils.updater import check_for_updates, CURRENT_VERSION
@@ -131,6 +198,19 @@ class AboutScreen(QWidget):
             self.version.setStyleSheet(f" background: transparent;")
         if hasattr(self, "description") and self.description:
             self.description.setStyleSheet(f" background: transparent;")
+        if hasattr(self, "_changelog_labels"):
+            for index, label in enumerate(self._changelog_labels):
+                color = tokens.CURRENT.text_primary if index == 0 else tokens.CURRENT.text_secondary
+                if label.text().isupper():
+                    color = tokens.CURRENT.accent
+                label.setStyleSheet(f"color: {color}; background: transparent;")
+        if hasattr(self, "_changelog_icons"):
+            from pyrolist.ui.design.icons import MATERIAL_FONT
+            for icon in self._changelog_icons:
+                icon.setStyleSheet(
+                    f"color: {tokens.CURRENT.accent}; background: transparent; "
+                    f"font-family: '{MATERIAL_FONT}';"
+                )
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
@@ -142,5 +222,4 @@ class AboutScreen(QWidget):
                 finally:
                     self._in_style_change = False
         super().changeEvent(event)
-
 
