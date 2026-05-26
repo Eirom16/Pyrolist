@@ -645,7 +645,7 @@ class DownloadsScreen(QWidget):
         
         self.content_layout = QVBoxLayout()
         self.content_layout.setSpacing(16)
-        self.content_layout.setContentsMargins(0, 16, 0, 16)
+        self.content_layout.setContentsMargins(0, 16, 0, 112)
         
         self._content_wrapper_layout.addLayout(self.content_layout)
         self._content_wrapper_layout.addStretch()
@@ -1092,3 +1092,8 @@ class DownloadsScreen(QWidget):
                 for vid in group_songs:
                     await main_win._delete_download_async(vid)
             await self.load()
+
+    def _apply_theme_styles(self) -> None:
+        self._update_toolbar_styles()
+        for key, btn in self.tab_btns.items():
+            btn.setStyleSheet(self._tab_style(key == self._current_tab))

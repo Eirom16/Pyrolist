@@ -79,7 +79,7 @@ class AlbumScreen(QWidget):
         
         self.content_widget = QWidget()
         self.content_layout = QVBoxLayout(self.content_widget)
-        self.content_layout.setContentsMargins(24, 24, 24, 24)
+        self.content_layout.setContentsMargins(24, 24, 24, 112)
         self.content_layout.setSpacing(16)
         
         self.scroll.setWidget(self.content_widget)

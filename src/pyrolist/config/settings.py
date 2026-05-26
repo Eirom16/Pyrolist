@@ -45,7 +45,7 @@ class IntegrationsSettings(BaseModel):
 
 class SubtitleSettings(BaseModel):
     alignment: str = "center"          # "left", "center", "right"
-    font_size: int = 18                # Tamaño de fuente en pt
+    font_size: int = 22                # Tamaño de fuente en pt
     line_spacing: float = 1.5          # Interlineado de párrafos
     delay_ms: int = 0                  # Retraso/Adelanto manual en milisegundos
     auto_scroll: bool = True           # Auto-desplazamiento vertical al cantar

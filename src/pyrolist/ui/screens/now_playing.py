@@ -18,8 +18,10 @@ class LyricLabel(QLabel):
         super().__init__(text)
         self.setAlignment(align_flag)
         self.setWordWrap(True)
-        self.setFont(QFont("Inter", base_font_size + 4, QFont.Weight.Black))
-        self.setContentsMargins(16, 16, 16, 16)
+        # Increase font size dynamically for superb readability (+6 instead of +4)
+        self.setFont(QFont("Inter", base_font_size + 6, QFont.Weight.Black))
+        # Better vertical spacing for compact premium look
+        self.setContentsMargins(16, 8, 16, 8)
         self.setStyleSheet("background: transparent;")
         
         self.base_font_size = base_font_size
@@ -48,31 +50,43 @@ class LyricLabel(QLabel):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
         
-        from pyrolist.ui.design import tokens
-        # Usar text_secondary (gris claro/oscuro) para inactivos y text_primary (blanco/negro) para activos
-        inactive_color = QColor(tokens.CURRENT.text_secondary)
-        active_color = QColor(tokens.CURRENT.text_primary)
-        
         p = self._progress
-        r = inactive_color.red() + (active_color.red() - inactive_color.red()) * p
-        g = inactive_color.green() + (active_color.green() - inactive_color.green()) * p
-        b = inactive_color.blue() + (active_color.blue() - inactive_color.blue()) * p
-        painter.setPen(QColor(int(r), int(g), int(b)))
         
-        scale = 0.85 + (0.15 * p)
+        # We always want white text for premium dynamic legibility
+        # Active color is fully opaque white, inactive is beautiful semi-transparent white
+        alpha = int(130 + (255 - 130) * p)
+        text_color = QColor(255, 255, 255, alpha)
+        
+        # Subtle premium drop shadow for readability
+        shadow_alpha = int(90 + (170 - 90) * p)
+        shadow_color = QColor(0, 0, 0, shadow_alpha)
+        
+        # Setup scale transformation
+        scale = 0.88 + (0.12 * p) # Scale transitions from 0.88 to 1.0
         cx = self.width() / 2
         cy = self.height() / 2
+        
+        painter.save()
         painter.translate(cx, cy)
         painter.scale(scale, scale)
         painter.translate(-cx, -cy)
         
         flags = int(self.alignment()) | Qt.TextFlag.TextWordWrap
         font = self.font()
-        # Asegurar que el texto activo se vea muy fuerte y legible
+        # Bold weight for active lyric, medium/semi-bold for inactive
         font.setWeight(QFont.Weight.Black if p > 0.5 else QFont.Weight.Bold)
         painter.setFont(font)
         
+        # Draw shadow first
+        painter.setPen(shadow_color)
+        shadow_rect = self.contentsRect().translated(1.5, 1.5)
+        painter.drawText(shadow_rect, flags, self.text())
+        
+        # Draw main text
+        painter.setPen(text_color)
         painter.drawText(self.contentsRect(), flags, self.text())
+        
+        painter.restore()
 
 class NowPlayingScreen(QWidget):
     download_requested = Signal(str, str, str, str)
@@ -302,14 +316,23 @@ class NowPlayingScreen(QWidget):
         self.lyrics_scroll = QScrollArea()
         self.lyrics_scroll.setWidgetResizable(True)
         self.lyrics_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.lyrics_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; } QScrollArea > QWidget > QWidget { background: transparent; }")
+        self.lyrics_scroll.setStyleSheet("""
+            QScrollArea {
+                background-color: rgba(10, 10, 18, 0.35);
+                border: 1px solid rgba(255, 255, 255, 0.05);
+                border-radius: 16px;
+            }
+            QScrollArea > QWidget > QWidget {
+                background: transparent;
+            }
+        """)
         
         self.lyrics_container = QWidget()
         self.lyrics_container.setObjectName("lyricsContainer")
         self.lyrics_container.setStyleSheet("#lyricsContainer { background: transparent; }")
         self.lyrics_layout = QVBoxLayout(self.lyrics_container)
         self.lyrics_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        self.lyrics_layout.setContentsMargins(0, 16, 0, 80)
+        self.lyrics_layout.setContentsMargins(24, 24, 24, 80)
         self.lyrics_scroll.setWidget(self.lyrics_container)
         
         self._lyric_lines = []
@@ -318,8 +341,7 @@ class NowPlayingScreen(QWidget):
         # Initial message
         msg = QLabel("Reproduce una canción para ver las letras")
         msg.setFont(QFont("Inter", 14))
-        from pyrolist.ui.design import tokens
-        msg.setStyleSheet(f"")
+        msg.setStyleSheet("color: rgba(255, 255, 255, 0.7);")
         msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lyrics_layout.addWidget(msg)
         
@@ -462,8 +484,7 @@ class NowPlayingScreen(QWidget):
         loading_lbl = QLabel("Buscando letras...")
         loading_lbl.setFont(QFont("Inter", 14))
         loading_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        from pyrolist.ui.design import tokens
-        loading_lbl.setStyleSheet(f" margin-top: 32px;")
+        loading_lbl.setStyleSheet("color: rgba(255, 255, 255, 0.7); margin-top: 32px;")
         self.lyrics_layout.addWidget(loading_lbl)
 
     def set_lyrics(self, lyrics):
@@ -480,8 +501,7 @@ class NowPlayingScreen(QWidget):
             no_lyrics = QLabel("No hay letras disponibles")
             no_lyrics.setFont(QFont("Inter", 14))
             no_lyrics.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            from pyrolist.ui.design import tokens
-            no_lyrics.setStyleSheet(f"")
+            no_lyrics.setStyleSheet("color: rgba(255, 255, 255, 0.7);")
             self.lyrics_layout.addWidget(no_lyrics)
             return
 
@@ -545,7 +565,7 @@ class NowPlayingScreen(QWidget):
             notice = QLabel("Sincronización no disponible para esta pista")
             notice.setFont(QFont("Inter", 11, QFont.Weight.Medium))
             notice.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            notice.setStyleSheet(f" padding-bottom: 24px; padding-top: 12px;")
+            notice.setStyleSheet("color: rgba(255, 255, 255, 0.5); padding-bottom: 24px; padding-top: 12px;")
             self.lyrics_layout.insertWidget(0, notice)
             
             for _, lbl in self._lyric_lines:

@@ -1721,10 +1721,34 @@ class MainWindow(QMainWindow):
         # StyleChange events, so avoid manually walking every widget afterward.
         from PySide6.QtWidgets import QApplication
         app = QApplication.instance()
-        marker = "/* ─── Dynamically mapped cards & buttons ───────────────────── */"
-        if app and not self._theme_base_qss:
-            current_qss = app.styleSheet()
-            self._theme_base_qss = current_qss.split(marker)[0] if marker in current_qss else current_qss
+        
+        if app:
+            from qt_material import apply_stylesheet
+            theme_xml = "light_purple.xml" if active_mode == "light" else "dark_purple.xml"
+            try:
+                apply_stylesheet(
+                    app,
+                    theme=theme_xml,
+                    extra={
+                        "primaryColor": accent,
+                        "primaryLightColor": accent,
+                        "secondaryColor": "#FFFFFF" if active_mode == "light" else "#1E1E2E",
+                        "secondaryLightColor": "#DFDFE8" if active_mode == "light" else "#2A2A3E",
+                        "secondaryDarkColor": "#F3F3F9" if active_mode == "light" else "#13131F",
+                        "primaryTextColor": "#121224" if active_mode == "light" else "#FFFFFF",
+                        "secondaryTextColor": "#5C5C8A" if active_mode == "light" else "#B0B0C0",
+                        "density_scale": "-1",
+                        "pyside6": True,
+                        "linux": True,
+                    },
+                )
+                base_qss = app.styleSheet()
+                base_qss = base_qss.replace('font-family: Roboto;', '')
+                base_qss = base_qss.replace('font-size: 13px;', '')
+                base_qss = base_qss.replace('line-height: 13px;', '')
+                self._theme_base_qss = base_qss
+            except Exception as e:
+                logger.error(f"Error applying qt_material stylesheet: {e}")
             
         groove_color = "#D0D0DF" if active_mode == "light" else "#2A2A4A"
         new_qss = new_qss.replace('#2A2A4A', groove_color)

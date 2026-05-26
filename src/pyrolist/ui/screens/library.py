@@ -97,7 +97,7 @@ class LibraryScreen(QWidget):
         self._content_wrapper_layout.setContentsMargins(0, 0, 0, 0)
         
         self.content_layout = QVBoxLayout()
-        self.content_layout.setContentsMargins(24, 0, 24, 24)
+        self.content_layout.setContentsMargins(24, 0, 24, 112)
         self.content_layout.setSpacing(16)
         
         self._content_wrapper_layout.addLayout(self.content_layout)
@@ -559,4 +559,8 @@ class LibraryScreen(QWidget):
                 background-color: {dark_hex};
             }}
         """)
+
+    def _apply_theme_styles(self) -> None:
+        self._update_tab_styles()
+        self._update_fab_style()
 

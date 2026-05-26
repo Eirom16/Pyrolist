@@ -289,7 +289,7 @@ class SearchScreen(QWidget):
         
         self._results_layout = QVBoxLayout()
         self._results_layout.setSpacing(16)
-        self._results_layout.setContentsMargins(0, 16, 0, 16)
+        self._results_layout.setContentsMargins(0, 16, 0, 112)
         
         self._content_wrapper_layout.addLayout(self._results_layout)
         self._content_wrapper_layout.addStretch()

@@ -133,7 +133,7 @@ class SettingsScreen(QWidget):
         color = accent if active else tokens.CURRENT.text_secondary
         bg = f"rgba({r},{g},{b},0.15)" if active else "transparent"
         hover_bg = f"rgba({r},{g},{b},0.09)"
-        button._icon_label.setStyleSheet(f"color: {color}; background: transparent;")
+        button._icon_label.setStyleSheet(f"color: {color}; background: transparent; font-family: 'Material Symbols Rounded'; font-size: 18px;")
         button._text_label.setStyleSheet(f"color: {color}; background: transparent; font-weight: {'700' if active else '500'};")
         button.setStyleSheet(f"""
             QPushButton {{

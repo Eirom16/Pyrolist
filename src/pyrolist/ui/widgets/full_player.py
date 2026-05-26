@@ -160,26 +160,35 @@ class FullPlayerDialog(QDialog):
         self.lyrics_area = QScrollArea()
         self.lyrics_area.setWidgetResizable(True)
         self.lyrics_area.setFrameShape(QFrame.Shape.NoFrame)
-        self.lyrics_area.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+        self.lyrics_area.setStyleSheet("""
+            QScrollArea {
+                background-color: rgba(10, 10, 18, 0.35);
+                border: 1px solid rgba(255, 255, 255, 0.05);
+                border-radius: 16px;
+            }
+            QScrollArea > QWidget > QWidget {
+                background: transparent;
+            }
+        """)
 
         self.lyrics_content = QWidget()
         self.lyrics_content.setStyleSheet("background: transparent;")
         self.lyrics_content_layout = QVBoxLayout(self.lyrics_content)
         self.lyrics_content_layout.setSpacing(6)
-        self.lyrics_content_layout.setContentsMargins(0, 8, 0, 80)
+        self.lyrics_content_layout.setContentsMargins(24, 24, 24, 80)
 
         # Initial "no lyrics" placeholder
         no_lyrics = QLabel(Icon.get("lyrics"))
         no_lyrics.setFont(Icon.font(48))
         no_lyrics.setAlignment(Qt.AlignmentFlag.AlignCenter)
         from pyrolist.ui.design import tokens
-        no_lyrics.setStyleSheet(f" padding: 40px;")
+        no_lyrics.setStyleSheet(f"color: rgba(255, 255, 255, 0.5); padding: 40px;")
         self.lyrics_content_layout.addWidget(no_lyrics)
 
         msg = QLabel("Reproduce una canción para ver las letras")
         msg.setFont(AppFont.body(14))
         msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        msg.setStyleSheet(f"")
+        msg.setStyleSheet("color: rgba(255, 255, 255, 0.7);")
         self.lyrics_content_layout.addWidget(msg)
         self.lyrics_content_layout.addStretch()
 
@@ -291,8 +300,7 @@ class FullPlayerDialog(QDialog):
         loading = QLabel("Buscando letras...")
         loading.setFont(AppFont.body(14))
         loading.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        from pyrolist.ui.design import tokens
-        loading.setStyleSheet(f" padding: 40px;")
+        loading.setStyleSheet("color: rgba(255, 255, 255, 0.7); padding: 40px;")
         self.lyrics_content_layout.addWidget(loading)
 
         try:
@@ -362,9 +370,8 @@ class FullPlayerDialog(QDialog):
                         continue
                     
                     lbl = QLabel(clean)
-                    lbl.setFont(AppFont.title(16)) # Use title font for better readability
-                    from pyrolist.ui.design import tokens
-                    lbl.setStyleSheet(f" background: transparent; padding: 4px 0;")
+                    lbl.setFont(AppFont.title(18)) # Use title font for better readability
+                    lbl.setStyleSheet("background: transparent; color: rgba(255, 255, 255, 0.55); padding: 6px 12px;")
                     lbl.setWordWrap(True)
                     self.lyrics_content_layout.addWidget(lbl)
                     self._lyric_lines.append((timestamp_ms, lbl))
@@ -380,7 +387,7 @@ class FullPlayerDialog(QDialog):
                 no_lyrics = QLabel("No hay letras disponibles")
                 no_lyrics.setFont(AppFont.body(14))
                 no_lyrics.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                no_lyrics.setStyleSheet(f"")
+                no_lyrics.setStyleSheet("color: rgba(255, 255, 255, 0.7);")
                 self.lyrics_content_layout.addWidget(no_lyrics)
         except Exception:
             while self.lyrics_content_layout.count():
@@ -412,13 +419,13 @@ class FullPlayerDialog(QDialog):
             # Revert old
             if self._current_lyric_index != -1:
                 old_ts, old_lbl = self._lyric_lines[self._current_lyric_index]
-                old_lbl.setStyleSheet(f" background: transparent; padding: 4px 0;")
-                old_lbl.setFont(AppFont.title(16))
+                old_lbl.setStyleSheet("background: transparent; color: rgba(255, 255, 255, 0.55); padding: 6px 12px;")
+                old_lbl.setFont(AppFont.title(18))
             
             # Highlight new
             new_ts, new_lbl = self._lyric_lines[active_idx]
-            new_lbl.setStyleSheet(f" background: transparent; padding: 4px 0;")
-            new_lbl.setFont(AppFont.heading(20)) # Make it even more prominent if needed, or 18
+            new_lbl.setStyleSheet("background: transparent; color: #FFFFFF; padding: 6px 12px;")
+            new_lbl.setFont(AppFont.heading(22)) # Make it even more prominent
             
             self._current_lyric_index = active_idx
             

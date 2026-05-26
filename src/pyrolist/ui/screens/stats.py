@@ -231,7 +231,7 @@ class StatsScreen(QWidget):
         
         self.content_widget = QWidget()
         self.content_layout = QVBoxLayout(self.content_widget)
-        self.content_layout.setContentsMargins(0, 0, 0, 0)
+        self.content_layout.setContentsMargins(0, 0, 0, 112)
         self.content_layout.setSpacing(24)
 
         # 1. Cards Row
