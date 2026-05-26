@@ -13,6 +13,7 @@ class QueuePanel(QWidget):
 
     def _build_ui(self):
         self.setObjectName("queuePanel")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
@@ -27,9 +28,10 @@ class QueuePanel(QWidget):
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.scroll.setStyleSheet("background: transparent; border: none;")
+        self.scroll.setStyleSheet("QScrollArea { background: transparent; border: none; } QScrollArea > QWidget > QWidget { background: transparent; }")
         
         self.queue_list = QWidget()
+        self.queue_list.setObjectName("queueList")
         self.queue_layout = QVBoxLayout(self.queue_list)
         self.queue_layout.setContentsMargins(0, 0, 0, 0)
         self.queue_layout.setSpacing(8)
@@ -74,7 +76,10 @@ class QueuePanel(QWidget):
         from pyrolist.ui.design import tokens
         self.setStyleSheet(f"""
             #queuePanel {{
-                background-color: {tokens.CURRENT.bg_surface};
+                background: transparent;
+            }}
+            #queueList {{
+                background: transparent;
             }}
         """)
         if hasattr(self, "header_lbl") and self.header_lbl:

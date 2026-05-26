@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel,
-    QSizePolicy, QGraphicsOpacityEffect
+    QSizePolicy, QGraphicsOpacityEffect, QGraphicsDropShadowEffect
 )
 from PySide6.QtCore import Qt, Signal, QSize, QPropertyAnimation, QEasingCurve, Property
 from PySide6.QtGui import QPixmap, QFont
@@ -66,8 +66,8 @@ class MiniPlayerWidget(QWidget):
     on_next = Signal()
     on_seek = Signal(int)
 
-    def __init__(self, player, queue, on_expand, on_prev, on_play_pause, on_next, on_seek):
-        super().__init__()
+    def __init__(self, player, queue, on_expand, on_prev, on_play_pause, on_next, on_seek, parent=None):
+        super().__init__(parent)
         self.player = player
         self.queue = queue
         self._is_playing = False
@@ -86,6 +86,9 @@ class MiniPlayerWidget(QWidget):
 
     def _set_player_height(self, value: int):
         self.setFixedHeight(value)
+        positioner = getattr(self.window(), "_position_mini_player", None)
+        if callable(positioner):
+            positioner()
 
     player_height = Property(int, _get_player_height, _set_player_height)
 
@@ -97,12 +100,13 @@ class MiniPlayerWidget(QWidget):
         self._pop_anim = QPropertyAnimation(self, b"player_height", self)
         self._pop_anim.setDuration(600)
         self._pop_anim.setStartValue(0)
-        self._pop_anim.setEndValue(96)
+        self._pop_anim.setEndValue(88)
         self._pop_anim.setEasingCurve(QEasingCurve.Type.OutExpo)
         self._pop_anim.start()
 
     def _build_ui(self):
         self.setObjectName("miniPlayer")
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.setFixedHeight(0) # Initially hidden
         self._is_visible = False
@@ -113,18 +117,19 @@ class MiniPlayerWidget(QWidget):
             }
         """)
 
-        # Outer layout with margins for floating effect
+        # Outer layout with margins so the player keeps its floating capsule shape.
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(12, 6, 12, 6)
+        outer.setContentsMargins(12, 4, 12, 4)
         outer.setSpacing(0)
-        outer.setAlignment(Qt.AlignmentFlag.AlignTop)
+        outer.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # Inner card
         self.card = QWidget()
         self.card.setObjectName("playerCard")
+        self.card.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
 
         card_layout = QHBoxLayout(self.card)
-        card_layout.setContentsMargins(12, 10, 16, 10)
+        card_layout.setContentsMargins(12, 9, 16, 9)
         card_layout.setSpacing(14)
         card_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
@@ -143,6 +148,8 @@ class MiniPlayerWidget(QWidget):
 
         # ── Song info ──
         info_widget = QWidget()
+        info_widget.setObjectName("miniPlayerInfo")
+        info_widget.setStyleSheet("#miniPlayerInfo { background: transparent; }")
         info_widget.setFixedWidth(220)
         info_layout = QVBoxLayout(info_widget)
         info_layout.setContentsMargins(0, 0, 0, 0)
@@ -165,6 +172,8 @@ class MiniPlayerWidget(QWidget):
 
         # ── Progress section (time + slider + time) ──
         progress_widget = QWidget()
+        progress_widget.setObjectName("miniPlayerProgress")
+        progress_widget.setStyleSheet("#miniPlayerProgress { background: transparent; }")
         progress_layout = QHBoxLayout(progress_widget)
         progress_layout.setContentsMargins(4, 0, 4, 0)
         progress_layout.setSpacing(10)
@@ -265,11 +274,10 @@ class MiniPlayerWidget(QWidget):
         if thumbnail_url:
             asyncio.ensure_future(self._load_thumbnail(thumbnail_url))
         else:
-            from pyrolist.ui.design import tokens
             self.artwork.setPixmap(QPixmap())
             self.artwork.setText(Icon.get("library_music"))
             self.artwork.setFont(Icon.font(28))
-            self.artwork.setStyleSheet(f"background: {tokens.CURRENT.bg_high};  border-radius: 10px;")
+            self._update_mini_player_styles()
 
     async def _load_thumbnail(self, url: str):
         path = await _image_cache.download(url)
@@ -342,25 +350,35 @@ class MiniPlayerWidget(QWidget):
             return
         from pyrolist.ui.design import tokens
         from PySide6.QtGui import QColor
-        accent = tokens.CURRENT.accent
-        c = QColor(accent)
-        r, g, b = c.red(), c.green(), c.blue()
+        surface = QColor(tokens.CURRENT.bg_surface)
+        base = QColor(tokens.CURRENT.bg_base)
+        accent = QColor(tokens.CURRENT.accent)
+        is_light = base.lightness() > 150
+        surface_alpha = 0.92 if is_light else 0.76
+        border_alpha = 0.22 if is_light else 0.30
+        hover_alpha = 0.10 if is_light else 0.16
+        placeholder_bg = "rgba(0,0,0,0.08)" if is_light else "rgba(255,255,255,0.10)"
         
-        # 1. Card styling with dynamic gradient and borders
+        if not hasattr(self, "_card_shadow"):
+            self._card_shadow = QGraphicsDropShadowEffect(self.card)
+            self.card.setGraphicsEffect(self._card_shadow)
+        self._card_shadow.setBlurRadius(28 if is_light else 32)
+        self._card_shadow.setOffset(0, 5 if is_light else 6)
+        self._card_shadow.setColor(QColor(8, 10, 20, 52 if is_light else 128))
+
+        # 1. Floating capsule: adaptive frosted material, no nested black panels.
         self.card.setStyleSheet(f"""
             #playerCard {{
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 {tokens.CURRENT.bg_surface}, stop:1 {tokens.CURRENT.bg_elevated});
+                background: rgba({surface.red()},{surface.green()},{surface.blue()},{surface_alpha});
                 border-radius: 16px;
-                border: 1px solid rgba({r},{g},{b},0.12);
+                border: 1px solid rgba({accent.red()},{accent.green()},{accent.blue()},{border_alpha});
             }}
         """)
         
         # 2. Artwork styling
         if not self.artwork.pixmap() or self.artwork.pixmap().isNull():
             self.artwork.setStyleSheet(f"""
-                background: {tokens.CURRENT.bg_high};
-                
+                background: {placeholder_bg};
                 border-radius: 10px;
             """)
         else:
@@ -368,18 +386,40 @@ class MiniPlayerWidget(QWidget):
 
         # 3. Label text styling
         self.title.setColor(tokens.CURRENT.text_primary)
-        self.artist.setStyleSheet(f"")
-        self.time_current.setStyleSheet(f"")
-        self.time_total.setStyleSheet(f"")
+        self.artist.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent;")
+        self.time_current.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent;")
+        self.time_total.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent;")
 
         # 4. Button styles
-        self.btn_prev.setStyleSheet(f"QPushButton {{  border: none; background: transparent; }}")
-        self.btn_next.setStyleSheet(f"QPushButton {{  border: none; background: transparent; }}")
-        self.btn_expand.setStyleSheet(f"QPushButton {{  border: none; background: transparent; }}")
+        control_style = f"""
+            QPushButton {{
+                color: {tokens.CURRENT.text_secondary};
+                border: none;
+                background: transparent;
+            }}
+            QPushButton:hover {{
+                color: {tokens.CURRENT.text_primary};
+                background: rgba({accent.red()},{accent.green()},{accent.blue()},{hover_alpha});
+            }}
+        """
+        self.btn_prev.setStyleSheet(control_style)
+        self.btn_next.setStyleSheet(control_style)
+        self.btn_expand.setStyleSheet(control_style)
+        self.btn_play.setStyleSheet(f"""
+            QPushButton#primaryPlayBtn {{
+                background: {tokens.CURRENT.accent};
+                color: {tokens.CURRENT.text_on_accent};
+                border: 1px solid rgba(255,255,255,{0.48 if not is_light else 0.70});
+                border-radius: 26px;
+            }}
+            QPushButton#primaryPlayBtn:hover {{
+                background: {tokens.CURRENT.accent_bright};
+            }}
+        """)
 
     def changeEvent(self, event):
         from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.PaletteChange,):
+        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange, QEvent.Type.ApplicationPaletteChange):
             if not getattr(self, "_in_style_change", False):
                 self._in_style_change = True
                 try:

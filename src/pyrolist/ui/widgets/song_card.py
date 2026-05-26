@@ -41,7 +41,7 @@ class SongCard(QWidget):
         path = await _image_cache.download(self._thumbnail_url)
         if path:
             from PySide6.QtGui import QPixmapCache
-            cache_key = f"{path}_48_48"
+            cache_key = f"{path}_50_50"
             pixmap = QPixmap()
             if QPixmapCache.find(cache_key, pixmap):
                 self.thumbnail.setPixmap(pixmap)
@@ -55,21 +55,21 @@ class SongCard(QWidget):
                             QPixmapCache.insert(cache_key, pix)
                             self.thumbnail.setPixmap(pix)
                             self.thumbnail.setObjectName("thumbnail_image")
-                load_scaled_async(path, 48, 48, self, on_loaded)
+                load_scaled_async(path, 50, 50, self, on_loaded)
 
     def _build_ui(self):
         self.setObjectName("songCard")
-        self.setFixedHeight(64)
+        self.setFixedHeight(68)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(8, 4, 8, 4)
-        layout.setSpacing(12)
+        layout.setContentsMargins(8, 5, 8, 5)
+        layout.setSpacing(10)
 
         self.thumbnail = QLabel()
-        self.thumbnail.setFixedSize(48, 48)
+        self.thumbnail.setFixedSize(50, 50)
         self.thumbnail.setText(Icon.get("music_note"))
-        self.thumbnail.setFont(Icon.font(22))
+        self.thumbnail.setFont(Icon.font(24))
         self.thumbnail.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.thumbnail)
 
@@ -78,7 +78,7 @@ class SongCard(QWidget):
         info.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         self.title_label = QLabel(self._title)
-        self.title_label.setFont(QFont("Inter", 12, QFont.Weight.Medium))
+        self.title_label.setFont(QFont("Inter", 13, QFont.Weight.DemiBold))
         
         # Elide long text
         metrics = self.title_label.fontMetrics()
@@ -87,8 +87,9 @@ class SongCard(QWidget):
         info.addWidget(self.title_label)
 
         self.artist_label = QLabel(self._artist)
-        self.artist_label.setFont(QFont("Inter", 10))
-        elided_artist = metrics.elidedText(self._artist, Qt.TextElideMode.ElideRight, 240)
+        self.artist_label.setFont(QFont("Inter", 11))
+        artist_metrics = self.artist_label.fontMetrics()
+        elided_artist = artist_metrics.elidedText(self._artist, Qt.TextElideMode.ElideRight, 260)
         self.artist_label.setText(elided_artist)
         info.addWidget(self.artist_label)
 
@@ -97,28 +98,28 @@ class SongCard(QWidget):
 
         self.duration_label = QLabel(self._duration)
         self.duration_label.setFont(QFont("Inter", 10))
-        self.duration_label.setFixedWidth(50)
+        self.duration_label.setFixedWidth(46)
         self.duration_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         layout.addWidget(self.duration_label)
 
         # Like button
         from pyrolist.ui.design import tokens
-        self.btn_like = IconButton(size=36, active_color=tokens.CURRENT.like_color)
+        self.btn_like = IconButton(size=40, active_color=tokens.CURRENT.like_color)
         self.btn_like.setObjectName("btn_like")
         self.btn_like.setText(Icon.get("favorite"))
-        self.btn_like.setFont(Icon.font(20, filled=self._is_liked))
-        self.btn_like.setFixedSize(36, 36)
+        self.btn_like.setFont(Icon.font(25, filled=self._is_liked))
+        self.btn_like.setFixedSize(40, 40)
         if self._is_liked:
             self.btn_like.set_active(True)
         self.btn_like.clicked.connect(self._on_like_clicked)
         layout.addWidget(self.btn_like)
 
         # Play button
-        self.btn_play = IconButton(size=36)
+        self.btn_play = IconButton(size=40)
         self.btn_play.setObjectName("btn_play")
         self.btn_play.setText(Icon.get("play_arrow"))
-        self.btn_play.setFont(Icon.font(22))
-        self.btn_play.setFixedSize(36, 36)
+        self.btn_play.setFont(Icon.font(27))
+        self.btn_play.setFixedSize(40, 40)
         if self._on_play:
             self.btn_play.clicked.connect(self._on_play)
         self.btn_play.setVisible(self._on_play is not None)
@@ -128,8 +129,8 @@ class SongCard(QWidget):
         self.menu_btn = QPushButton()
         self.menu_btn.setObjectName("menu_btn")
         self.menu_btn.setText(Icon.get("more_vert"))
-        self.menu_btn.setFont(Icon.font(20))
-        self.menu_btn.setFixedSize(32, 32)
+        self.menu_btn.setFont(Icon.font(26))
+        self.menu_btn.setFixedSize(40, 40)
         self.menu_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.menu_btn.clicked.connect(self._show_context_menu)
         layout.addWidget(self.menu_btn)
@@ -171,14 +172,24 @@ class SongCard(QWidget):
         lr, lg, lb = like_c.red(), like_c.green(), like_c.blue()
         
         if self._is_liked:
-            self.btn_like.setStyleSheet(f"QPushButton {{ color: {tokens.CURRENT.like_color}; background: transparent; border: none; }}")
+            self.btn_like.setStyleSheet(f"""
+                QPushButton {{
+                    color: {tokens.CURRENT.like_color};
+                    background: transparent;
+                    border: none;
+                    border-radius: 20px;
+                }}
+                QPushButton:hover {{
+                    background-color: rgba({lr},{lg},{lb},0.15);
+                }}
+            """)
         else:
             self.btn_like.setStyleSheet(f"""
                 QPushButton {{
                     background-color: transparent;
                     color: {text_secondary};
                     border: none;
-                    border-radius: 18px;
+                    border-radius: 20px;
                 }}
                 QPushButton:hover {{
                     background-color: rgba({lr},{lg},{lb},0.15);
@@ -191,7 +202,7 @@ class SongCard(QWidget):
                 background-color: transparent;
                 color: {text_primary};
                 border: none;
-                border-radius: 18px;
+                border-radius: 20px;
             }}
             QPushButton:hover {{
                 background-color: rgba({r}, {g}, {b}, 0.15);
@@ -204,9 +215,9 @@ class SongCard(QWidget):
                 background: transparent;
                 color: {text_secondary};
                 border: none;
-                border-radius: 16px;
+                border-radius: 20px;
                 font-family: 'Material Symbols Rounded';
-                font-size: 22px;
+                font-size: 26px;
             }}
             QPushButton#menu_btn:hover {{
                 background-color: rgba({r}, {g}, {b}, 0.15);
@@ -303,8 +314,11 @@ class SongCard(QWidget):
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
+        from pyrolist.ui.design import tokens
         if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
-            if not getattr(self, '_in_style_change', False):
+            if event.type() == QEvent.Type.StyleChange and getattr(tokens, "THEME_APPLYING", False):
+                self.update()
+            elif not getattr(self, '_in_style_change', False):
                 self._in_style_change = True
                 try:
                     self._update_card_styles()

@@ -283,7 +283,7 @@ class GlobalSearchBar(QWidget):
         self.bar_widget = QWidget()
         self.bar_widget.setObjectName("searchBarRow")
         bar_layout = QHBoxLayout(self.bar_widget)
-        bar_layout.setContentsMargins(24, 10, 24, 10)
+        bar_layout.setContentsMargins(16, 10, 24, 10)
         bar_layout.setSpacing(12)
         
         self.search_container = QFrame()

@@ -2,7 +2,6 @@ import asyncio
 from functools import partial
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea, QGridLayout, QPushButton, QGraphicsOpacityEffect
 from qasync import asyncSlot
-from PySide6.QtGui import QFont, QIcon, QPixmap
 from PySide6.QtCore import Qt, Signal, QPropertyAnimation, QEasingCurve
 from loguru import logger
 from pyrolist.ui.design.fonts import AppFont
@@ -93,12 +92,13 @@ class HomeScreen(QWidget):
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 16, 24, 16)
+        layout.setContentsMargins(16, 14, 24, 0)
+        layout.setSpacing(12)
 
-        from pyrolist.ui.design import tokens as _tokens
         self._header = QLabel("Inicio")
-        self._header.setFont(AppFont.display(24))
-        self._header.setStyleSheet(f"")
+        self._header.setProperty("textRole", "primary")
+        self._header.setFont(AppFont.display(30))
+        self._header.setStyleSheet("background: transparent;")
         layout.addWidget(self._header)
 
         self.scroll = QScrollArea()
@@ -107,10 +107,10 @@ class HomeScreen(QWidget):
 
         self.content = QWidget()
         self._content_wrapper_layout = QVBoxLayout(self.content)
-        self._content_wrapper_layout.setContentsMargins(0, 0, 0, 0)
+        self._content_wrapper_layout.setContentsMargins(0, 0, 0, 112)
         
         self.content_layout = QVBoxLayout()
-        self.content_layout.setSpacing(24)
+        self.content_layout.setSpacing(22)
         
         self._content_wrapper_layout.addLayout(self.content_layout)
         self._content_wrapper_layout.addStretch()
@@ -209,10 +209,10 @@ class HomeScreen(QWidget):
 
             if contents:
                 self._clear_content()
-                from pyrolist.ui.design import tokens
                 title = QLabel("Para ti")
-                title.setFont(AppFont.display(24))
-                title.setStyleSheet(f"")
+                title.setProperty("textRole", "primary")
+                title.setFont(AppFont.heading(22))
+                title.setStyleSheet("background: transparent;")
                 self.content_layout.addWidget(title)
                 
                 # Fetch liked video IDs for heart state
@@ -237,10 +237,10 @@ class HomeScreen(QWidget):
 
                 if has_charts:
                     self._clear_content()
-                    from pyrolist.ui.design import tokens
                     title = QLabel("Top Charts")
-                    title.setFont(AppFont.display(24))
-                    title.setStyleSheet(f"")
+                    title.setProperty("textRole", "primary")
+                    title.setFont(AppFont.heading(22))
+                    title.setStyleSheet("background: transparent;")
                     self.content_layout.addWidget(title)
                     
                     await self._display_charts(charts_data)
@@ -266,6 +266,7 @@ class HomeScreen(QWidget):
 
             section_widget = QWidget()
             section_layout = QVBoxLayout(section_widget)
+            section_layout.setContentsMargins(0, 0, 0, 0)
             section_layout.setSpacing(12)
             
             # Title can be string or dict with 'text' key
@@ -273,10 +274,10 @@ class HomeScreen(QWidget):
             if isinstance(section_title, dict):
                 section_title = section_title.get('text', 'Sección')
             
-            from pyrolist.ui.design import tokens
             header = QLabel(str(section_title))
-            header.setFont(AppFont.heading(16))
-            header.setStyleSheet(f"")
+            header.setProperty("textRole", "primary")
+            header.setFont(AppFont.heading(17))
+            header.setStyleSheet("background: transparent;")
             section_layout.addWidget(header)
             
             # Items can be in 'contents' or direct in section
@@ -288,7 +289,9 @@ class HomeScreen(QWidget):
             
             # Use QGridLayout for this section
             grid = QGridLayout()
-            grid.setSpacing(16)
+            grid.setContentsMargins(0, 0, 0, 0)
+            grid.setHorizontalSpacing(16)
+            grid.setVerticalSpacing(12)
             
             # Determine if this section is mostly songs (videoId) or playlists/albums (browseId/playlistId)
             has_songs = any('videoId' in item for item in items[:6] if isinstance(item, dict))
@@ -369,11 +372,13 @@ class HomeScreen(QWidget):
         if isinstance(charts, dict):
             section = QWidget()
             section_layout = QVBoxLayout(section)
+            section_layout.setContentsMargins(0, 0, 0, 0)
             section_layout.setSpacing(12)
 
             chart_playlists = charts.get("playlists", [])
             if chart_playlists:
                 grid = QGridLayout()
+                grid.setContentsMargins(0, 0, 0, 0)
                 grid.setSpacing(12)
                 for i, playlist in enumerate(chart_playlists[:4]):
                     title = playlist.get("title", "Chart")
@@ -441,14 +446,15 @@ class HomeScreen(QWidget):
 
 
     async def _load_genres_view(self):
-        from pyrolist.ui.design import tokens
         title = QLabel("Explorar por género")
-        title.setFont(AppFont.display(24))
-        title.setStyleSheet(f"")
+        title.setProperty("textRole", "primary")
+        title.setFont(AppFont.heading(22))
+        title.setStyleSheet("background: transparent;")
         self.content_layout.addWidget(title)
 
         genres_section = QWidget()
         genres_layout = QGridLayout(genres_section)
+        genres_layout.setContentsMargins(0, 0, 0, 0)
         genres_layout.setSpacing(16)
 
         for i, (name, query) in enumerate(self._genres):
@@ -459,11 +465,13 @@ class HomeScreen(QWidget):
 
         section = QWidget()
         section_layout = QVBoxLayout(section)
+        section_layout.setContentsMargins(0, 0, 0, 0)
         section_layout.setSpacing(12)
 
         header = QLabel("Sugerencias")
+        header.setProperty("textRole", "primary")
         header.setFont(AppFont.heading(18))
-        header.setStyleSheet(f"")
+        header.setStyleSheet("background: transparent;")
         section_layout.addWidget(header)
 
         hint = QLabel("Haz clic en un genero para buscar")
@@ -475,12 +483,12 @@ class HomeScreen(QWidget):
         self.content_layout.addStretch()
 
     def _show_search_prompt(self):
-        from pyrolist.ui.design import tokens
         self._clear_content()
         title = QLabel("Bienvenido a Pyrolist")
-        title.setFont(QFont("Inter", 20, QFont.Weight.Bold))
+        title.setProperty("textRole", "primary")
+        title.setFont(AppFont.heading(22))
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet(f" padding: 20px; background: transparent;")
+        title.setStyleSheet("padding: 20px; background: transparent;")
         self.content_layout.addWidget(title)
 
         search_hint = QLabel("Ve a Buscar y escribe el nombre de una cancion", self.scroll)
@@ -492,19 +500,21 @@ class HomeScreen(QWidget):
         self.content_layout.addStretch()
 
     def _display_explore(self, explore):
-        from pyrolist.ui.design import tokens
         section = QWidget()
         section_layout = QVBoxLayout(section)
+        section_layout.setContentsMargins(0, 0, 0, 0)
         section_layout.setSpacing(12)
 
         header = QLabel("Explorar")
-        header.setFont(QFont("Inter", 16, QFont.Weight.Bold))
-        header.setStyleSheet(f" background: transparent;")
+        header.setProperty("textRole", "primary")
+        header.setFont(AppFont.heading(17))
+        header.setStyleSheet("background: transparent;")
         section_layout.addWidget(header)
 
         mood_cats = explore.get("moodCategories", [])
         if mood_cats:
             grid = QGridLayout()
+            grid.setContentsMargins(0, 0, 0, 0)
             grid.setSpacing(12)
 
             for i, cat in enumerate(mood_cats[:6]):
@@ -517,22 +527,23 @@ class HomeScreen(QWidget):
         self.content_layout.addWidget(section)
 
     def _display_home(self, home):
-        from pyrolist.ui.design import tokens
         for item in home:
             section = QWidget()
             section_layout = QVBoxLayout(section)
+            section_layout.setContentsMargins(0, 0, 0, 0)
             section_layout.setSpacing(12)
 
             title = item.get("title", {}).get("text", "Sección")
             header = QLabel(title)
             header.setProperty("textRole", "primary")
-            header.setFont(QFont("Inter", 16, QFont.Weight.Bold))
-            header.setStyleSheet(f" background: transparent;")
+            header.setFont(AppFont.heading(17))
+            header.setStyleSheet("background: transparent;")
             section_layout.addWidget(header)
 
             contents = item.get("contents", [])
             if contents:
                 grid = QGridLayout()
+                grid.setContentsMargins(0, 0, 0, 0)
                 grid.setSpacing(12)
 
                 for i, content in enumerate(contents[:6]):
@@ -580,4 +591,3 @@ class HomeScreen(QWidget):
                     section_layout.addLayout(grid)
 
             self.content_layout.addWidget(section)
-

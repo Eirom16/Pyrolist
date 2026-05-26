@@ -102,7 +102,7 @@ def main() -> None:
     app.setApplicationName("Pyrolist")
     app.setApplicationVersion("1.1.9")
     app.setOrganizationName("pyrolist")
-    app.setDesktopFileName("pyrolist.desktop")
+    app.setDesktopFileName("pyrolist")
 
     setup_vlc_env()
     vlc_ok = check_vlc_available()

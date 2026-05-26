@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 
 from PySide6.QtCore import QEasingCurve, QSize, Qt, QPropertyAnimation, Signal
-from PySide6.QtGui import QIcon, QPixmap, QPainter, QPainterPath, QColor
+from PySide6.QtGui import QIcon, QPixmap, QPainter, QPainterPath, QColor, QFontMetrics
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from pyrolist.ui.design.fonts import AppFont
@@ -35,19 +35,21 @@ class NavButton(QPushButton):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setToolTip(label)
 
-        row = QHBoxLayout(self)
-        row.setContentsMargins(7, 0, 7, 0)
-        row.setSpacing(12)
+        self._row = QHBoxLayout(self)
+        self._row.setContentsMargins(11, 0, 11, 0)
+        self._row.setSpacing(12)
 
         from pyrolist.ui.design import tokens
         self.icon_label = Icon.label(icon_name, 22, tokens.CURRENT.text_secondary)
+        self.icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.icon_label.setFixedWidth(22)
         self.text_label = QLabel(label)
         self.text_label.setFont(AppFont.body(13))
         self.text_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.icon_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        row.addWidget(self.icon_label)
-        row.addWidget(self.text_label)
-        row.addStretch()
+        self._row.addWidget(self.icon_label)
+        self._row.addWidget(self.text_label)
+        self._row.addStretch()
 
         self._apply_style(False)
 
@@ -58,6 +60,14 @@ class NavButton(QPushButton):
     def set_collapsed(self, collapsed: bool) -> None:
         self._collapsed = collapsed
         self.text_label.setVisible(not collapsed)
+        if collapsed:
+            self._row.setContentsMargins(0, 0, 0, 0)
+            self._row.setSpacing(0)
+            self.icon_label.setFixedWidth(52)
+        else:
+            self._row.setContentsMargins(11, 0, 11, 0)
+            self._row.setSpacing(12)
+            self.icon_label.setFixedWidth(22)
 
     def _apply_style(self, active: bool) -> None:
         from pyrolist.ui.design import tokens
@@ -104,7 +114,7 @@ class NavSidebar(QWidget):
     on_login_click = Signal()
     auth_changed = Signal(bool)
 
-    EXPANDED_WIDTH = 220
+    EXPANDED_WIDTH = 214
     COLLAPSED_WIDTH = 64
 
     def __init__(self, on_navigate):
@@ -131,10 +141,12 @@ class NavSidebar(QWidget):
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 16, 10, 16)
+        layout.setContentsMargins(6, 12, 6, 16)
         layout.setSpacing(4)
 
         self._logo_row = QWidget()
+        self._logo_row.setObjectName("logoRow")
+        self._logo_row.setStyleSheet("#logoRow { background: transparent; border: none; }")
         logo_layout = QHBoxLayout(self._logo_row)
         logo_layout.setContentsMargins(0, 0, 0, 12)
         logo_layout.setSpacing(10)
@@ -142,15 +154,21 @@ class NavSidebar(QWidget):
         icon_path = AppDirs.root / "assets" / "icon.png"
         if icon_path.exists():
             self._app_icon = QLabel()
+            self._app_icon.setFixedSize(52, 52)
+            self._app_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
             pixmap = QPixmap(str(icon_path))
-            self._app_icon.setPixmap(pixmap.scaled(44, 44, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+            self._app_icon_source = pixmap.scaled(52, 52, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            self._app_icon.setPixmap(self._app_icon_source)
+            self._app_icon.setStyleSheet("background: transparent; border: none;")
             self._app_icon_is_custom = True
         else:
             self._app_icon = Icon.label("music_note", 26, "#A78BFA")
+            self._app_icon.setFixedSize(52, 52)
+            self._app_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self._app_icon_is_custom = False
             
         self._app_title = QLabel("Pyrolist")
-        self._app_title.setFont(AppFont.heading(18))
+        self._app_title.setFont(AppFont.display(21))
         self._update_header_style()
         logo_layout.addWidget(self._app_icon)
         logo_layout.addWidget(self._app_title)
@@ -234,7 +252,6 @@ class NavSidebar(QWidget):
         else:
             display_text = "Iniciar sesión"
 
-        text = "" if self._collapsed else display_text
         self._profile_btn.setToolTip(display_text)
 
         # Build the button content with icon + text using a layout
@@ -242,6 +259,12 @@ class NavSidebar(QWidget):
         self._profile_btn.setIcon(QIcon())
         self._profile_btn.setIconSize(QSize(24, 24))
         self._profile_btn.setFont(AppFont.body(12))
+        if self._collapsed:
+            button_text = ""
+        else:
+            metrics = QFontMetrics(self._profile_btn.font())
+            max_text_width = max(48, self.width() - 58)
+            button_text = metrics.elidedText(display_text, Qt.TextElideMode.ElideRight, max_text_width)
         from pyrolist.ui.design import tokens
         from PySide6.QtGui import QColor
         accent = tokens.CURRENT.accent
@@ -254,7 +277,7 @@ class NavSidebar(QWidget):
                 
                 border: none;
                 border-radius: 12px;
-                padding: 8px 10px;
+                padding: 8px 8px;
                 text-align: left;
             }}
             QPushButton:hover {{
@@ -299,7 +322,7 @@ class NavSidebar(QWidget):
                                 painter.drawPixmap(0, 0, cropped)
                                 painter.end()
                             self._profile_btn.setIcon(QIcon(circular))
-                            self._profile_btn.setText(text)
+                            self._profile_btn.setText(button_text)
                             return
                 except asyncio.CancelledError:
                     return
@@ -308,13 +331,13 @@ class NavSidebar(QWidget):
                     logger.error(f"Avatar load failed: {e}")
                 # Fallback: use person icon
                 self._profile_btn.setIcon(Icon.icon("person", tokens.CURRENT.text_secondary, 20 if not self._collapsed else 22))
-                self._profile_btn.setText(text)
+                self._profile_btn.setText(button_text)
 
             self._avatar_task = asyncio.create_task(load_avatar())
         else:
             # Not authenticated or no avatar — show icon + text
             self._profile_btn.setIcon(Icon.icon("person", tokens.CURRENT.text_secondary, 20 if not self._collapsed else 22))
-            self._profile_btn.setText(text)
+            self._profile_btn.setText(button_text)
 
     def _on_profile_clicked(self) -> None:
         if self._is_authenticated:
@@ -342,28 +365,25 @@ class NavSidebar(QWidget):
             self._app_title.setStyleSheet(f"color: {accent}; background: transparent;")
         if hasattr(self, '_app_icon') and self._app_icon:
             if hasattr(self, '_app_icon_is_custom') and self._app_icon_is_custom:
-                from PySide6.QtWidgets import QGraphicsColorizeEffect
-                from PySide6.QtGui import QColor
-                self._logo_effect = QGraphicsColorizeEffect()
-                self._logo_effect.setColor(QColor(accent))
-                self._logo_effect.setStrength(1.0)
-                self._app_icon.setGraphicsEffect(self._logo_effect)
-                self._app_icon.update()
+                self._app_icon.setGraphicsEffect(None)
+                source = getattr(self, "_app_icon_source", None)
+                if source and not source.isNull():
+                    self._app_icon.setPixmap(source)
+                self._app_icon.setStyleSheet("background: transparent; border: none;")
                 return
             if isinstance(self._app_icon, QLabel) and self._app_icon.text():
                 self._app_icon.setStyleSheet(f"color: {accent}; background: transparent; font-size: 24px;")
 
     def _update_sidebar_styles(self) -> None:
         from pyrolist.ui.design import tokens
-        bg_surface = tokens.CURRENT.bg_surface
         border_color = tokens.CURRENT.border
         text_secondary = tokens.CURRENT.text_secondary
         text_primary = tokens.CURRENT.text_primary
         
         self.setStyleSheet(f"""
             #navSidebar {{
-                background-color: {bg_surface};
-                border-right: 1px solid {border_color};
+                background-color: {tokens.CURRENT.bg_base};
+                border-right: none;
             }}
         """)
         

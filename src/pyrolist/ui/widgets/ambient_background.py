@@ -110,15 +110,26 @@ class AmbientBackgroundWidget(QWidget):
 
     def set_image(self, image_data: bytes):
         """Actualiza el fondo extrayendo colores de los bytes de la imagen."""
+        from pyrolist.ui.design import tokens
+        from PySide6.QtGui import QColor
+        is_light = QColor(tokens.CURRENT.bg_base).lightness() > 128
+        
         if not image_data:
-            self._set_colors([QColor(10, 10, 10), QColor(15, 15, 15), QColor(20, 20, 20)])
+            if is_light:
+                default_colors = [QColor(230, 230, 250), QColor(240, 248, 255), QColor(245, 245, 250)]
+            else:
+                default_colors = [QColor(30, 20, 50), QColor(20, 40, 50), QColor(40, 20, 40)]
+            self._set_colors(default_colors)
             return
             
         def on_done(future):
             try:
                 colors = future.result()
             except Exception:
-                colors = [QColor(20, 20, 20), QColor(40, 40, 40), QColor(30, 30, 30)]
+                if is_light:
+                    colors = [QColor(230, 230, 250), QColor(240, 248, 255), QColor(245, 245, 250)]
+                else:
+                    colors = [QColor(30, 20, 50), QColor(20, 40, 50), QColor(40, 20, 40)]
             
             # Ejecutar en hilo principal
             import shiboken6
@@ -130,24 +141,28 @@ class AmbientBackgroundWidget(QWidget):
         future.add_done_callback(on_done)
 
     def _set_colors(self, colors: list[QColor]):
+        from pyrolist.ui.design import tokens
+        is_light = QColor(tokens.CURRENT.bg_base).lightness() > 128
+        
         if len(colors) >= len(self._blobs):
             for i, blob in enumerate(self._blobs):
                 c = colors[i]
                 # Convert to HSV to manipulate
                 h, s, v, a = c.getHsv()
                 
-                # If the color is too grey/white/black, give it a default hue or keep it dark
-                if s < 30:
-                    s = 30  # Add a tiny bit of color
+                if is_light:
+                    # Light mode: bright, soft pastel colors
+                    s = min(80, int(s * 0.4))       # Low saturation (pastel)
+                    v = max(220, int(255 - (255 - v) * 0.3)) # High brightness
+                    alpha = 100                     # Subtle opacity for blending
                 else:
-                    s = min(255, int(s * 1.5)) # Boost saturation
+                    # Dark mode: vibrant, visible glowing aura
+                    s = max(100, min(255, int(s * 1.5))) # Boost saturation for rich depth
+                    v = max(55, min(115, int(v * 0.8)))   # Make it bright enough to be visible, but dark enough to keep text readable
+                    alpha = 150                     # Ideal opacity for dark atmospheric glow
                 
-                # Keep it very dark to maintain the dark theme
-                v = min(80, int(v * 0.6))
-                
-                # Set transparency so they blend nicely
                 new_color = QColor.fromHsv(h, s, v)
-                new_color.setAlpha(180) # 70% opacity
+                new_color.setAlpha(alpha)
                 blob.target_color = new_color
                 
             self._color_anim.stop()
@@ -156,11 +171,12 @@ class AmbientBackgroundWidget(QWidget):
             self._color_anim.start()
 
     def paintEvent(self, event):
+        from pyrolist.ui.design import tokens
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         
-        # Base background: deeply dark color to ensure contrast
-        painter.fillRect(self.rect(), QColor(10, 10, 15))
+        # Base background: dynamic base theme color
+        painter.fillRect(self.rect(), QColor(tokens.CURRENT.bg_base))
         
         w = self.width()
         h = self.height()

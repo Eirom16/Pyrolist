@@ -91,6 +91,9 @@ class NowPlayingScreen(QWidget):
         self.settings = settings
         self.on_back = on_back
         self._is_playing = False
+        self._ui_ready = False
+        self.setObjectName("nowPlayingScreen")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         
         from pyrolist.ui.widgets.ambient_background import AmbientBackgroundWidget
         self.ambient_bg = AmbientBackgroundWidget(self)
@@ -127,6 +130,7 @@ class NowPlayingScreen(QWidget):
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(0, 0, 0, 0)
         outer_layout.setSpacing(0)
+        self.setStyleSheet("#nowPlayingScreen { background: transparent; }")
 
         # Top bar with collapse/back button
         from pyrolist.ui.design import tokens
@@ -164,6 +168,8 @@ class NowPlayingScreen(QWidget):
 
         # Left Side (Artwork & Details + Controls)
         left_panel = QWidget()
+        left_panel.setObjectName("nowPlayingLeftPanel")
+        left_panel.setStyleSheet("#nowPlayingLeftPanel { background: transparent; }")
         left_layout = QVBoxLayout(left_panel)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -273,6 +279,8 @@ class NowPlayingScreen(QWidget):
 
         # Right Side (Tabs: Queue, Lyrics, Related)
         right_panel = QWidget()
+        right_panel.setObjectName("nowPlayingRightPanel")
+        right_panel.setStyleSheet("#nowPlayingRightPanel { background: transparent; }")
         right_panel.setMinimumWidth(560)
         right_panel.setMaximumWidth(700)
         right_layout = QVBoxLayout(right_panel)
@@ -291,9 +299,11 @@ class NowPlayingScreen(QWidget):
         self.lyrics_scroll = QScrollArea()
         self.lyrics_scroll.setWidgetResizable(True)
         self.lyrics_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.lyrics_scroll.setStyleSheet("background: transparent; border: none;")
+        self.lyrics_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; } QScrollArea > QWidget > QWidget { background: transparent; }")
         
         self.lyrics_container = QWidget()
+        self.lyrics_container.setObjectName("lyricsContainer")
+        self.lyrics_container.setStyleSheet("#lyricsContainer { background: transparent; }")
         self.lyrics_layout = QVBoxLayout(self.lyrics_container)
         self.lyrics_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.lyrics_layout.setContentsMargins(0, 16, 0, 80)
@@ -318,8 +328,10 @@ class NowPlayingScreen(QWidget):
         self.related_scroll = QScrollArea()
         self.related_scroll.setWidgetResizable(True)
         self.related_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.related_scroll.setStyleSheet("background: transparent; border: none;")
+        self.related_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; } QScrollArea > QWidget > QWidget { background: transparent; }")
         self.related_container = QWidget()
+        self.related_container.setObjectName("relatedContainer")
+        self.related_container.setStyleSheet("#relatedContainer { background: transparent; }")
         self.related_layout = QVBoxLayout(self.related_container)
         self.related_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.related_scroll.setWidget(self.related_container)
@@ -331,6 +343,8 @@ class NowPlayingScreen(QWidget):
         layout.addWidget(left_panel)
         layout.addWidget(right_panel)
         outer_layout.addLayout(layout)
+        self._ui_ready = True
+        self._update_styles()
 
     def _on_like_clicked(self):
         """Toggle like for the currently playing song."""
@@ -428,7 +442,7 @@ class NowPlayingScreen(QWidget):
             self.artwork.setText(Icon.get("library_music"))
             self.artwork.setFont(Icon.font(120))
             from pyrolist.ui.design import tokens
-            self.artwork.setStyleSheet(f"background: {tokens.CURRENT.bg_high};  border-radius: 24px;")
+            self.artwork.setStyleSheet("background: rgba(255,255,255,0.08); color: #FFFFFF; border-radius: 24px;")
 
     def update_state(self, status):
         self._is_playing = status.state == PlayerState.PLAYING
@@ -773,11 +787,13 @@ class NowPlayingScreen(QWidget):
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
+        if self._ui_ready and event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
             self._update_styles()
         super().changeEvent(event)
 
     def _update_styles(self) -> None:
+        if not getattr(self, "_ui_ready", False):
+            return
         from pyrolist.ui.design import tokens
         from pyrolist.ui.design.icons import Icon
         from PySide6.QtGui import QColor, QPixmap
@@ -804,7 +820,20 @@ class NowPlayingScreen(QWidget):
         self.time_total.setStyleSheet("color: rgba(255,255,255,0.7);")
         
         self.tabs.setStyleSheet(f"""
-            QTabWidget::pane {{ border: none; }}
+            QTabWidget {{
+                background: transparent;
+                border: none;
+            }}
+            QTabWidget::pane {{
+                background: transparent;
+                border: none;
+            }}
+            QTabWidget QWidget {{
+                background: transparent;
+            }}
+            QTabBar {{
+                background: transparent;
+            }}
             QTabBar::tab {{
                 color: rgba(255,255,255,0.5);
                 background: transparent;
@@ -828,7 +857,7 @@ class NowPlayingScreen(QWidget):
         
         # 4. If artwork is a placeholder, refresh its background/foreground color
         if not hasattr(self, "artwork") or not self.artwork.pixmap() or self.artwork.pixmap().isNull():
-            self.artwork.setStyleSheet(f"background: rgba(0,0,0,0.4); color: #FFFFFF; border-radius: 24px;")
+            self.artwork.setStyleSheet("background: rgba(255,255,255,0.08); color: #FFFFFF; border-radius: 24px;")
         else:
             self.artwork.setStyleSheet("background: transparent;")
 

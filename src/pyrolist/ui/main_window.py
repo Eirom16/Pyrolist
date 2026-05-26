@@ -3,7 +3,7 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
     QFrame
 )
-from PySide6.QtCore import Qt, QSize, QEasingCurve, QPropertyAnimation, Property
+from PySide6.QtCore import Qt, QSize, QEasingCurve, QPropertyAnimation, Property, QTimer
 from qasync import asyncSlot
 from loguru import logger
 from pyrolist.config.settings import AppSettings
@@ -47,6 +47,8 @@ class MainWindow(QMainWindow):
         self._current_nav_task: asyncio.Task | None = None
         self._current_play_id = 0
         self._nav_history: list[int] = []  # stack of previous screen indices for back navigation
+        self._theme_base_qss = ""
+        self._theme_refresh_pending = False
 
         self.yt = YouTubeMusicClient(settings)
         self.extractor = StreamExtractor(settings)
@@ -163,6 +165,7 @@ class MainWindow(QMainWindow):
 
     def _build_ui(self) -> None:
         central = QWidget()
+        self._central_widget = central
         self.setCentralWidget(central)
         root_layout = QVBoxLayout(central)
         root_layout.setContentsMargins(0, 0, 0, 0)
@@ -312,11 +315,17 @@ class MainWindow(QMainWindow):
             on_play_pause=self._on_play_pause,
             on_next=self._on_next,
             on_seek=self._on_seek,
+            parent=central,
         )
-        root_layout.addWidget(self.mini_player)
+        self.mini_player.raise_()
+        self.sidebar._width_anim.valueChanged.connect(lambda _value: self._position_mini_player())
+        self.sidebar._max_anim.valueChanged.connect(lambda _value: self._position_mini_player())
+        self._position_mini_player()
 
         self.statusBar().setObjectName("appStatusBar")
         self.statusBar().setStyleSheet("color: #888899; font-family: Inter; font-size: 11px;")
+        self.statusBar().setFixedHeight(0)
+        self.statusBar().hide()
 
         self.tray = SystemTray(
             parent=self,
@@ -325,6 +334,26 @@ class MainWindow(QMainWindow):
             on_next=self._on_next,
             on_quit=self.close,
         )
+
+    def _position_mini_player(self) -> None:
+        if not hasattr(self, "mini_player") or not self.mini_player:
+            return
+        central = getattr(self, "_central_widget", None) or self.centralWidget()
+        if central is None:
+            return
+
+        margin = 12
+        player_height = self.mini_player.height()
+        sidebar_width = self.sidebar.width() if hasattr(self, "sidebar") and self.sidebar.isVisible() else 0
+        x = sidebar_width + margin
+        width = max(0, central.width() - x - margin)
+        y = central.height() - player_height - margin if player_height > 0 else central.height()
+        self.mini_player.setGeometry(x, max(0, y), width, max(0, player_height))
+        self.mini_player.raise_()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._position_mini_player()
 
     def _connect_player_callbacks(self) -> None:
         self.player.on("track_ended", self._on_track_ended_callback)
@@ -1583,19 +1612,11 @@ class MainWindow(QMainWindow):
         self._apply_theme_and_accent(theme_mode, accent)
 
     def _apply_theme_and_accent(self, theme_mode: str, accent: str) -> None:
-        """Regenerate QSS with custom theme colors and dynamic accent, applying it with a beautiful diagonal wipe transition."""
+        """Regenerate QSS with custom theme colors and dynamic accent."""
         theme_key = (theme_mode, accent)
         if hasattr(self, '_last_theme_key') and self._last_theme_key == theme_key:
             return
         
-        # Capture current screen pixmap before changing styling for transition animation
-        old_pixmap = None
-        if self.isVisible():
-            try:
-                old_pixmap = self.grab()
-            except Exception as e:
-                logger.error(f"Failed to grab screenshot: {e}")
-
         self._last_theme_key = theme_key
         self._last_accent = accent
 
@@ -1696,75 +1717,83 @@ class MainWindow(QMainWindow):
         new_qss = new_qss.replace('#4A4A6A', tokens.CURRENT.text_disabled)
         new_qss = new_qss.replace('#4a4a6a', tokens.CURRENT.text_disabled.lower())
         
-        # Instantly update the foreground UI without freezing
+        # Apply the app stylesheet once. QApplication.setStyleSheet already sends
+        # StyleChange events, so avoid manually walking every widget afterward.
         from PySide6.QtWidgets import QApplication
         app = QApplication.instance()
-        current_qss = app.styleSheet() if app else ""
         marker = "/* ─── Dynamically mapped cards & buttons ───────────────────── */"
-        if marker in current_qss:
-            base_qss = current_qss.split(marker)[0]
-        else:
-            base_qss = current_qss
+        if app and not self._theme_base_qss:
+            current_qss = app.styleSheet()
+            self._theme_base_qss = current_qss.split(marker)[0] if marker in current_qss else current_qss
             
         groove_color = "#D0D0DF" if active_mode == "light" else "#2A2A4A"
         new_qss = new_qss.replace('#2A2A4A', groove_color)
         new_qss = new_qss.replace('#2a2a4a', groove_color.lower())
         
         if app:
-            app.setStyleSheet(base_qss + new_qss)
-            # Force all widgets to repaint to pick up the new tokens.CURRENT
-            for widget in app.allWidgets():
-                widget.update()
-            # Process events so the UI underneath is fully repainted before the overlay captures the screen
-            app.processEvents()
-            
-        # Re-build qt_material asynchronously so the UI doesn't freeze
-        def rebuild_and_apply(main_loop):
-            import time
-            start = time.time()
-            from qt_material import build_stylesheet
-            material_theme = "light_purple.xml" if active_mode == "light" else "dark_purple.xml"
-            extra = {
-                "primaryColor": accent,
-                "primaryLightColor": bright_hex,
-                "secondaryColor": tokens.CURRENT.bg_high,
-                "secondaryLightColor": tokens.CURRENT.bg_elevated,
-                "secondaryDarkColor": tokens.CURRENT.bg_base,
-                "primaryTextColor": tokens.CURRENT.text_primary,
-                "secondaryTextColor": tokens.CURRENT.text_secondary,
-                "density_scale": "-1",
-                "pyside6": True,
-                "linux": True,
-            }
+            tokens.THEME_APPLYING = True
             try:
-                new_base_qss = build_stylesheet(theme=material_theme, extra=extra)
-                new_base_qss = new_base_qss.replace('font-family: Roboto;', '')
-                new_base_qss = new_base_qss.replace('font-size: 13px;', '')
-                new_base_qss = new_base_qss.replace('line-height: 13px;', '')
-                
-                def apply_it():
-                    if app:
-                        app.setStyleSheet(new_base_qss + new_qss)
-                        logger.info(f"Background theme applied in {time.time()-start:.2f}s")
-                        
-                main_loop.call_soon_threadsafe(apply_it)
-            except Exception as e:
-                logger.error(f"Failed to rebuild theme in background: {e}")
+                app.setStyleSheet(self._theme_base_qss + new_qss)
+            finally:
+                tokens.THEME_APPLYING = False
 
-        import threading
-        import asyncio
+        self._schedule_theme_dependent_refresh()
+
+    def _schedule_theme_dependent_refresh(self) -> None:
+        if self._theme_refresh_pending:
+            return
+        self._theme_refresh_pending = True
+        QTimer.singleShot(0, self._refresh_theme_dependents)
+
+    def _refresh_theme_dependents(self) -> None:
+        self._theme_refresh_pending = False
+        for attr, method_name in (
+            ("sidebar", "_update_sidebar_styles"),
+            ("search_bar", "_update_search_bar_styles"),
+            ("offline_banner", "_apply_style"),
+            ("mini_player", "_update_mini_player_styles"),
+            ("now_playing_screen", "_update_styles"),
+            ("settings_screen", "_apply_sidebar_styles"),
+            ("stats_screen", "_apply_theme_style"),
+        ):
+            widget = getattr(self, attr, None)
+            method = getattr(widget, method_name, None)
+            if callable(method):
+                try:
+                    method()
+                except Exception as e:
+                    logger.debug(f"Theme refresh skipped for {attr}: {e}")
+
+        current = getattr(self, "stack", None).currentWidget() if hasattr(self, "stack") else None
+        for method_name in ("_apply_theme_styles", "_update_theme_styles", "_refresh_theme", "_update_header_styles"):
+            method = getattr(current, method_name, None)
+            if callable(method):
+                try:
+                    method()
+                except Exception as e:
+                    logger.debug(f"Current screen theme refresh skipped: {e}")
+
+        self._refresh_card_styles_in_batches(current)
+
+    def _refresh_card_styles_in_batches(self, root: QWidget | None) -> None:
+        if root is None:
+            return
         try:
-            loop = asyncio.get_running_loop()
-            threading.Thread(target=rebuild_and_apply, args=(loop,), daemon=True).start()
-        except RuntimeError:
-            logger.warning("No running async loop, falling back to instant foreground update only")
+            from pyrolist.ui.widgets.song_card import SongCard
+            cards = [card for card in root.findChildren(SongCard) if card.isVisible()]
+        except Exception:
+            return
 
-        # Create overlay to sweep and fade out old design state
-        if old_pixmap:
-            try:
-                ThemeTransitionOverlay(self, old_pixmap)
-            except Exception as e:
-                logger.error(f"Failed to trigger theme change transition: {e}")
+        def refresh_batch(index: int = 0) -> None:
+            for card in cards[index:index + 24]:
+                try:
+                    card._update_card_styles()
+                except Exception as e:
+                    logger.debug(f"Song card theme refresh skipped: {e}")
+            if index + 24 < len(cards):
+                QTimer.singleShot(0, lambda: refresh_batch(index + 24))
+
+        refresh_batch()
 
     def closeEvent(self, event) -> None:
         if self.settings.player.stop_on_close:

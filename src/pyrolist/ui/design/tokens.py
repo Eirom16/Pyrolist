@@ -78,3 +78,4 @@ LIGHT = ColorScheme(
 )
 
 CURRENT = DARK
+THEME_APPLYING = False
