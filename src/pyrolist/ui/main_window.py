@@ -57,6 +57,11 @@ class MainWindow(QMainWindow):
         self._pending_theme_mode = "dark"
         self._pending_accent = "#A78BFA"
         self._cached_base_qss = {}  # In-memory QSS cache for light and dark modes
+        
+        # Setup the dynamic transition overlay
+        from pyrolist.ui.widgets.theme_transition import ThemeTransitionOverlay
+        self.theme_overlay = ThemeTransitionOverlay(self)
+        self.theme_overlay.hide()
 
         
         self.yt = YouTubeMusicClient(settings)
@@ -363,6 +368,8 @@ class MainWindow(QMainWindow):
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self._position_mini_player()
+        if hasattr(self, 'theme_overlay'):
+            self.theme_overlay.setGeometry(self.rect())
 
     def _connect_player_callbacks(self) -> None:
         self.player.on("track_ended", self._on_track_ended_callback)
@@ -1624,12 +1631,34 @@ class MainWindow(QMainWindow):
         self._pending_theme_mode = theme_mode
         self._pending_accent = accent
         if immediate:
-            self._apply_theme_and_accent_debounced()
+            self._apply_theme_and_accent_actual()
         else:
             self._theme_apply_timer.stop()
             self._theme_apply_timer.start(150) # 150ms debounce
 
     def _apply_theme_and_accent_debounced(self) -> None:
+        """Wrapper to display a beautiful dynamic loading overlay before applying styles."""
+        theme_mode = self._pending_theme_mode
+        accent = self._pending_accent
+        
+        theme_key = (theme_mode, accent)
+        if hasattr(self, '_last_theme_key') and self._last_theme_key == theme_key:
+            return
+            
+        # Bypass overlay transition on startup (when main window is not visible yet)
+        if not self.isVisible():
+            self._apply_theme_and_accent_actual()
+            return
+            
+        # Trigger the premium pop/fade transition overlay!
+        self.theme_overlay.setGeometry(self.rect())
+        self.theme_overlay.start_transition(
+            target_theme_mode=theme_mode,
+            target_accent=accent,
+            on_midpoint_callback=self._apply_theme_and_accent_actual
+        )
+
+    def _apply_theme_and_accent_actual(self) -> None:
         """Regenerate QSS with custom theme colors and dynamic accent (debounced and optimized)."""
         theme_mode = self._pending_theme_mode
         accent = self._pending_accent
