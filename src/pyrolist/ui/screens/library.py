@@ -107,7 +107,8 @@ class LibraryScreen(QWidget):
         layout.addWidget(self.content)
 
         # Create Floating Action Button (FAB) for playlists
-        self.fab = QPushButton("+", self)
+        from pyrolist.ui.design.icons import Icon
+        self.fab = QPushButton(Icon.get("playlist_add"), self)
         self.fab.setFixedSize(56, 56)
         self.fab.setCursor(Qt.CursorShape.PointingHandCursor)
         self.fab.setToolTip("Crear Playlist")
@@ -132,8 +133,8 @@ class LibraryScreen(QWidget):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         if hasattr(self, "fab"):
-            # Place at bottom right with 24px margin
-            self.fab.move(self.width() - self.fab.width() - 24, self.height() - self.fab.height() - 24)
+            # Position above floating mini player (88px height + 24px padding = 112px from bottom)
+            self.fab.move(self.width() - self.fab.width() - 24, self.height() - self.fab.height() - 112)
 
     def _switch_tab(self, key):
         self._current_tab = key
@@ -545,12 +546,12 @@ class LibraryScreen(QWidget):
         self.fab.setStyleSheet(f"""
             QPushButton {{
                 background-color: {accent};
-                
+                color: {tokens.CURRENT.text_on_accent};
                 border: none;
                 border-radius: 28px;
-                font-family: 'Inter';
+                font-family: 'Material Symbols Rounded';
                 font-size: 26px;
-                font-weight: bold;
+                font-weight: normal;
             }}
             QPushButton:hover {{
                 background-color: {bright_hex};
