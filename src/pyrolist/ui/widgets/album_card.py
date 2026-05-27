@@ -77,9 +77,7 @@ class AlbumCard(QWidget):
         self.artist_label.setFont(AppFont.label(10))
         self.artist_label.setToolTip(subtitle)
         layout.addWidget(self.artist_label)
-        layout.addStretch()
-        
-        
+        self._update_card_styles()
 
     def _update_card_styles(self) -> None:
         from pyrolist.ui.design import tokens
@@ -126,4 +124,18 @@ class AlbumCard(QWidget):
         if event.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit()
         super().mousePressEvent(event)
+
+    def changeEvent(self, event) -> None:
+        from PySide6.QtCore import QEvent
+        from pyrolist.ui.design import tokens
+        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
+            if event.type() == QEvent.Type.StyleChange and getattr(tokens, "THEME_APPLYING", False):
+                self.update()
+            elif not getattr(self, '_in_style_change', False):
+                self._in_style_change = True
+                try:
+                     self._update_card_styles()
+                finally:
+                     self._in_style_change = False
+        super().changeEvent(event)
 

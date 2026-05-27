@@ -115,8 +115,7 @@ class WelcomeScreen(QWidget):
                     self._in_style_change = False
         super().changeEvent(event)
 
-    @asyncSlot()
-    async def _on_login_clicked(self) -> None:
+    def _on_login_clicked(self) -> None:
         self._login_btn.setEnabled(False)
         self._login_btn.setText("  Iniciando...")
         self._status_label.setText("Abriendo ventana de inicio de sesion...")

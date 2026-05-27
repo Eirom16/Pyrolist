@@ -799,7 +799,8 @@ class MainWindow(QMainWindow):
         
         # Determine suitable height
         dialog.setFixedHeight(min(600, 100 + len(playlists) * 50))
-        dialog.exec()
+        self._playlist_dialog = dialog
+        dialog.open()
 
     async def _add_to_yt_playlist(self, playlist_id: str, video_id: str, playlist_name: str):
         try:
@@ -1880,7 +1881,13 @@ class MainWindow(QMainWindow):
             return
         try:
             from pyrolist.ui.widgets.song_card import SongCard
-            cards = [card for card in root.findChildren(SongCard) if card.isVisible()]
+            from pyrolist.ui.widgets.artist_card import ArtistCard
+            from pyrolist.ui.widgets.album_card import AlbumCard
+            from pyrolist.ui.widgets.playlist_card import PlaylistCard
+            
+            cards = []
+            for card_cls in (SongCard, ArtistCard, AlbumCard, PlaylistCard):
+                cards.extend([card for card in root.findChildren(card_cls) if card.isVisible()])
         except Exception:
             return
 
@@ -1889,7 +1896,7 @@ class MainWindow(QMainWindow):
                 try:
                     card._update_card_styles()
                 except Exception as e:
-                    logger.debug(f"Song card theme refresh skipped: {e}")
+                    logger.debug(f"Card theme refresh skipped: {e}")
             if index + 24 < len(cards):
                 QTimer.singleShot(0, lambda: refresh_batch(index + 24))
 
