@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from pyrolist.db.database import Base
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class Song(Base):
@@ -22,35 +22,6 @@ class Song(Base):
         return f"<Song {self.title} by {self.artist}>"
 
 
-class Album(Base):
-    __tablename__ = "albums"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    browse_id = Column(String, unique=True, nullable=False)
-    title = Column(String, nullable=False)
-    artist = Column(String, nullable=False)
-    year = Column(String, nullable=True)
-    thumbnail_url = Column(String, default="")
-
-
-class Artist(Base):
-    __tablename__ = "artists"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    channel_id = Column(String, unique=True, nullable=False)
-    name = Column(String, nullable=False)
-    thumbnail_url = Column(String, default="")
-
-
-class Playlist(Base):
-    __tablename__ = "playlists"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    playlist_id = Column(String, unique=True, nullable=False)
-    title = Column(String, nullable=False)
-    description = Column(String, default="")
-    thumbnail_url = Column(String, default="")
-    is_local = Column(Boolean, default=False)
 
 
 class PlayHistory(Base):
@@ -60,7 +31,7 @@ class PlayHistory(Base):
     video_id = Column(String, nullable=False)
     title = Column(String, nullable=False)
     artist = Column(String, nullable=False)
-    played_at = Column(DateTime, default=datetime.utcnow, index=True)
+    played_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
     duration_ms = Column(Integer, default=0)
 
 
@@ -75,7 +46,7 @@ class Download(Base):
     file_path = Column(String, nullable=False)
     thumbnail_url = Column(String, default="")
     duration_ms = Column(Integer, default=0)
-    downloaded_at = Column(DateTime, default=datetime.utcnow, index=True)
+    downloaded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
     parent_playlist_id = Column(String, nullable=True)
     parent_playlist_title = Column(String, nullable=True)
     parent_playlist_thumbnail_url = Column(String, nullable=True)
@@ -87,4 +58,4 @@ class CachedArtwork(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     url = Column(String, unique=True, nullable=False)
     local_path = Column(String, nullable=False)
-    cached_at = Column(DateTime, default=datetime.utcnow)
+    cached_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

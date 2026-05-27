@@ -133,7 +133,7 @@ class StreamExtractor:
         try:
             loop = asyncio.get_running_loop()
             return await loop.run_in_executor(self._executor, _extract_alt)
-        except:
+        except Exception:
             return ""
 
     async def get_download_url_and_info(self, video_id: str) -> dict:

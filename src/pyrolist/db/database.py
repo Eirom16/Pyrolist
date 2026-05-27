@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import declarative_base
+from sqlalchemy import text
 from pyrolist.config.paths import AppDirs
 from loguru import logger
 
@@ -32,14 +33,16 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(models.Base.metadata.create_all)
     
-    # Safely alter table to add the new column for existing databases
-    from sqlalchemy import text
+    # Safely alter table to add the new column for existing databases if missing
     try:
         async with engine.begin() as conn:
-            await conn.execute(text("ALTER TABLE downloads ADD COLUMN parent_playlist_thumbnail_url TEXT"))
-        logger.info("Added parent_playlist_thumbnail_url column to downloads table")
-    except Exception:
-        pass
+            result = await conn.execute(text("PRAGMA table_info(downloads)"))
+            columns = [row[1] for row in result.fetchall()]
+            if "parent_playlist_thumbnail_url" not in columns:
+                await conn.execute(text("ALTER TABLE downloads ADD COLUMN parent_playlist_thumbnail_url TEXT"))
+                logger.info("Added parent_playlist_thumbnail_url column to downloads table")
+    except Exception as e:
+        logger.warning(f"Could not check/alter downloads table: {e}")
         
     # Safely ensure indexes are created on existing databases
     try:

@@ -1,13 +1,5 @@
 import asyncio
-import platform
 from loguru import logger
-
-if platform.system() == "Linux":
-    try:
-        import psutil
-        HAS_PSUTIL = True
-    except ImportError:
-        HAS_PSUTIL = False
 
 
 class NetworkMonitor:
@@ -27,12 +19,16 @@ class NetworkMonitor:
             self._task.cancel()
 
     async def check_connectivity(self) -> bool:
-        try:
-            import socket
-            socket.create_connection(("8.8.8.8", 53), timeout=3)
-            return True
-        except Exception:
-            return False
+        def _check() -> bool:
+            try:
+                import socket
+                socket.create_connection(("8.8.8.8", 53), timeout=3)
+                return True
+            except Exception:
+                return False
+
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, _check)
 
     async def _monitor(self):
         while True:

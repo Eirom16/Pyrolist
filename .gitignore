@@ -33,11 +33,18 @@ Metrolist/
 vlc_libs/
 headers_auth.json
 oauth.json
-*.json
-!pyproject.toml
 headers.txt
 github_token.txt
+cookie_headers.json
+browser.json
 *.log
+*.patch
+*.spec
+
+# Test artifacts
+test_*.py
+test_*.json
+test_*.png
 
 # Database
 *.sqlite
@@ -49,13 +56,14 @@ github_token.txt
 .project
 .pydevproject
 .settings/
+.antigravitycli/
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Ignore other markdown files except README.md
+# Ignore other markdown files except README.md and RELEASE_NOTES.md
 *.md
 !README.md
 !RELEASE_NOTES.md
-PROMPT_PYROLIST_PACKAGING.md
+!docs/*.md

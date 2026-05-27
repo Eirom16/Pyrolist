@@ -157,6 +157,12 @@ class MainWindow(QMainWindow):
         self._lyrics_prefetcher = LyricsPrefetcher()
         self._run_async(self._lyrics_prefetcher.run())
 
+        # Connect cleanup handler to application quit
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance()
+        if app:
+            app.aboutToQuit.connect(self._cleanup_on_close)
+
         if self._loop:
             self._init_task = self._loop.create_task(self._initialize())
             self._track_task(self._init_task)
@@ -164,15 +170,9 @@ class MainWindow(QMainWindow):
             self._init_task = asyncio.ensure_future(self._initialize())
             self._track_task(self._init_task)
 
-    def _setup_close_handler(self) -> None:
-        from PySide6.QtWidgets import QApplication
-        app = QApplication.instance()
-        if app:
-            app.aboutToQuit.connect(self._cleanup_on_close)
+
 
     def _setup_window(self) -> None:
-        from pyrolist.ui.design.fonts import load_fonts
-        load_fonts()
         self.setWindowTitle("Pyrolist")
         self.setMinimumSize(QSize(960, 640))
         self.resize(1300, 820)
@@ -471,10 +471,7 @@ class MainWindow(QMainWindow):
         if enable != self.queue.shuffle_enabled:
             self.queue.toggle_shuffle()
             self.now_playing_screen.update_shuffle_repeat_state()
-            if hasattr(self.now_playing_screen, "queue_tab"):
-                self.now_playing_screen.queue_tab.set_queue(self.queue.items, self._liked_video_ids)
-            if hasattr(self, 'now_playing_screen'):
-                self.now_playing_screen.update_shuffle_repeat_state()
+            self._update_queue_panel()
             if self.mpris:
                 self.mpris.update_shuffle(enable)
 
@@ -1517,9 +1514,10 @@ class MainWindow(QMainWindow):
             self.now_playing_screen.queue_tab.set_queue(self.queue.items, liked_ids)
 
     def _play_queue_item(self, index: int) -> None:
-        if 0 <= index < len(self.queue.items):
-            self.queue.current_index = index - 1
-            self._run_async(self._advance_queue())
+        item = self.queue.jump_to(index)
+        if item:
+            self._update_queue_panel()
+            self._run_async(self._play_current())
 
     def _show_full_player(self) -> None:
         now_playing_index = self.ROUTES.get("now_playing", 8)
@@ -1606,9 +1604,8 @@ class MainWindow(QMainWindow):
                 self._run_async(self.sleep_timer.start(sleep_mins * 60, self._on_sleep_timer_expired))
                 self.statusBar().showMessage(f"Temporizador de apagado activado: {sleep_mins} min", 3000)
             else:
-                if self.sleep_timer._task and not self.sleep_timer._task.done():
-                    logger.info("Cancelling sleep timer")
-                    self.sleep_timer._task.cancel()
+                if self.sleep_timer.is_running:
+                    self.sleep_timer.cancel()
                     self.statusBar().showMessage("Temporizador de apagado desactivado", 3000)
 
         # Apply appearance changes in real-time
@@ -1904,84 +1901,3 @@ class MainWindow(QMainWindow):
             self._run_async(self.discord.disconnect())
         self.tray.hide()
         event.accept()
-
-
-# ─── ThemeTransitionOverlay ───────────────────────────────────
-from PySide6.QtGui import QBrush, QColor, QPainter, QPaintEvent, QPixmap, QLinearGradient
-
-class ThemeTransitionOverlay(QWidget):
-    def __init__(self, parent: QWidget, old_pixmap: QPixmap):
-        super().__init__(parent)
-        self.old_pixmap = old_pixmap
-        self._progress = 0.0
-        # Bypass mouse interaction so widgets underneath are immediately usable
-        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setGeometry(parent.rect())
-        self.show()
-
-        # Driving animation for a stunning 450ms diagonal wipe sweep
-        self.anim = QPropertyAnimation(self, b"progress", self)
-        self.anim.setDuration(450)
-        self.anim.setStartValue(0.0)
-        self.anim.setEndValue(1.0)
-        self.anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
-        self.anim.finished.connect(self.deleteLater)
-        self.anim.start()
-
-    def resizeEvent(self, event) -> None:
-        self.setGeometry(self.parentWidget().rect())
-        super().resizeEvent(event)
-
-    def _get_progress(self) -> float:
-        return self._progress
-
-    def _set_progress(self, val: float) -> None:
-        self._progress = val
-        self.update()
-
-    progress = Property(float, _get_progress, _set_progress)
-
-    def paintEvent(self, event: QPaintEvent) -> None:
-        if self._progress >= 1.0:
-            return
-        
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        
-        w, h = self.width(), self.height()
-        p = self._progress
-
-        # Draw the old theme state screenshot
-        painter.drawPixmap(0, 0, self.old_pixmap)
-
-        # Use DestinationOut composition to selectively erase parts of the old screen
-        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationOut)
-
-        # Slanted diagonal gradient mask
-        gradient = QLinearGradient(0, 0, w, h)
-        
-        # Calculate dynamic stops sweeping the diagonal
-        wipe_span = 0.35
-        start_wipe = p * (1.0 + wipe_span) - wipe_span
-        end_wipe = start_wipe + wipe_span
-        
-        s0 = max(0.0, start_wipe)
-        s1 = min(1.0, end_wipe)
-        
-        gradient.setColorAt(0.0, QColor(0, 0, 0, 255))
-        if s0 > 0.0:
-            gradient.setColorAt(s0, QColor(0, 0, 0, 255))
-        gradient.setColorAt(s1, QColor(0, 0, 0, 0))
-        gradient.setColorAt(1.0, QColor(0, 0, 0, 0))
-        
-        painter.setBrush(QBrush(gradient))
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawRect(self.rect())
-        
-        # Superimpose a smooth flat transparency decay over time to guarantee 100% resolution
-        painter.setOpacity(p)
-        painter.setBrush(QColor(0, 0, 0, 255))
-        painter.drawRect(self.rect())
-        
-        painter.end()

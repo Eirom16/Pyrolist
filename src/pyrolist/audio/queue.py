@@ -55,6 +55,13 @@ class PlayQueue:
     def current_index(self) -> int:
         return self._index
 
+    @current_index.setter
+    def current_index(self, value: int) -> None:
+        if 0 <= value < len(self._queue):
+            self._index = value
+        elif value < 0:
+            self._index = 0
+
     def set_queue(self, items: list[QueueItem], start_index: int = 0) -> None:
         self._original = items.copy()
         if self.shuffle_enabled:
@@ -104,6 +111,12 @@ class PlayQueue:
         if self._index > 0:
             self._index -= 1
         return self.current
+
+    def jump_to(self, index: int) -> QueueItem | None:
+        if 0 <= index < len(self._queue):
+            self._index = index
+            return self.current
+        return None
 
     def toggle_shuffle(self) -> bool:
         self.shuffle_enabled = not self.shuffle_enabled

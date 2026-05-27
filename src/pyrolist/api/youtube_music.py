@@ -81,27 +81,7 @@ class YouTubeMusicClient:
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(self._executor, func)
 
-    async def authenticate_with_oauth(self) -> bool:
-        """Trigger OAuth PKCE flow and setup ytmusicapi."""
-        from pyrolist.api.oauth_pkce import OAuthPKCE
 
-        oauth = OAuthPKCE()
-
-        def run_oauth():
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                result = loop.run_until_complete(oauth.authenticate())
-                return result
-            finally:
-                loop.close()
-
-        success = await self._run(run_oauth)
-
-        if success and AppDirs.oauth_file.exists():
-            self._load_oauth_tokens()
-
-        return success
 
     async def search(self, query: str, filter: str = None, limit: int = 20) -> list:
         """Search using ytmusicapi (public, no auth needed), fallback to yt-dlp."""
@@ -207,7 +187,7 @@ class YouTubeMusicClient:
             if url:
                 self._stream_cache[video_id] = url
             return url
-        except:
+        except Exception:
             return ""
 
     async def get_library_songs(self, limit: int = 25) -> dict:
@@ -244,7 +224,7 @@ class YouTubeMusicClient:
 
         try:
             return await self._run(_get_playlists)
-        except:
+        except Exception:
             return []
 
     async def get_library_albums(self) -> list:
@@ -261,7 +241,7 @@ class YouTubeMusicClient:
 
         try:
             return await self._run(_get_albums)
-        except:
+        except Exception:
             return []
 
     async def get_library_artists(self) -> list:
@@ -278,7 +258,7 @@ class YouTubeMusicClient:
 
         try:
             return await self._run(_get_artists)
-        except:
+        except Exception:
             return []
 
     async def get_liked_songs(self, limit: int = 25) -> dict:
@@ -300,7 +280,7 @@ class YouTubeMusicClient:
 
         try:
             return await self._run(_get_home)
-        except:
+        except Exception:
             return {'contents': []}
 
     async def get_explore(self) -> dict:
@@ -318,7 +298,7 @@ class YouTubeMusicClient:
 
         try:
             return await self._run(_get_explore)
-        except:
+        except Exception:
             return {'moodCategories': []}
 
     async def get_charts(self, country: str = "ZZ") -> dict:
@@ -336,7 +316,7 @@ class YouTubeMusicClient:
 
         try:
             return await self._run(_get_charts)
-        except:
+        except Exception:
             return {'items': []}
 
     async def get_playlist(self, playlist_id: str) -> dict:
@@ -354,7 +334,7 @@ class YouTubeMusicClient:
 
         try:
             return await self._run(_get_playlist)
-        except:
+        except Exception:
             return {}
 
     async def get_album(self, browse_id: str) -> dict:
@@ -372,7 +352,7 @@ class YouTubeMusicClient:
 
         try:
             return await self._run(_get_album)
-        except:
+        except Exception:
             return {}
 
     async def get_artist(self, channel_id: str) -> dict:
@@ -390,7 +370,7 @@ class YouTubeMusicClient:
 
         try:
             return await self._run(_get_artist)
-        except:
+        except Exception:
             return {}
 
     async def get_watch_playlist(self, video_id: str = None, limit: int = 25) -> dict:
@@ -408,7 +388,7 @@ class YouTubeMusicClient:
 
         try:
             return await self._run(_get_watch)
-        except:
+        except Exception:
             return {'tracks': []}
 
     async def get_history(self) -> list:
@@ -425,7 +405,7 @@ class YouTubeMusicClient:
 
         try:
             return await self._run(_get_history)
-        except:
+        except Exception:
             return []
 
     async def remove_history_items(self, feedback_tokens: list) -> bool:
@@ -444,16 +424,16 @@ class YouTubeMusicClient:
 
         try:
             return await self._run(_remove)
-        except:
+        except Exception:
             return False
 
-    async def get_video_info(self, video_id: str) -> dict:
-        return {}
+
 
     def logout(self) -> None:
-        """Clear OAuth tokens and reset auth state."""
-        if AppDirs.oauth_file.exists():
-            AppDirs.oauth_file.unlink()
+        """Clear auth session and reset auth state."""
+        auth_file = AppDirs.config / "headers_auth.json"
+        if auth_file.exists():
+            auth_file.unlink()
         self._ytmusicapi = None
         self._is_authenticated = False
         logger.info("Logged out of YouTube")
@@ -477,7 +457,7 @@ class YouTubeMusicClient:
                 # Also get standard text suggestions
                 try:
                     grouped['text'] = self._public.get_search_suggestions(query)[:5]
-                except:
+                except Exception:
                     pass
                 return grouped
             except Exception as e:
@@ -486,5 +466,5 @@ class YouTubeMusicClient:
 
         try:
             return await self._run(_get_rich_suggestions)
-        except:
+        except Exception:
             return {}

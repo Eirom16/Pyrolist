@@ -52,9 +52,9 @@ class SongRepository:
             )
             song = result.scalar_one_or_none()
             if song:
-                from datetime import datetime
+                from datetime import datetime, timezone
                 song.play_count += 1
-                song.last_played = datetime.utcnow()
+                song.last_played = datetime.now(timezone.utc)
                 await session.commit()
 
     async def toggle_like(self, video_id: str) -> bool:

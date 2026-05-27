@@ -14,10 +14,10 @@ def format_duration_short(ms: int) -> str:
 
 
 def format_time_ago(dt) -> str:
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
     if not dt:
         return "Unknown"
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     diff = now - dt
     if diff < timedelta(minutes=1):
         return "Just now"

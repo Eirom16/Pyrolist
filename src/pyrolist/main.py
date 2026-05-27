@@ -53,8 +53,17 @@ def setup_logging() -> None:
     )
 
 
+def handle_async_exception(loop, context):
+    msg = context.get("message", "Unhandled exception in event loop")
+    exception = context.get("exception")
+    if exception:
+        logger.exception(f"{msg}: {exception}", exc_info=exception)
+    else:
+        logger.error(msg)
+
+
 async def main_async(app: QApplication, settings: AppSettings, loop: qasync.QEventLoop) -> None:
-    loop.set_exception_handler(lambda loop, ctx: None)
+    loop.set_exception_handler(handle_async_exception)
     
     await init_db()
     from pyrolist.ui.main_window import MainWindow
