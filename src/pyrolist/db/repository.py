@@ -81,12 +81,15 @@ class HistoryRepository:
             session.add(entry)
             await session.commit()
 
-    async def get_history(self, limit: int = 100) -> list[PlayHistory]:
+    async def get_history(self, limit: int = 100) -> list[tuple[PlayHistory, str | None]]:
         async with get_session() as session:
             result = await session.execute(
-                select(PlayHistory).order_by(PlayHistory.played_at.desc()).limit(limit)
+                select(PlayHistory, Song.thumbnail_url)
+                .outerjoin(Song, PlayHistory.video_id == Song.video_id)
+                .order_by(PlayHistory.played_at.desc())
+                .limit(limit)
             )
-            return list(result.scalars().all())
+            return list(result.all())
 
 
 class DownloadRepository:

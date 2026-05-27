@@ -97,79 +97,82 @@ class HistoryScreen(QWidget):
 
         header = QLabel("Reproducido recientemente")
         header.setFont(QFont("Inter", 16, QFont.Weight.Bold))
-        from pyrolist.ui.design import tokens
-        header.setStyleSheet(f"")
 
-        has_items = False
-        
         # Fetch liked video IDs for heart state
         from pyrolist.db.repository import SongRepository
         liked_ids = await SongRepository().get_liked_video_ids()
 
+        # Fetch local play history
+        from pyrolist.db.repository import HistoryRepository
+        repo = HistoryRepository()
+        local_history = await repo.get_history(limit=50)
+
+        # Fetch YouTube Music history if authenticated
+        yt_history = []
         if self.yt and self.yt.is_authenticated:
-            history = await self.yt.get_history()
-            # Clear skeleton
-            while self.content_layout.count():
-                item = self.content_layout.takeAt(0)
-                if item.widget():
-                    item.widget().deleteLater()
-            self.content_layout.addWidget(header)
-            if history:
-                has_items = True
-                for entry in history:
-                    video_id = entry.get("videoId", "")
-                    if not video_id:
-                        continue
-                    
-                    title = entry.get("title", "Desconocido")
-                    artists_data = entry.get("artists", [])
-                    artist_names = ", ".join([a.get("name", "") for a in artists_data]) if artists_data else ""
-                    
-                    thumbnails = entry.get("thumbnails", [])
-                    thumb_url = thumbnails[-1].get("url", "") if thumbnails else ""
-                    
-                    duration_str = entry.get("duration", "")
-                    
-                    card = SongCard(
-                        title=title,
-                        artist=artist_names,
-                        duration=duration_str,
-                        thumbnail_url=thumb_url,
-                        on_play=lambda v=video_id, t=title, a=artist_names, th=thumb_url: self._handle_play(v, t, a, th),
-                        video_id=video_id,
-                        is_liked=video_id in liked_ids,
-                    )
-                    self._connect_card_signals(card)
-                    self.content_layout.addWidget(card)
-        
-        if not has_items:
-            # Clear skeleton if still showing
-            while self.content_layout.count():
-                item = self.content_layout.takeAt(0)
-                if item.widget():
-                    item.widget().deleteLater()
-            self.content_layout.addWidget(header)
-            # Fallback to local history
-            from pyrolist.db.repository import HistoryRepository
-            repo = HistoryRepository()
-            local_history = await repo.get_history(limit=50)
+            try:
+                yt_history = await self.yt.get_history()
+            except Exception as e:
+                logger.error(f"Error fetching YouTube history: {e}")
 
-            if local_history:
-                has_items = True
-                for entry in local_history:
-                    card = SongCard(
-                        title=entry.title,
-                        artist=entry.artist,
-                        duration=self._format_duration(entry.duration_ms),
-                        on_play=lambda v=entry.video_id, t=entry.title, a=entry.artist: self._handle_play(v, t, a),
-                        video_id=entry.video_id,
-                        is_liked=entry.video_id in liked_ids,
-                    )
-                    self._connect_card_signals(card)
-                    self.content_layout.addWidget(card)
+        # Clear skeleton
+        while self.content_layout.count():
+            item = self.content_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        self.content_layout.addWidget(header)
 
-        if not has_items:
-            msg = QLabel("Tu historial esta vacio\n\nLas canciones que reproduzcas apareceran aqui")
+        # Merge local history and YouTube history, deduplicating by videoId
+        seen_video_ids = set()
+        combined_history = []
+
+        # 1. Add local history first so it is immediately visible at the top!
+        for entry, thumbnail_url in local_history:
+            if entry.video_id not in seen_video_ids:
+                seen_video_ids.add(entry.video_id)
+                combined_history.append({
+                    'videoId': entry.video_id,
+                    'title': entry.title,
+                    'artist': entry.artist,
+                    'duration': self._format_duration(entry.duration_ms),
+                    'thumbnail_url': thumbnail_url or "",
+                })
+
+        # 2. Add YouTube Music history
+        for entry in yt_history:
+            video_id = entry.get("videoId", "")
+            if video_id and video_id not in seen_video_ids:
+                seen_video_ids.add(video_id)
+                artists_data = entry.get("artists", [])
+                artist_names = ", ".join([a.get("name", "") for a in artists_data]) if artists_data else ""
+                thumbnails = entry.get("thumbnails", [])
+                thumb_url = thumbnails[-1].get("url", "") if thumbnails else ""
+                duration_str = entry.get("duration", "")
+                
+                combined_history.append({
+                    'videoId': video_id,
+                    'title': entry.get("title", "Desconocido"),
+                    'artist': artist_names,
+                    'duration': duration_str,
+                    'thumbnail_url': thumb_url,
+                })
+
+        # Render combined history
+        if combined_history:
+            for entry in combined_history:
+                card = SongCard(
+                    title=entry['title'],
+                    artist=entry['artist'],
+                    duration=entry['duration'],
+                    thumbnail_url=entry['thumbnail_url'],
+                    on_play=partial(self._handle_play, entry['videoId'], entry['title'], entry['artist'], entry['thumbnail_url']),
+                    video_id=entry['videoId'],
+                    is_liked=entry['videoId'] in liked_ids,
+                )
+                self._connect_card_signals(card)
+                self.content_layout.addWidget(card)
+        else:
+            msg = QLabel("Tu historial está vacío\n\nLas canciones que reproduzcas aparecerán aquí")
             msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
             msg.setObjectName("libraryEmptyMessage")
             self.content_layout.addWidget(msg)
