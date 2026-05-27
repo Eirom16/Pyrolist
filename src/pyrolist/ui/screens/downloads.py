@@ -309,6 +309,9 @@ class DownloadItemWidget(QFrame):
         from pyrolist.utils.image_cache import ImageCache
         cache = ImageCache()
         path = await cache.download(url)
+        import shiboken6
+        if not shiboken6.isValid(self):
+            return
         if path:
             pixmap = QPixmap(str(path))
             if not pixmap.isNull():
@@ -553,6 +556,9 @@ class DownloadPlaylistItemWidget(QFrame):
         from pyrolist.utils.image_cache import ImageCache
         cache = ImageCache()
         path = await cache.download(url)
+        import shiboken6
+        if not shiboken6.isValid(self):
+            return
         if path:
             pixmap = QPixmap(str(path))
             if not pixmap.isNull():

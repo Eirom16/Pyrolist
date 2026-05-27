@@ -39,6 +39,7 @@ class LyricsClient:
             result = syncedlyrics.search(
                 f"{clean_title} {clean_artist}",
                 plain_only=False,
+                providers=["lrclib", "netease"]
             )
             return result
         except Exception as e:

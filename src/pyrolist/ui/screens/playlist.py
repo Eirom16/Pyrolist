@@ -25,6 +25,8 @@ class CircularProgress(QWidget):
 
     def paintEvent(self, event):
         painter = QPainter(self)
+        if not painter.isActive():
+            return
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         
         # Draw background circle
@@ -41,6 +43,7 @@ class CircularProgress(QWidget):
         
         span_angle = -int(self._progress * 3.6 * 16) # negative for clockwise
         painter.drawArc(2, 2, 20, 20, 90 * 16, span_angle)
+        painter.end()
 
 class PlaylistScreen(QWidget):
     download_playlist_requested = Signal(str, str, str) # playlist_id, title, thumbnail_url
@@ -434,6 +437,9 @@ class PlaylistScreen(QWidget):
 
     async def _load_cover(self, url: str):
         path = await _image_cache.download(url)
+        import shiboken6
+        if not shiboken6.isValid(self):
+            return
         if path:
             pixmap = QPixmap(str(path))
             if not pixmap.isNull():

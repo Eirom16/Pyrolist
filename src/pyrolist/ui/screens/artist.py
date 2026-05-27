@@ -254,6 +254,9 @@ class ArtistScreen(QWidget):
 
     async def _load_cover(self, url: str):
         path = await _image_cache.download(url)
+        import shiboken6
+        if not shiboken6.isValid(self):
+            return
         if path:
             pixmap = QPixmap(str(path))
             if not pixmap.isNull():

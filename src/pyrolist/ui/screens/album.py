@@ -27,6 +27,8 @@ class CircularProgress(QWidget):
 
     def paintEvent(self, event):
         painter = QPainter(self)
+        if not painter.isActive():
+            return
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         bg_pen = QPen(QColor(40, 40, 50, 80), 2)
         painter.setPen(bg_pen)
@@ -38,6 +40,7 @@ class CircularProgress(QWidget):
         painter.setPen(fg_pen)
         span_angle = -int(self._progress * 3.6 * 16)
         painter.drawArc(2, 2, 20, 20, 90 * 16, span_angle)
+        painter.end()
 
 
 class AlbumScreen(QWidget):
@@ -381,6 +384,9 @@ class AlbumScreen(QWidget):
 
     async def _load_cover(self, url: str):
         path = await _image_cache.download(url)
+        import shiboken6
+        if not shiboken6.isValid(self):
+            return
         if path:
             pixmap = QPixmap(str(path))
             if not pixmap.isNull():

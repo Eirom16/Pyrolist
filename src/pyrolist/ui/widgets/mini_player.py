@@ -44,6 +44,8 @@ class ArtworkLoadingOverlay(QWidget):
         from PySide6.QtGui import QPainter, QColor, QPen
         from PySide6.QtCore import QRectF
         painter = QPainter(self)
+        if not painter.isActive():
+            return
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         
         # Dark overlay
@@ -57,6 +59,7 @@ class ArtworkLoadingOverlay(QWidget):
         
         rect = QRectF(self.width() / 2 - 12, self.height() / 2 - 12, 24, 24)
         painter.drawArc(rect, -self._angle * 16, 120 * 16)
+        painter.end()
 
 
 class MiniPlayerWidget(QWidget):

@@ -28,6 +28,10 @@ class AlbumCard(QWidget):
 
     async def _load_thumbnail(self) -> None:
         path = await _image_cache.download(self._thumbnail_url)
+        import shiboken6
+        if not shiboken6.isValid(self):
+            return
+            
         if path:
             from PySide6.QtGui import QPixmapCache
             cache_key = f"{path}_148_148"
@@ -38,6 +42,8 @@ class AlbumCard(QWidget):
             else:
                 from pyrolist.utils.image_cache import load_scaled_async
                 def on_loaded(bytes_data):
+                    if not shiboken6.isValid(self):
+                        return
                     if bytes_data:
                         pix = QPixmap()
                         if pix.loadFromData(bytes_data):

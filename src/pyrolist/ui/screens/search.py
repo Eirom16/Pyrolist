@@ -224,6 +224,9 @@ class _TopResultCard(QWidget):
         from pyrolist.utils.image_cache import ImageCache
         cache = ImageCache()
         path = await cache.download(url)
+        import shiboken6
+        if not shiboken6.isValid(self):
+            return
         if path:
             pix = QPixmap(str(path))
             if not pix.isNull():
@@ -450,9 +453,15 @@ class SearchScreen(QWidget):
             }.get(category, None)
 
             results = await self.yt.search(query, filter=yt_filter, limit=40)
+            import shiboken6
+            if not shiboken6.isValid(self):
+                return
             self._results_by_cat[category] = results or []
             self._render_filtered()
         except Exception as e:
+            import shiboken6
+            if not shiboken6.isValid(self):
+                return
             logger.error(f"Error fetching results for {category}: {e}")
             self._results_by_cat[category] = []
             self._render_filtered()
