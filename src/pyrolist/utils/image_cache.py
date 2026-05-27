@@ -24,6 +24,7 @@ class ImageCache:
         self._cache_dir.mkdir(parents=True, exist_ok=True)
         self._memory_cache: dict[str, str] = {}
         self._lock = asyncio.Lock()
+        self._locks: dict[str, asyncio.Lock] = {}
         self._initialized = True
 
     def _is_valid_url(self, url: str) -> bool:
@@ -58,9 +59,22 @@ class ImageCache:
         if not self._is_valid_url(url):
             return None
 
-        async with self._lock:
+        # Check memory or disk cache first without acquiring any lock
+        existing = self.get(url)
+        if existing:
+            return existing
+
+        # Get or create an asyncio.Lock for this specific URL to prevent duplicate downloads
+        lock = self._locks.get(url)
+        if not lock:
+            lock = asyncio.Lock()
+            self._locks[url] = lock
+
+        async with lock:
+            # Check again inside the lock in case another task finished downloading it
             existing = self.get(url)
             if existing:
+                self._locks.pop(url, None)
                 return existing
 
             try:
@@ -68,6 +82,7 @@ class ImageCache:
                 async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
                     r = await client.get(url)
                     if r.status_code != 200:
+                        self._locks.pop(url, None)
                         return None
                     
                     from PIL import Image
@@ -101,9 +116,11 @@ class ImageCache:
                     
                     self._memory_cache[url] = str(path)
                     logger.debug(f"Cached artwork: {url[:40]}...")
+                    self._locks.pop(url, None)
                     return path
             except Exception as e:
                 logger.debug(f"Failed to cache artwork: {e}")
+                self._locks.pop(url, None)
                 return None
 
     def clear(self) -> None:

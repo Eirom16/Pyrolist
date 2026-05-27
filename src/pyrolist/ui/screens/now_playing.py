@@ -698,9 +698,14 @@ class NowPlayingScreen(QWidget):
             high_res_url = url.replace('w226', 'w544').replace('h226', 'h544')
         
         path = await _image_cache.download(high_res_url)
+        import shiboken6
+        if not shiboken6.isValid(self):
+            return
         if not path:
             logger.debug(f"NowPlaying: high_res download failed, trying original")
             path = await _image_cache.download(url)
+            if not shiboken6.isValid(self):
+                return
         if path:
             logger.debug(f"NowPlaying: image downloaded to {path}")
             try:

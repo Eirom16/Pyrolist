@@ -267,10 +267,11 @@ class SearchScreen(QWidget):
         self._all_results: list = []       # raw API results
         self._results_by_cat: dict[str, list] = {}  # category-specific search results cache
         self._active_category = "song"     # default filter
-        self._grid_widget = None
-        self._grid_layout = None
-        self._filtered_items = []
         self._current_columns = 0
+        self._category_widgets = {}
+        self._category_grid_layouts = {}
+        self._category_cards = {}
+        self._category_columns = {}
         self._build_ui()
 
     def _handle_download(self, vid, title, artist, thumb):
@@ -438,6 +439,15 @@ class SearchScreen(QWidget):
             logger.error(f"Search error: {e}")
 
     async def _fetch_category_results(self, query: str, category: str):
+        # Fetch liked ids to display the correct liked state
+        try:
+            from pyrolist.db.repository import SongRepository
+            repo = SongRepository()
+            self.liked_video_ids = await repo.get_liked_video_ids()
+        except Exception as e:
+            logger.debug(f"Error fetching liked video ids: {e}")
+            self.liked_video_ids = set()
+
         if category in self._results_by_cat:
             self._render_filtered()
             return
@@ -470,10 +480,15 @@ class SearchScreen(QWidget):
     # Rendering
     # ------------------------------------------------------------------
     def _clear_results(self):
-        if hasattr(self, '_created_cards'):
-            for card in self._created_cards:
-                card.deleteLater()
-            self._created_cards = []
+        if hasattr(self, '_category_widgets'):
+            for widget in self._category_widgets.values():
+                widget.deleteLater()
+            self._category_widgets.clear()
+            
+        self._category_grid_layouts.clear()
+        self._category_cards.clear()
+        self._category_columns.clear()
+        
         while self._results_layout.count():
             item = self._results_layout.takeAt(0)
             w = item.widget()
@@ -481,16 +496,36 @@ class SearchScreen(QWidget):
                 w.deleteLater()
 
     def _render_filtered(self):
-        self._clear_results()
+        # Remove any SkeletonListLoader from layout
+        for i in range(self._results_layout.count()):
+            item = self._results_layout.itemAt(i)
+            if item and item.widget() and isinstance(item.widget(), SkeletonListLoader):
+                w = item.widget()
+                self._results_layout.removeWidget(w)
+                w.deleteLater()
+                break
+
         cat = self._active_category
 
-        # Reset grid variables when active category changes or is songs
-        self._grid_widget = None
-        self._grid_layout = None
-        self._filtered_items = []
-        self._current_columns = 0
+        # Hide all other category widgets
+        for c, widget in self._category_widgets.items():
+            if c != cat:
+                widget.hide()
 
-        # Retrieve category-filtered results from the cache
+        # If already created, just show it and return
+        if cat in self._category_widgets:
+            self._category_widgets[cat].show()
+            if cat != "song":
+                self._recalculate_grid()
+            return
+
+        # Otherwise, create it!
+        cat_widget = QWidget()
+        cat_widget.setStyleSheet("background: transparent;")
+        cat_layout = QVBoxLayout(cat_widget)
+        cat_layout.setContentsMargins(0, 0, 0, 0)
+        cat_layout.setSpacing(16)
+
         filtered = self._results_by_cat.get(cat, [])
 
         if not filtered:
@@ -499,14 +534,9 @@ class SearchScreen(QWidget):
             empty.setFont(QFont("Inter", 13))
             empty.setStyleSheet(f" padding: 32px; background: transparent;")
             empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            self._results_layout.addWidget(empty)
-            self._results_layout.addStretch()
-            return
-
-        from pyrolist.ui.design import tokens
-
-        # Top result card (for songs only, first item) - SPLIT SCREEN LAYOUT
-        if cat == "song":
+            cat_layout.addWidget(empty)
+            cat_layout.addStretch()
+        elif cat == "song":
             # Main Split Screen Widget
             split_widget = QWidget()
             split_layout = QHBoxLayout(split_widget)
@@ -518,6 +548,7 @@ class SearchScreen(QWidget):
             left_col.setSpacing(12)
             left_col.setContentsMargins(0, 0, 0, 0)
             
+            from pyrolist.ui.design import tokens
             lbl_top = QLabel("Resultado principal")
             lbl_top.setFont(QFont("Inter", 14, QFont.Weight.Bold))
             lbl_top.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent;")
@@ -566,7 +597,7 @@ class SearchScreen(QWidget):
             right_col.addStretch()
             split_layout.addLayout(right_col, stretch=1)
 
-            self._results_layout.addWidget(split_widget)
+            cat_layout.addWidget(split_widget)
 
             # Rest of the songs listed below in normal list
             remaining = filtered[5:]
@@ -574,7 +605,7 @@ class SearchScreen(QWidget):
                 lbl_others = QLabel("Más canciones")
                 lbl_others.setFont(QFont("Inter", 14, QFont.Weight.Bold))
                 lbl_others.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent; padding-left: 24px; padding-top: 24px;")
-                self._results_layout.addWidget(lbl_others)
+                cat_layout.addWidget(lbl_others)
                 
                 for item in remaining:
                     card = self._make_card(item, "song")
@@ -585,41 +616,50 @@ class SearchScreen(QWidget):
                         card_lay = QHBoxLayout(card_wrapper)
                         card_lay.setContentsMargins(16, 0, 16, 0)
                         card_lay.addWidget(card)
-                        self._results_layout.addWidget(card_wrapper)
+                        cat_layout.addWidget(card_wrapper)
             
-            self._results_layout.addStretch()
+            cat_layout.addStretch()
         else:
             # Multi-column grid layout for album/artist/playlist
-            self._grid_widget = QWidget()
-            self._grid_widget.setContentsMargins(24, 0, 24, 0)
-            self._grid_layout = QGridLayout(self._grid_widget)
-            self._grid_layout.setContentsMargins(0, 0, 0, 0)
-            self._grid_layout.setHorizontalSpacing(16)
-            self._grid_layout.setVerticalSpacing(16)
+            grid_widget = QWidget()
+            grid_widget.setContentsMargins(24, 0, 24, 0)
+            grid_layout = QGridLayout(grid_widget)
+            grid_layout.setContentsMargins(0, 0, 0, 0)
+            grid_layout.setHorizontalSpacing(16)
+            grid_layout.setVerticalSpacing(16)
             
-            self._results_layout.addWidget(self._grid_widget)
-            self._filtered_items = filtered
+            cat_layout.addWidget(grid_widget)
             
             # Pre-create all cards exactly once for this category results fetch
-            self._created_cards = []
+            category_cards = []
             for item in filtered:
-                card = self._make_card(item, self._active_category)
+                card = self._make_card(item, cat)
                 if card:
-                    self._created_cards.append(card)
+                    category_cards.append(card)
 
-            # Reset column count to force _recalculate_grid to run
-            self._current_columns = 0
+            self._category_grid_layouts[cat] = grid_layout
+            self._category_cards[cat] = category_cards
+            self._category_columns[cat] = 0
 
             # Recalculate and arrange the cards
             self._recalculate_grid()
-            self._results_layout.addStretch()
+            cat_layout.addStretch()
+
+        self._results_layout.addWidget(cat_widget)
+        self._category_widgets[cat] = cat_widget
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self._recalculate_grid()
 
     def _recalculate_grid(self):
-        if not hasattr(self, '_grid_layout') or not self._grid_layout or not getattr(self, '_created_cards', None):
+        cat = self._active_category
+        if cat == "song":
+            return
+            
+        grid_layout = self._category_grid_layouts.get(cat)
+        cards = self._category_cards.get(cat)
+        if not grid_layout or not cards:
             return
             
         width = self.width() or 800
@@ -627,17 +667,17 @@ class SearchScreen(QWidget):
         columns = max(2, width // 184)
         
         # Performance optimization: only rebuild the grid if column count actually changed!
-        if getattr(self, '_current_columns', 0) == columns:
+        if self._category_columns.get(cat, 0) == columns:
             return
-        self._current_columns = columns
+        self._category_columns[cat] = columns
 
         # Remove widgets from grid without deleting/destroying them
-        while self._grid_layout.count():
-            self._grid_layout.takeAt(0)
+        while grid_layout.count():
+            grid_layout.takeAt(0)
 
         # Re-add existing widgets to layout at new row and column positions
-        for idx, card in enumerate(self._created_cards):
-            self._grid_layout.addWidget(card, idx // columns, idx % columns)
+        for idx, card in enumerate(cards):
+            grid_layout.addWidget(card, idx // columns, idx % columns)
 
     def _make_card(self, item: dict, cat: str) -> QWidget | None:
         thumbnails = item.get("thumbnails", [])
@@ -664,13 +704,16 @@ class SearchScreen(QWidget):
             else:
                 duration_str = ""
 
+            liked_ids = getattr(self, "liked_video_ids", set())
+            is_liked = video_id in liked_ids
             card = SongCard(
                 title=title,
                 artist=artist_names,
                 duration=duration_str,
                 thumbnail_url=thumb_url,
                 on_play=lambda: self._handle_play(video_id, title, artists, thumb_url),
-                video_id=video_id
+                video_id=video_id,
+                is_liked=is_liked
             )
             card.download_requested.connect(lambda *a: self.download_requested.emit(*a))
             card.play_next_requested.connect(lambda *a: self.play_next_requested.emit(*a))

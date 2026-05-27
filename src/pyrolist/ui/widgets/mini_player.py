@@ -286,6 +286,9 @@ class MiniPlayerWidget(QWidget):
 
     async def _load_thumbnail(self, url: str):
         path = await _image_cache.download(url)
+        import shiboken6
+        if not shiboken6.isValid(self):
+            return
         if path:
             pixmap = QPixmap(str(path))
             if not pixmap.isNull():

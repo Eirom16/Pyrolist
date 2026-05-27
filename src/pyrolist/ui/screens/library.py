@@ -32,6 +32,8 @@ class LibraryScreen(QWidget):
         self.on_navigate = on_navigate
         self._current_tab = "songs"
         self._current_tab_task = None
+        self._library_cache = {}
+        self._library_cache_time = {}
         self._build_ui()
 
     def _connect_card_signals(self, card):
@@ -190,11 +192,19 @@ class LibraryScreen(QWidget):
 
         try:
             from pyrolist.ui.design import tokens
-            # 2. Perform async fetch while skeleton is active
+            import time
+            cache_age = time.time() - self._library_cache_time.get(tab, 0)
+
+            # 2. Perform async fetch or load from cache while skeleton is active
             if tab == "songs":
                 liked_songs_data = None
                 if self.yt and self.yt.is_authenticated:
-                    liked_songs_data = await self.yt.get_liked_songs(limit=50)
+                    if tab in self._library_cache and cache_age < 30:
+                        liked_songs_data = self._library_cache[tab]
+                    else:
+                        liked_songs_data = await self.yt.get_liked_songs(limit=50)
+                        self._library_cache[tab] = liked_songs_data
+                        self._library_cache_time[tab] = time.time()
                 
                 from pyrolist.db.repository import SongRepository
                 repo = SongRepository()
@@ -204,48 +214,57 @@ class LibraryScreen(QWidget):
                 self._clear_content()
                 
                 tracks = liked_songs_data.get('tracks', []) if liked_songs_data else []
-                if tracks:
+                
+                # Combine local database liked songs and YouTube Music liked songs
+                seen_video_ids = set()
+                combined_tracks = []
+
+                # Add local database liked songs first so they appear instantly
+                for song in db_songs:
+                    if song.video_id not in seen_video_ids:
+                        seen_video_ids.add(song.video_id)
+                        combined_tracks.append({
+                            'videoId': song.video_id,
+                            'title': song.title,
+                            'artist': song.artist,
+                            'duration': self._format_duration(song.duration_ms),
+                            'thumbnail_url': song.thumbnail_url or "",
+                            'is_liked': True
+                        })
+
+                # Add YouTube Music liked songs
+                for track in tracks:
+                    vid = track.get('videoId')
+                    if vid and vid not in seen_video_ids:
+                        seen_video_ids.add(vid)
+                        artists = track.get('artists', [])
+                        artist_names = ", ".join([a.get('name', '') for a in artists]) if isinstance(artists, list) and artists else 'Unknown'
+                        thumbnails = track.get('thumbnails', [])
+                        thumbnail_url = thumbnails[-1].get('url', '') if thumbnails else ''
+                        combined_tracks.append({
+                            'videoId': vid,
+                            'title': track.get('title', 'Unknown'),
+                            'artist': artist_names,
+                            'duration': track.get('duration', ''),
+                            'thumbnail_url': thumbnail_url,
+                            'is_liked': True
+                        })
+
+                if combined_tracks:
                     header = QLabel("Canciones que te gustan")
                     header.setFont(AppFont.heading(16))
                     header.setObjectName("libraryHeader")
                     self.content_layout.addWidget(header)
                     
-                    for i, track in enumerate(tracks):
-                        title = track.get('title', 'Unknown')
-                        artists = track.get('artists', [])
-                        artist_names = ", ".join([a.get('name', '') for a in artists]) if isinstance(artists, list) and artists else 'Unknown'
-                        video_id = track.get('videoId', '')
-                        duration_str = track.get('duration', '')
-                        thumbnails = track.get('thumbnails', [])
-                        thumbnail_url = thumbnails[-1].get('url', '') if thumbnails else ''
-                        
-                        if video_id:
-                            card = SongCard(
-                                title=title,
-                                artist=artist_names,
-                                duration=duration_str,
-                                thumbnail_url=thumbnail_url,
-                                on_play=partial(self._handle_play, video_id, title, artist_names, thumbnail_url),
-                                video_id=video_id,
-                                is_liked=True,
-                            )
-                            self._connect_card_signals(card)
-                            self.content_layout.addWidget(card)
-                elif db_songs:
-                    header = QLabel("Canciones que te gustan")
-                    header.setFont(QFont("Inter", 16, QFont.Weight.Bold))
-                    header.setObjectName("libraryHeader")
-                    self.content_layout.addWidget(header)
-
-                    for i, song in enumerate(db_songs):
+                    for track in combined_tracks:
                         card = SongCard(
-                            title=song.title,
-                            artist=song.artist,
-                            duration=self._format_duration(song.duration_ms),
-                            thumbnail_url=song.thumbnail_url or "",
-                            on_play=partial(self._handle_play, song.video_id, song.title, song.artist, song.thumbnail_url or ""),
-                            video_id=song.video_id,
-                            is_liked=True
+                            title=track['title'],
+                            artist=track['artist'],
+                            duration=track['duration'],
+                            thumbnail_url=track['thumbnail_url'],
+                            on_play=partial(self._handle_play, track['videoId'], track['title'], track['artist'], track['thumbnail_url']),
+                            video_id=track['videoId'],
+                            is_liked=track['is_liked'],
                         )
                         self._connect_card_signals(card)
                         self.content_layout.addWidget(card)
@@ -256,7 +275,12 @@ class LibraryScreen(QWidget):
                     self.content_layout.addWidget(msg)
 
             elif tab == "albums":
-                albums = await self.yt.get_library_albums()
+                if tab in self._library_cache and cache_age < 30:
+                    albums = self._library_cache[tab]
+                else:
+                    albums = await self.yt.get_library_albums()
+                    self._library_cache[tab] = albums
+                    self._library_cache_time[tab] = time.time()
                 self._clear_content()
 
                 if not albums:
@@ -295,7 +319,12 @@ class LibraryScreen(QWidget):
                     self.content_layout.addLayout(grid)
 
             elif tab == "artists":
-                artists = await self.yt.get_library_artists()
+                if tab in self._library_cache and cache_age < 30:
+                    artists = self._library_cache[tab]
+                else:
+                    artists = await self.yt.get_library_artists()
+                    self._library_cache[tab] = artists
+                    self._library_cache_time[tab] = time.time()
                 self._clear_content()
 
                 if not artists:
@@ -330,7 +359,12 @@ class LibraryScreen(QWidget):
                     self.content_layout.addLayout(grid)
 
             elif tab == "playlists":
-                playlists = await self.yt.get_library_playlists()
+                if tab in self._library_cache and cache_age < 30:
+                    playlists = self._library_cache[tab]
+                else:
+                    playlists = await self.yt.get_library_playlists()
+                    self._library_cache[tab] = playlists
+                    self._library_cache_time[tab] = time.time()
                 self._clear_content()
 
                 header = QLabel("Tus Playlists")
@@ -560,6 +594,12 @@ class LibraryScreen(QWidget):
                 background-color: {dark_hex};
             }}
         """)
+
+    def invalidate_songs_cache(self) -> None:
+        if hasattr(self, "_library_cache"):
+            self._library_cache.pop("songs", None)
+            self._library_cache_time.pop("songs", None)
+
 
     def _apply_theme_styles(self) -> None:
         self._update_tab_styles()

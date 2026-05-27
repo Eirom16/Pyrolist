@@ -839,12 +839,50 @@ class MainWindow(QMainWindow):
                 await repo.upsert_song(video_id=video_id, title="Unknown", artist="Unknown")
             
         liked = await repo.toggle_like(video_id)
+
+        # Sync with YouTube Music in the background if authenticated
+        if self.yt.is_authenticated:
+            rating = "LIKE" if liked else "INDIFFERENT"
+            self._run_async(self.yt.rate_song(video_id, rating))
+            self.library_screen.invalidate_songs_cache()
+        else:
+            self.library_screen.invalidate_songs_cache()
+        
+        # If the library screen is currently active and the "songs" tab is active:
+        # If unliked, animate it fading out and remove it locally to avoid reloading lag!
+        current_screen = self.stack.currentWidget()
+        if current_screen == self.library_screen and self.library_screen._current_tab == "songs" and not liked:
+            card = btn_like.parent()
+            if card and isinstance(card, QWidget):
+                from PySide6.QtWidgets import QGraphicsOpacityEffect
+                from PySide6.QtCore import QPropertyAnimation, QEasingCurve
+                
+                effect = QGraphicsOpacityEffect(card)
+                card.setGraphicsEffect(effect)
+                anim = QPropertyAnimation(effect, b"opacity")
+                anim.setDuration(250)
+                anim.setStartValue(1.0)
+                anim.setEndValue(0.0)
+                anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+                
+                def on_fade_finished():
+                    self.library_screen.content_layout.removeWidget(card)
+                    card.deleteLater()
+                
+                anim.finished.connect(on_fade_finished)
+                card._fade_anim = anim  # prevent GC
+                anim.start()
         
         if btn_like.objectName() == "nowPlayingLikeBtn":
             self.now_playing_screen.set_liked_state(liked)
             self.statusBar().showMessage("Añadido a Favoritas" if liked else "Eliminado de Favoritas", 2000)
             self._update_queue_panel()
             return
+        
+        # Update parent SongCard's internal state if applicable
+        parent_card = btn_like.parent()
+        if parent_card and hasattr(parent_card, "_is_liked"):
+            parent_card._is_liked = liked
         
         from pyrolist.ui.design import tokens
         from pyrolist.ui.design.icons import Icon
@@ -1087,6 +1125,94 @@ class MainWindow(QMainWindow):
 
         self._update_queue_panel()
         await self._play_current()
+
+        if not queue_items:
+            self._run_async(self._fetch_and_populate_auto_queue(video_id))
+
+    async def _fetch_and_populate_auto_queue(self, video_id: str) -> None:
+        """Fetch watch playlist and populate the rest of the queue automatically."""
+        if not video_id or video_id == "local" or len(video_id) < 5:
+            return
+        if hasattr(self, 'network_monitor') and not self.network_monitor.is_connected:
+            return
+
+        try:
+            logger.info(f"Fetching automatic watch playlist for song {video_id}")
+            watch = await self.yt.get_watch_playlist(video_id, limit=25)
+            tracks = watch.get('tracks', [])
+            
+            # Verify the current track hasn't changed while we were fetching
+            current_item = self.queue.current
+            if not current_item or current_item.video_id != video_id:
+                logger.info("Song changed during auto queue fetch. Discarding results.")
+                return
+
+            new_items = []
+            for t in tracks:
+                vid = t.get("videoId")
+                if not vid or vid == video_id:
+                    continue
+                
+                # Check if this song is already in the queue to avoid duplication
+                if any(x.video_id == vid for x in self.queue.items):
+                    continue
+
+                # Extract artist names robustly
+                artists = t.get("artists", [])
+                artist_name = "Unknown Artist"
+                if isinstance(artists, list) and artists:
+                    names = []
+                    for a in artists:
+                        if isinstance(a, dict):
+                            names.append(a.get("name", ""))
+                        else:
+                            names.append(str(a))
+                    artist_name = ", ".join(filter(None, names)) or artist_name
+                elif artists:
+                    artist_name = str(artists)
+                    
+                # Extract thumbnail robustly
+                t_thumbnail_url = ""
+                thumbnails = t.get("thumbnail") or t.get("thumbnails")
+                if isinstance(thumbnails, list) and thumbnails:
+                    t_thumbnail_url = thumbnails[0].get("url", "")
+                elif isinstance(thumbnails, dict):
+                    t_thumbnail_url = thumbnails.get("url", "")
+                    
+                # Extract album robustly
+                album_name = ""
+                album_data = t.get("album")
+                if isinstance(album_data, dict):
+                    album_name = album_data.get("name", "")
+                elif album_data:
+                    album_name = str(album_data)
+
+                # Duration
+                dur_ms = 0
+                for key in ('duration_seconds', 'durationSeconds', 'lengthSeconds'):
+                    if key in t:
+                        try:
+                            dur_ms = int(t.get(key)) * 1000
+                            break
+                        except (TypeError, ValueError):
+                            pass
+
+                new_items.append(QueueItem(
+                    video_id=vid,
+                    title=t.get("title", "Unknown"),
+                    artist=artist_name,
+                    album=album_name,
+                    duration_ms=dur_ms,
+                    thumbnail_url=t_thumbnail_url,
+                ))
+
+            if new_items:
+                logger.info(f"Adding {len(new_items)} related items to the auto-generated queue.")
+                for ni in new_items:
+                    self.queue.add_to_end(ni)
+                self._update_queue_panel()
+        except Exception as e:
+            logger.warning(f"Failed to generate automatic queue: {e}")
 
     async def _play_current(self) -> None:
         item = self.queue.current

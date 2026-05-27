@@ -134,11 +134,14 @@ class AlbumScreen(QWidget):
             data = await self.yt.get_album(browse_id)
             self._album_data = data
 
-            # Check which tracks are already downloaded
-            from pyrolist.db.repository import DownloadRepository
+            # Check which tracks are already downloaded and liked
+            from pyrolist.db.repository import DownloadRepository, SongRepository
             repo = DownloadRepository()
             downloads = await repo.get_downloads()
             downloaded_vids = {d.video_id for d in downloads}
+            
+            song_repo = SongRepository()
+            self.liked_video_ids = await song_repo.get_liked_video_ids()
 
             tracks = data.get('tracks', [])
             if tracks:
@@ -365,13 +368,15 @@ class AlbumScreen(QWidget):
             duration = track.get('duration', '')
             
             if video_id:
+                is_liked = video_id in getattr(self, "liked_video_ids", set())
                 card = SongCard(
                     title=title,
                     artist=track_artist_names,
                     duration=duration,
                     thumbnail_url=thumbnail_url,  # Usually same as album
                     on_play=partial(self._handle_play, video_id, title, track_artist_names),
-                    video_id=video_id
+                    video_id=video_id,
+                    is_liked=is_liked
                 )
                 card.download_requested.connect(lambda *a: self.download_requested.emit(*a))
                 card.play_next_requested.connect(lambda *a: self.play_next_requested.emit(*a))

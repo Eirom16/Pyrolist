@@ -461,6 +461,24 @@ class YouTubeMusicClient:
         except Exception:
             return {}
 
+    async def rate_song(self, video_id: str, rating: str = "LIKE") -> bool:
+        """Rate a song (LIKE, DISLIKE, INDIFFERENT) - requires auth."""
+        if not self._is_authenticated or not self._ytmusicapi:
+            return False
+
+        def _rate():
+            try:
+                self._ytmusicapi.rate_song(video_id, rating)
+                return True
+            except Exception as e:
+                logger.error(f"rate_song error: {e}")
+                return False
+
+        try:
+            return await self._run(_rate)
+        except Exception:
+            return False
+
     def logout(self) -> None:
         """Clear auth session and reset auth state."""
         auth_file = AppDirs.config / "headers_auth.json"

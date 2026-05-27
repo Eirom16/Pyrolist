@@ -295,6 +295,9 @@ class NavSidebar(QWidget):
             async def load_avatar() -> None:
                 try:
                     path = await _image_cache.download(self._user_avatar)
+                    import shiboken6
+                    if not shiboken6.isValid(self):
+                        return
                     if path:
                         pixmap = QPixmap(str(path))
                         if not pixmap.isNull():

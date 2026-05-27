@@ -145,11 +145,14 @@ class PlaylistScreen(QWidget):
         try:
             data = await self.yt.get_playlist(playlist_id)
             
-            # Check which tracks are already downloaded in the database
-            from pyrolist.db.repository import DownloadRepository
+            # Check which tracks are already downloaded and liked in the database
+            from pyrolist.db.repository import DownloadRepository, SongRepository
             repo = DownloadRepository()
             downloads = await repo.get_downloads()
             downloaded_vids = {d.video_id for d in downloads}
+            
+            song_repo = SongRepository()
+            self.liked_video_ids = await song_repo.get_liked_video_ids()
             
             tracks = data.get('tracks', [])
             if tracks:
@@ -171,9 +174,12 @@ class PlaylistScreen(QWidget):
     async def _load_local_playlist(self, playlist_id: str):
         actual_pid = playlist_id.replace("local_", "")
         self._local_tracks_meta = []
-        from pyrolist.db.repository import DownloadRepository
+        from pyrolist.db.repository import DownloadRepository, SongRepository
         repo = DownloadRepository()
         downloads = await repo.get_downloads()
+        
+        song_repo = SongRepository()
+        self.liked_video_ids = await song_repo.get_liked_video_ids()
         
         playlist_tracks = [d for d in downloads if d.parent_playlist_id == actual_pid]
         if not playlist_tracks:
@@ -419,13 +425,15 @@ class PlaylistScreen(QWidget):
             track_thumbnail_url = track_thumbnails[-1].get('url', '') if track_thumbnails else ''
             
             if video_id:
+                is_liked = video_id in getattr(self, "liked_video_ids", set())
                 card = SongCard(
                     title=title,
                     artist=artist_names,
                     duration=duration,
                     thumbnail_url=track_thumbnail_url,
                     on_play=partial(self._handle_play, video_id, title, artist_names, i, thumbnail_url=track_thumbnail_url),
-                    video_id=video_id
+                    video_id=video_id,
+                    is_liked=is_liked
                 )
                 card.download_requested.connect(self.download_requested.emit)
                 card.play_next_requested.connect(self.play_next_requested.emit)
