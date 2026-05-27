@@ -426,8 +426,40 @@ class YouTubeMusicClient:
             return await self._run(_remove)
         except Exception:
             return False
+    async def create_playlist(self, title: str, description: str = "") -> str:
+        """Create a playlist - requires auth."""
+        if not self._is_authenticated or not self._ytmusicapi:
+            return ""
 
+        def _create():
+            try:
+                # Returns the playlistId as a string
+                return self._ytmusicapi.create_playlist(title, description)
+            except Exception as e:
+                logger.error(f"create_playlist error: {e}")
+                return ""
 
+        try:
+            return await self._run(_create)
+        except Exception:
+            return ""
+
+    async def add_playlist_items(self, playlist_id: str, video_ids: list) -> dict:
+        """Add songs to a playlist - requires auth."""
+        if not self._is_authenticated or not self._ytmusicapi:
+            return {}
+
+        def _add():
+            try:
+                return self._ytmusicapi.add_playlist_items(playlist_id, video_ids)
+            except Exception as e:
+                logger.error(f"add_playlist_items error: {e}")
+                return {}
+
+        try:
+            return await self._run(_add)
+        except Exception:
+            return {}
 
     def logout(self) -> None:
         """Clear auth session and reset auth state."""

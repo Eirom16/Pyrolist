@@ -786,12 +786,11 @@ class MainWindow(QMainWindow):
             """)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             
-            # Using partial or lambda properly capturing loop variable
-            def on_click(playlist_id=pid, p_name=p_title):
-                dialog.accept()
-                self._run_async(self._add_to_yt_playlist(playlist_id, video_id, p_name))
-                
-            btn.clicked.connect(on_click)
+            # Using lambda properly capturing loop variables and ignoring the checked boolean from clicked signal
+            btn.clicked.connect(lambda _, pid=pid, p_title=p_title: (
+                dialog.accept(),
+                self._run_async(self._add_to_yt_playlist(pid, video_id, p_title))
+            ))
             content_layout.addWidget(btn)
             
         content_layout.addStretch()
@@ -805,13 +804,16 @@ class MainWindow(QMainWindow):
     async def _add_to_yt_playlist(self, playlist_id: str, video_id: str, playlist_name: str):
         try:
             res = await self.yt.add_playlist_items(playlist_id, [video_id])
-            if res and res.get('status') == 'STATUS_SUCCEEDED':
+            if res and (res.get('status') == 'STATUS_SUCCEEDED' or 'playlistItemId' in res):
                 self.statusBar().showMessage(f"Añadido a '{playlist_name}'", 3000)
+                self.show_notification(f"Se añadió la canción a '{playlist_name}'", "success")
             else:
                 self.statusBar().showMessage("Error al añadir a playlist", 3000)
+                self.show_notification("Error al añadir a playlist", "error")
         except Exception as e:
             logger.error(f"Failed to add to playlist: {e}")
             self.statusBar().showMessage("Error al añadir a playlist", 3000)
+            self.show_notification("Error al añadir a playlist", "error")
 
     def _on_like_requested(self, video_id, btn_like):
         self._run_async(self._toggle_like_async(video_id, btn_like))
