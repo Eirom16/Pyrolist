@@ -1,16 +1,251 @@
 import asyncio
+import datetime
 from functools import partial
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea, QGridLayout, QPushButton, QGraphicsOpacityEffect
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea, QGridLayout, QPushButton, QGraphicsOpacityEffect, QFrame
 from qasync import asyncSlot
 from PySide6.QtCore import Qt, Signal, QPropertyAnimation, QEasingCurve
+from PySide6.QtGui import QFont, QPixmap
 from loguru import logger
 from pyrolist.ui.design.fonts import AppFont
+from pyrolist.ui.design.icons import Icon
+from pyrolist.ui.design import tokens
 from pyrolist.ui.widgets.album_card import AlbumCard
 from pyrolist.ui.widgets.playlist_card import PlaylistCard
 from pyrolist.ui.widgets.song_card import SongCard
 from pyrolist.ui.widgets.artist_card import ArtistCard
 from pyrolist.ui.widgets.ripple_button import RippleButton
 from pyrolist.ui.widgets.skeleton_loader import SkeletonListLoader
+from pyrolist.ui.widgets.horizontal_scroll import HorizontalScrollArea
+from pyrolist.utils.image_cache import ImageCache
+
+_image_cache = ImageCache()
+
+class QuickAccessTile(QWidget):
+    clicked = Signal()
+
+    def __init__(self, title: str, thumbnail_url: str = "", on_play=None, parent=None):
+        super().__init__(parent)
+        self._title = title
+        self._thumbnail_url = thumbnail_url
+        self._on_play = on_play
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFixedHeight(56)
+        self._build_ui()
+        if self._thumbnail_url:
+            asyncio.ensure_future(self._load_thumbnail())
+
+    async def _load_thumbnail(self):
+        path = await _image_cache.download(self._thumbnail_url)
+        if path:
+            from PySide6.QtGui import QPixmapCache
+            cache_key = f"{path}_56_56"
+            pixmap = QPixmap()
+            if QPixmapCache.find(cache_key, pixmap):
+                self.thumb.setPixmap(pixmap)
+                self.thumb.setStyleSheet("background: transparent; border-top-left-radius: 8px; border-bottom-left-radius: 8px;")
+            else:
+                from pyrolist.utils.image_cache import load_scaled_async
+                def on_loaded(bytes_data):
+                    if bytes_data:
+                        pix = QPixmap()
+                        if pix.loadFromData(bytes_data):
+                            QPixmapCache.insert(cache_key, pix)
+                            self.thumb.setPixmap(pix)
+                            self.thumb.setStyleSheet("background: transparent; border-top-left-radius: 8px; border-bottom-left-radius: 8px;")
+                load_scaled_async(path, 56, 56, self, on_loaded)
+
+    def _build_ui(self):
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(0, 0, 12, 0)
+        lay.setSpacing(12)
+
+        self.thumb = QLabel()
+        self.thumb.setFixedSize(56, 56)
+        self.thumb.setText(Icon.get("album"))
+        self.thumb.setFont(Icon.font(24))
+        self.thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(self.thumb)
+
+        self.title_lbl = QLabel()
+        self.title_lbl.setFont(QFont("Inter", 11, QFont.Weight.DemiBold))
+        # Elide long title
+        metrics = self.title_lbl.fontMetrics()
+        elided = metrics.elidedText(self._title, Qt.TextElideMode.ElideRight, 130)
+        self.title_lbl.setText(elided)
+        lay.addWidget(self.title_lbl, stretch=1)
+
+        # Small hover play button
+        self.play_btn = QPushButton()
+        self.play_btn.setText(Icon.get("play_arrow"))
+        self.play_btn.setFont(Icon.font(16))
+        self.play_btn.setFixedSize(32, 32)
+        self.play_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.play_btn.hide()
+        if self._on_play:
+            self.play_btn.clicked.connect(self._on_play)
+        lay.addWidget(self.play_btn)
+
+        self._apply_style()
+
+    def _apply_style(self):
+        t = tokens.CURRENT
+        self.setStyleSheet(f"""
+            QWidget {{
+                background-color: {t.bg_surface};
+                border: 1px solid {t.border};
+                border-radius: 8px;
+            }}
+            QWidget:hover {{
+                background-color: {t.bg_elevated};
+                border-color: {t.border_focus};
+            }}
+            QLabel {{
+                background: transparent;
+                color: {t.text_primary};
+            }}
+            QPushButton {{
+                background-color: {t.accent};
+                border: none;
+                border-radius: 16px;
+                color: {t.text_on_accent};
+                font-family: 'Material Symbols Rounded';
+            }}
+            QPushButton:hover {{
+                background-color: {t.accent_bright};
+            }}
+        """)
+
+    def enterEvent(self, event):
+        self.play_btn.show()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self.play_btn.hide()
+        super().leaveEvent(event)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event)
+
+
+class SpotlightBanner(QFrame):
+    def __init__(self, title: str, subtitle: str, thumbnail_url: str = "", on_play=None, on_explore=None, parent=None):
+        super().__init__(parent)
+        self._title = title
+        self._subtitle = subtitle
+        self._thumbnail_url = thumbnail_url
+        self._on_play = on_play
+        self._on_explore = on_explore
+        self.setFixedHeight(180)
+        self._build_ui()
+        if self._thumbnail_url:
+            asyncio.ensure_future(self._load_thumbnail())
+
+    async def _load_thumbnail(self):
+        path = await _image_cache.download(self._thumbnail_url)
+        if path:
+            from PySide6.QtGui import QPixmapCache
+            cache_key = f"{path}_140_140"
+            pixmap = QPixmap()
+            if QPixmapCache.find(cache_key, pixmap):
+                self.thumb.setPixmap(pixmap)
+                self.thumb.setStyleSheet("background: transparent; border-radius: 12px;")
+            else:
+                from pyrolist.utils.image_cache import load_scaled_async
+                def on_loaded(bytes_data):
+                    if bytes_data:
+                        pix = QPixmap()
+                        if pix.loadFromData(bytes_data):
+                            QPixmapCache.insert(cache_key, pix)
+                            self.thumb.setPixmap(pix)
+                            self.thumb.setStyleSheet("background: transparent; border-radius: 12px;")
+                load_scaled_async(path, 140, 140, self, on_loaded)
+
+    def _build_ui(self):
+        self.setObjectName("spotlightBanner")
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(24, 20, 24, 20)
+        lay.setSpacing(20)
+
+        # Left Info column
+        info = QVBoxLayout()
+        info.setSpacing(6)
+        info.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+
+        spot_lbl = QLabel("DESTACADO")
+        spot_lbl.setObjectName("spotlightTag")
+        spot_lbl.setFont(QFont("Inter", 10, QFont.Weight.Bold))
+        info.addWidget(spot_lbl)
+
+        title_lbl = QLabel(self._elide(self._title, 340))
+        title_lbl.setObjectName("spotlightTitle")
+        title_lbl.setFont(QFont("Inter", 20, QFont.Weight.ExtraBold))
+        info.addWidget(title_lbl)
+
+        sub_lbl = QLabel(self._elide(self._subtitle, 340))
+        sub_lbl.setObjectName("spotlightSubtitle")
+        sub_lbl.setFont(QFont("Inter", 12))
+        info.addWidget(sub_lbl)
+
+        info.addSpacing(6)
+
+        # Buttons row
+        btns = QHBoxLayout()
+        btns.setSpacing(12)
+
+        play_btn = RippleButton("Reproducir", "primary")
+        play_btn.setFixedHeight(34)
+        if self._on_play:
+            play_btn.clicked.connect(self._on_play)
+        btns.addWidget(play_btn)
+
+        if self._on_explore:
+            exp_btn = RippleButton("Explorar", "secondary")
+            exp_btn.setFixedHeight(34)
+            exp_btn.clicked.connect(self._on_explore)
+            btns.addWidget(exp_btn)
+
+        btns.addStretch()
+        info.addLayout(btns)
+
+        lay.addLayout(info, stretch=1)
+
+        # Right thumbnail
+        self.thumb = QLabel()
+        self.thumb.setFixedSize(140, 140)
+        self.thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.thumb.setText(Icon.get("featured_play_list"))
+        self.thumb.setFont(Icon.font(48))
+        lay.addWidget(self.thumb)
+
+        self._apply_style()
+
+    def _elide(self, text: str, width: int) -> str:
+        return self.fontMetrics().elidedText(text, Qt.TextElideMode.ElideRight, width)
+
+    def _apply_style(self):
+        t = tokens.CURRENT
+        self.setStyleSheet(f"""
+            #spotlightBanner {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 {t.bg_surface}, stop:0.5 {t.bg_elevated}, stop:1 {t.accent_dim});
+                border: 1px solid {t.border};
+                border-radius: 16px;
+            }}
+            QLabel {{
+                background: transparent;
+            }}
+            QLabel#spotlightTag {{
+                color: {t.accent};
+            }}
+            QLabel#spotlightTitle {{
+                color: {t.text_primary};
+            }}
+            QLabel#spotlightSubtitle {{
+                color: {t.text_secondary};
+            }}
+        """)
 
 
 class HomeScreen(QWidget):
@@ -209,17 +444,77 @@ class HomeScreen(QWidget):
 
             if contents:
                 self._clear_content()
-                title = QLabel("Para ti")
-                title.setProperty("textRole", "primary")
-                title.setFont(AppFont.heading(22))
-                title.setStyleSheet("background: transparent;")
-                self.content_layout.addWidget(title)
+
+                # Dynamic Time-based greeting in Spanish
+                hour = datetime.datetime.now().hour
+                if hour < 12:
+                    greeting = "¡Buenos días!"
+                elif hour < 18:
+                    greeting = "¡Buenas tardes!"
+                else:
+                    greeting = "¡Buenas noches!"
+                
+                self._header.setText(greeting)
                 
                 # Fetch liked video IDs for heart state
                 from pyrolist.db.repository import SongRepository
                 liked_ids = await SongRepository().get_liked_video_ids()
                 
-                # Check for cancellation
+                # 1. Spotlight Banner (Hero Section)
+                spotlight_item = None
+                for section in contents:
+                    sec_items = section.get('contents', section.get('items', []))
+                    for item in sec_items:
+                        if isinstance(item, dict) and (item.get('playlistId') or item.get('browseId')):
+                            spotlight_item = item
+                            break
+                    if spotlight_item:
+                        break
+                
+                if spotlight_item:
+                    title = spotlight_item.get('title', 'Recomendado')
+                    if isinstance(title, dict):
+                        title = title.get('text', 'Recomendado')
+                    
+                    artists = spotlight_item.get('artists', [])
+                    if isinstance(artists, list):
+                        artist_names = ", ".join([a.get('name', '') for a in artists if isinstance(a, dict)]) or 'YouTube Music'
+                    elif isinstance(artists, str):
+                        artist_names = artists
+                    else:
+                        artist_names = 'YouTube Music'
+                        
+                    thumbnails = spotlight_item.get('thumbnails', [])
+                    thumb_url = thumbnails[-1].get('url', '') if thumbnails else ''
+                    
+                    playlist_id = spotlight_item.get('playlistId')
+                    browse_id = spotlight_item.get('browseId')
+                    
+                    on_explore = None
+                    if playlist_id and self.on_navigate:
+                        on_explore = partial(self.on_navigate, f"playlist?id={playlist_id}")
+                    elif browse_id and self.on_navigate:
+                        if str(browse_id).startswith("UC"):
+                            on_explore = partial(self.on_navigate, f"artist?id={browse_id}")
+                        else:
+                            on_explore = partial(self.on_navigate, f"album?id={browse_id}")
+                    
+                    banner = SpotlightBanner(str(title), f"De {artist_names}", thumb_url, on_play=on_explore, on_explore=on_explore)
+                    self.content_layout.addWidget(banner)
+                    self.content_layout.addSpacing(10)
+
+                # 2. Quick Access Grid (Tiles minimalistas 2x3)
+                quick_grid = self._render_quick_access_grid(contents, liked_ids)
+                if quick_grid:
+                    self.content_layout.addWidget(quick_grid)
+                    self.content_layout.addSpacing(16)
+
+                # Section Title
+                title_lbl = QLabel("Recomendaciones para ti")
+                title_lbl.setProperty("textRole", "primary")
+                title_lbl.setFont(AppFont.heading(20))
+                title_lbl.setStyleSheet("background: transparent; padding-top: 10px;")
+                self.content_layout.addWidget(title_lbl)
 
                 await self._display_home_content(contents, liked_ids)
                 self._fade_in_content()
@@ -255,6 +550,118 @@ class HomeScreen(QWidget):
             self._clear_content()
             await self._load_genres_view()
 
+    def _render_quick_access_grid(self, sections, liked_ids):
+        valid_items = []
+        for section in sections:
+            sec_items = section.get('contents', section.get('items', []))
+            for item in sec_items:
+                if len(valid_items) >= 6:
+                    break
+                if isinstance(item, dict) and (item.get('playlistId') or item.get('browseId') or item.get('videoId')):
+                    # Avoid duplicates
+                    v_id = item.get('videoId') or item.get('playlistId') or item.get('browseId')
+                    if not any((x.get('videoId') == v_id or x.get('playlistId') == v_id or x.get('browseId') == v_id) for x in valid_items):
+                        valid_items.append(item)
+            if len(valid_items) >= 6:
+                break
+                
+        if not valid_items:
+            return None
+
+        grid_widget = QWidget()
+        grid_lay = QGridLayout(grid_widget)
+        grid_lay.setContentsMargins(0, 0, 0, 0)
+        grid_lay.setHorizontalSpacing(16)
+        grid_lay.setVerticalSpacing(12)
+        
+        for idx, item in enumerate(valid_items):
+            title = item.get('title', 'Unknown')
+            if isinstance(title, dict):
+                title = title.get('text', 'Unknown')
+            
+            thumbnails = item.get('thumbnails', [])
+            thumb_url = thumbnails[-1].get('url', '') if thumbnails else ''
+            
+            playlist_id = item.get('playlistId')
+            browse_id = item.get('browseId')
+            video_id = item.get('videoId')
+            
+            on_play = None
+            if video_id:
+                artists = item.get('artists', 'Unknown')
+                on_play = partial(self._handle_play, video_id, str(title), artists, thumb_url)
+            
+            tile = QuickAccessTile(str(title), thumb_url, on_play=on_play)
+            
+            if playlist_id and self.on_navigate:
+                tile.clicked.connect(partial(self.on_navigate, f"playlist?id={playlist_id}"))
+            elif browse_id and self.on_navigate:
+                if str(browse_id).startswith("UC"):
+                    tile.clicked.connect(partial(self.on_navigate, f"artist?id={browse_id}"))
+                else:
+                    tile.clicked.connect(partial(self.on_navigate, f"album?id={browse_id}"))
+            elif video_id and on_play:
+                tile.clicked.connect(on_play)
+                
+            grid_lay.addWidget(tile, idx // 3, idx % 3)
+            
+        return grid_widget
+
+    def _create_card_from_item(self, item, liked_ids):
+        title = item.get('title', 'Unknown')
+        if isinstance(title, dict):
+            title = title.get('text', 'Unknown')
+
+        video_id = item.get('videoId', '')
+        playlist_id = item.get('playlistId', '')
+        browse_id = item.get('browseId', '')
+        
+        artists = item.get('artists', [])
+        if isinstance(artists, list):
+            artist_names = ", ".join([a.get('name', '') for a in artists if isinstance(a, dict)]) or 'Unknown'
+        elif isinstance(artists, str):
+            artist_names = artists
+        else:
+            artist_names = 'Unknown'
+
+        duration = item.get('duration', item.get('lengthText', ''))
+        thumbnails = item.get('thumbnails', [])
+        thumbnail_url = thumbnails[-1].get('url', '') if thumbnails else ''
+            
+        if video_id:
+            card = SongCard(
+                title=str(title),
+                artist=artist_names,
+                duration=str(duration) if duration else '',
+                thumbnail_url=thumbnail_url,
+                on_play=partial(self._handle_play, video_id, str(title), artist_names, thumbnail_url),
+                video_id=video_id,
+                is_liked=video_id in liked_ids,
+            )
+            self._connect_card_signals(card)
+            return card
+        elif playlist_id:
+            card = PlaylistCard(
+                title=str(title),
+                description=artist_names,
+                thumbnail_url=thumbnail_url,
+                is_downloaded=playlist_id in getattr(self, "downloaded_playlist_ids", set())
+            )
+            if self.on_navigate:
+                card.clicked.connect(partial(self.on_navigate, f"playlist?id={playlist_id}"))
+            return card
+        elif browse_id:
+            if str(browse_id).startswith("UC"):
+                card = ArtistCard(name=str(title), thumbnail_url=thumbnail_url)
+                if self.on_navigate:
+                    card.clicked.connect(partial(self.on_navigate, f"artist?id={browse_id}"))
+            else:
+                card = AlbumCard(title=str(title), artist=artist_names, thumbnail_url=thumbnail_url)
+                if self.on_navigate:
+                    card.clicked.connect(partial(self.on_navigate, f"album?id={browse_id}"))
+            return card
+        return None
+
     async def _display_home_content(self, contents, liked_ids=None):
         if liked_ids is None:
             liked_ids = set()
@@ -262,104 +669,63 @@ class HomeScreen(QWidget):
             if not isinstance(section, dict):
                 continue
 
-            # Cooperative yield before rendering each section
-
             section_widget = QWidget()
             section_layout = QVBoxLayout(section_widget)
             section_layout.setContentsMargins(0, 0, 0, 0)
             section_layout.setSpacing(12)
             
-            # Title can be string or dict with 'text' key
             section_title = section.get('title', 'Sección')
             if isinstance(section_title, dict):
                 section_title = section_title.get('text', 'Sección')
             
             header = QLabel(str(section_title))
             header.setProperty("textRole", "primary")
-            header.setFont(AppFont.heading(17))
-            header.setStyleSheet("background: transparent;")
+            header.setFont(AppFont.heading(16))
+            header.setStyleSheet("background: transparent; padding-top: 10px;")
             section_layout.addWidget(header)
             
-            # Items can be in 'contents' or direct in section
             items = section.get('contents', section.get('items', []))
             if not isinstance(items, list):
                 items = []
 
             has_cards = False
             
-            # Use QGridLayout for this section
-            grid = QGridLayout()
-            grid.setContentsMargins(0, 0, 0, 0)
-            grid.setHorizontalSpacing(16)
-            grid.setVerticalSpacing(12)
-            
-            # Determine if this section is mostly songs (videoId) or playlists/albums (browseId/playlistId)
+            # Determine if this section is mostly songs (videoId)
             has_songs = any('videoId' in item for item in items[:6] if isinstance(item, dict))
-            columns = 2 if has_songs else 4
             
-            card_index = 0
-            for item in items[:8]:  # show up to 8 items per section
-                if not isinstance(item, dict):
-                    continue
-
-                title = item.get('title', 'Unknown')
-                if isinstance(title, dict):
-                    title = title.get('text', 'Unknown')
-
-                video_id = item.get('videoId', '')
-                playlist_id = item.get('playlistId', '')
-                browse_id = item.get('browseId', '')
+            if has_songs:
+                # Keep QGridLayout for songs
+                grid = QGridLayout()
+                grid.setContentsMargins(0, 0, 0, 0)
+                grid.setHorizontalSpacing(16)
+                grid.setVerticalSpacing(12)
+                columns = 2
                 
-                artists = item.get('artists', [])
-                if isinstance(artists, list):
-                    artist_names = ", ".join([a.get('name', '') for a in artists if isinstance(a, dict)]) or 'Unknown'
-                elif isinstance(artists, str):
-                    artist_names = artists
-                else:
-                    artist_names = 'Unknown'
-
-                duration = item.get('duration', item.get('lengthText', ''))
-                thumbnails = item.get('thumbnails', [])
-                thumbnail_url = thumbnails[-1].get('url', '') if thumbnails else ''
-                    
-                card = None
-                if video_id:
-                    card = SongCard(
-                        title=str(title),
-                        artist=artist_names,
-                        duration=str(duration) if duration else '',
-                        thumbnail_url=thumbnail_url,
-                        on_play=partial(self._handle_play, video_id, str(title), artist_names, thumbnail_url),
-                        video_id=video_id,
-                        is_liked=video_id in liked_ids,
-                    )
-                    self._connect_card_signals(card)
-                elif playlist_id:
-                    card = PlaylistCard(
-                        title=str(title),
-                        description=artist_names,
-                        thumbnail_url=thumbnail_url,
-                        is_downloaded=playlist_id in getattr(self, "downloaded_playlist_ids", set())
-                    )
-                    if self.on_navigate:
-                        card.clicked.connect(partial(self.on_navigate, f"playlist?id={playlist_id}"))
-                elif browse_id:
-                    # Could be artist or album. Just use AlbumCard as a generic square card.
-                    card = AlbumCard(title=str(title), artist=artist_names, thumbnail_url=thumbnail_url)
-                    if self.on_navigate:
-                        # Sometimes browseId is artist, sometimes album. We route to album, but if it starts with UC it's an artist
-                        if str(browse_id).startswith("UC"):
-                            card.clicked.connect(partial(self.on_navigate, f"artist?id={browse_id}"))
-                        else:
-                            card.clicked.connect(partial(self.on_navigate, f"album?id={browse_id}"))
-
-                if card:
-                    grid.addWidget(card, card_index // columns, card_index % columns)
-                    card_index += 1
-                    has_cards = True
+                card_index = 0
+                for item in items[:8]:
+                    if not isinstance(item, dict):
+                        continue
+                    card = self._create_card_from_item(item, liked_ids)
+                    if card:
+                        grid.addWidget(card, card_index // columns, card_index % columns)
+                        card_index += 1
+                        has_cards = True
+                if has_cards:
+                    section_layout.addLayout(grid)
+            else:
+                # Use HorizontalScrollArea for albums/playlists/artists!
+                scroll = HorizontalScrollArea()
+                for item in items[:15]:
+                    if not isinstance(item, dict):
+                        continue
+                    card = self._create_card_from_item(item, liked_ids)
+                    if card:
+                        scroll.addWidget(card)
+                        has_cards = True
+                if has_cards:
+                    section_layout.addWidget(scroll)
             
             if has_cards:
-                section_layout.addLayout(grid)
                 self.content_layout.addWidget(section_widget)
             else:
                 section_widget.deleteLater()
@@ -368,7 +734,6 @@ class HomeScreen(QWidget):
 
     async def _display_charts(self, charts):
         """Display charts data - handles both list and dict formats."""
-        # Handle dict format from get_charts() API
         if isinstance(charts, dict):
             section = QWidget()
             section_layout = QVBoxLayout(section)
@@ -377,10 +742,8 @@ class HomeScreen(QWidget):
 
             chart_playlists = charts.get("playlists", [])
             if chart_playlists:
-                grid = QGridLayout()
-                grid.setContentsMargins(0, 0, 0, 0)
-                grid.setSpacing(12)
-                for i, playlist in enumerate(chart_playlists[:4]):
+                scroll = HorizontalScrollArea()
+                for playlist in chart_playlists[:10]:
                     title = playlist.get("title", "Chart")
                     thumbnails = playlist.get("thumbnails", [])
                     thumbnail_url = thumbnails[-1].get("url", "") if thumbnails else ""
@@ -393,12 +756,31 @@ class HomeScreen(QWidget):
                     )
                     if playlist_id and self.on_navigate:
                         playlist_card.clicked.connect(partial(self.on_navigate, f"playlist?id={playlist_id}"))
-                    grid.addWidget(playlist_card, 0, i)
-                section_layout.addLayout(grid)
+                    scroll.addWidget(playlist_card)
+                
+                playlists_title = QLabel("Playlists Populares")
+                playlists_title.setProperty("textRole", "primary")
+                playlists_title.setFont(AppFont.heading(16))
+                playlists_title.setStyleSheet("background: transparent;")
+                section_layout.addWidget(playlists_title)
+                section_layout.addWidget(scroll)
 
             tracks = charts.get("tracks", charts.get("items", []))
             if tracks:
-                for i, track in enumerate(tracks[:10]):
+                tracks_title = QLabel("Canciones del Momento")
+                tracks_title.setProperty("textRole", "primary")
+                tracks_title.setFont(AppFont.heading(16))
+                tracks_title.setStyleSheet("background: transparent; padding-top: 10px;")
+                section_layout.addWidget(tracks_title)
+                
+                grid = QGridLayout()
+                grid.setContentsMargins(0, 0, 0, 0)
+                grid.setHorizontalSpacing(16)
+                grid.setVerticalSpacing(12)
+                columns = 2
+                
+                card_index = 0
+                for track in tracks[:10]:
                     title = track.get("title", "Unknown")
                     artists = track.get("artists", [])
                     artist_names = ", ".join([a.get("name", "") for a in artists]) if isinstance(artists, list) else str(artists)
@@ -417,13 +799,25 @@ class HomeScreen(QWidget):
                             video_id=video_id
                         )
                         card.download_requested.connect(self._handle_download)
-                        section_layout.addWidget(card)
+                        grid.addWidget(card, card_index // columns, card_index % columns)
+                        card_index += 1
+                section_layout.addLayout(grid)
 
             self.content_layout.addWidget(section)
 
-        # Handle list format (direct items list)
         elif isinstance(charts, list):
-            for i, item in enumerate(charts[:10]):
+            section = QWidget()
+            section_layout = QVBoxLayout(section)
+            section_layout.setContentsMargins(0, 0, 0, 0)
+            
+            grid = QGridLayout()
+            grid.setContentsMargins(0, 0, 0, 0)
+            grid.setHorizontalSpacing(16)
+            grid.setVerticalSpacing(12)
+            columns = 2
+            
+            card_index = 0
+            for item in charts[:12]:
                 title = item.get('title', 'Unknown')
                 video_id = item.get('videoId', '')
                 artists = item.get('artists', [])
@@ -440,7 +834,10 @@ class HomeScreen(QWidget):
                         thumbnail_url=thumbnail_url,
                         on_play=partial(self._handle_play, video_id, title, artist_names, thumbnail_url)
                     )
-                    self.content_layout.addWidget(card)
+                    grid.addWidget(card, card_index // columns, card_index % columns)
+                    card_index += 1
+            section_layout.addLayout(grid)
+            self.content_layout.addWidget(section)
 
         self.content_layout.addStretch()
 

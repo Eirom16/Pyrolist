@@ -57,7 +57,7 @@ class IconButton(QPushButton):
                 sz = self.width() // 2 + 4 if self.width() > 0 else 18
             self._icon_size = sz
             
-        fam = self.font().family() or "Material Symbols Rounded"
+        fam = "Material Symbols Rounded"
         
         font_rules = []
         if "font-family" not in stylesheet:

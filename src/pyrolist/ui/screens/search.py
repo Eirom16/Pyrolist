@@ -82,7 +82,7 @@ class _FilterChip(QPushButton):
 # Top Result card (the prominent first result)
 # ---------------------------------------------------------------------------
 class _TopResultCard(QWidget):
-    """A prominent card shown for the top search result."""
+    """A prominent, beautiful square card shown for the top search result."""
     clicked = Signal()
 
     def __init__(self, title, artist, result_type, thumbnail_url="", on_play=None):
@@ -90,52 +90,74 @@ class _TopResultCard(QWidget):
         self._on_play = on_play
         self._has_thumbnail = bool(thumbnail_url)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setFixedHeight(120)
+        
+        # Set size for the premium square top result card
+        self.setFixedSize(320, 220)
 
-        lay = QHBoxLayout(self)
-        lay.setContentsMargins(16, 16, 24, 16)
-        lay.setSpacing(20)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(20, 20, 20, 20)
+        lay.setSpacing(12)
 
-        # Thumbnail
+        # Top row: Large Thumbnail + Round Play Button
+        top_row = QHBoxLayout()
+        
         self.thumb = QLabel()
-        self.thumb.setFixedSize(88, 88)
+        self.thumb.setFixedSize(92, 92)
         self.thumb.setScaledContents(True)
         self.thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.thumb.setText(Icon.get("library_music"))
         self.thumb.setFont(Icon.font(40))
-        lay.addWidget(self.thumb)
+        top_row.addWidget(self.thumb)
+
+        top_row.addStretch()
+
+        self.play_btn = QPushButton(self)
+        self.play_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.play_btn.setText(Icon.get("play_arrow"))
+        self.play_btn.setFixedSize(48, 48)
+        if on_play:
+            self.play_btn.clicked.connect(on_play)
+        top_row.addWidget(self.play_btn, alignment=Qt.AlignmentFlag.AlignVCenter)
+
+        lay.addLayout(top_row)
+        lay.addStretch()
+
+        # Bottom row: Title, Artist, and Type Badge
+        info = QVBoxLayout()
+        info.setSpacing(4)
+
+        self.title_lbl = QLabel(self._elide(title, 280))
+        self.title_lbl.setFont(QFont("Inter", 20, QFont.Weight.ExtraBold))
+        info.addWidget(self.title_lbl)
+
+        # Sub-row for type badge and artist name
+        sub_row = QHBoxLayout()
+        sub_row.setSpacing(8)
+        sub_row.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        
+        self.type_lbl = QLabel(result_type.upper())
+        self.type_lbl.setObjectName("typeLabel")
+        self.type_lbl.setFont(QFont("Inter", 9, QFont.Weight.Bold))
+        self.type_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.type_lbl.setFixedHeight(18)
+        sub_row.addWidget(self.type_lbl)
+
+        self.artist_lbl = QLabel(self._elide(artist, 180))
+        self.artist_lbl.setFont(QFont("Inter", 12))
+        self.artist_lbl.setObjectName("artistLabel")
+        sub_row.addWidget(self.artist_lbl, stretch=1)
+        
+        info.addLayout(sub_row)
+        lay.addLayout(info)
 
         if thumbnail_url:
             asyncio.ensure_future(self._load_thumb(thumbnail_url))
 
-        # Info column
-        info = QVBoxLayout()
-        info.setSpacing(4)
-        info.setAlignment(Qt.AlignmentFlag.AlignVCenter)
-
-        self.type_lbl = QLabel(result_type)
-        self.type_lbl.setFont(QFont("Inter", 10, QFont.Weight.Medium))
-        info.addWidget(self.type_lbl)
-
-        self.title_lbl = QLabel(title)
-        self.title_lbl.setFont(QFont("Inter", 18, QFont.Weight.Bold))
-        info.addWidget(self.title_lbl)
-
-        self.artist_lbl = QLabel(artist)
-        self.artist_lbl.setFont(QFont("Inter", 12))
-        info.addWidget(self.artist_lbl)
-
-        lay.addLayout(info, stretch=1)
-
-        # Play button
-        play_btn = RippleButton("Reproducir", "primary")
-        play_btn.setFixedHeight(40)
-        if on_play:
-            play_btn.clicked.connect(on_play)
-        lay.addWidget(play_btn, alignment=Qt.AlignmentFlag.AlignVCenter)
-
         self._apply_style()
         self._update_child_styles()
+
+    def _elide(self, text: str, width: int) -> str:
+        return self.fontMetrics().elidedText(text, Qt.TextElideMode.ElideRight, width)
 
     def _apply_style(self):
         from pyrolist.ui.design import tokens
@@ -152,6 +174,29 @@ class _TopResultCard(QWidget):
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
                     stop:0 {tokens.CURRENT.bg_elevated}, stop:1 {tokens.CURRENT.bg_high});
             }}
+            QLabel#typeLabel {{
+                color: {tokens.CURRENT.text_on_accent};
+                background-color: {tokens.CURRENT.accent};
+                border-radius: 4px;
+                padding: 1px 6px;
+            }}
+        """)
+
+        # Style the play button directly to show the Material symbol properly
+        self.play_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {tokens.CURRENT.accent};
+                color: {tokens.CURRENT.text_on_accent};
+                border: none;
+                border-radius: 24px;
+                font-family: 'Material Symbols Rounded';
+                font-size: 24px;
+                font-weight: normal;
+                padding: 0px;
+            }}
+            QPushButton:hover {{
+                background-color: {tokens.CURRENT.accent_bright};
+            }}
         """)
 
     def _update_child_styles(self):
@@ -160,9 +205,8 @@ class _TopResultCard(QWidget):
             self.thumb.setStyleSheet(f"background: {tokens.CURRENT.bg_surface};  border-radius: 12px;")
         else:
             self.thumb.setStyleSheet(f"border-radius: 12px; background: transparent;")
-        self.type_lbl.setStyleSheet(f"color: {tokens.CURRENT.accent}; background: transparent;")
-        self.title_lbl.setStyleSheet(f" background: transparent;")
-        self.artist_lbl.setStyleSheet(f" background: transparent;")
+        self.title_lbl.setStyleSheet(f" background: transparent; color: {tokens.CURRENT.text_primary};")
+        self.artist_lbl.setStyleSheet(f" background: transparent; color: {tokens.CURRENT.text_secondary};")
 
     def changeEvent(self, event):
         from PySide6.QtCore import QEvent
@@ -200,7 +244,6 @@ class _TopResultCard(QWidget):
 class SearchScreen(QWidget):
     CATEGORIES = [
         ("Canciones", "song"),
-        ("Artistas", "artist"),
         ("Álbumes", "album"),
         ("Playlists", "playlist"),
     ]
@@ -219,7 +262,12 @@ class SearchScreen(QWidget):
         self.on_navigate = on_navigate
         self._current_query = ""
         self._all_results: list = []       # raw API results
+        self._results_by_cat: dict[str, list] = {}  # category-specific search results cache
         self._active_category = "song"     # default filter
+        self._grid_widget = None
+        self._grid_layout = None
+        self._filtered_items = []
+        self._current_columns = 0
         self._build_ui()
 
     def _handle_download(self, vid, title, artist, thumb):
@@ -342,7 +390,10 @@ class SearchScreen(QWidget):
                 chip.blockSignals(False)
 
         self._active_category = category
-        self._render_filtered()
+        if self._current_query:
+            asyncio.ensure_future(self._fetch_category_results(self._current_query, category))
+        else:
+            self._render_filtered()
 
     # ------------------------------------------------------------------
     # Public entry point — called from MainWindow
@@ -378,16 +429,42 @@ class SearchScreen(QWidget):
                 logger.debug(f"Error fetching downloads: {e}")
                 self.downloaded_playlist_ids = set()
 
-            results = await self.yt.search(query, limit=40)
-            self._all_results = results
-            self._render_filtered()
+            self._results_by_cat = {}
+            await self._fetch_category_results(query, self._active_category)
         except Exception as e:
             logger.error(f"Search error: {e}")
+
+    async def _fetch_category_results(self, query: str, category: str):
+        if category in self._results_by_cat:
+            self._render_filtered()
+            return
+
+        self._clear_results()
+        self._results_layout.addWidget(SkeletonListLoader(row_count=6))
+
+        try:
+            yt_filter = {
+                "song": "songs",
+                "album": "albums",
+                "playlist": "playlists"
+            }.get(category, None)
+
+            results = await self.yt.search(query, filter=yt_filter, limit=40)
+            self._results_by_cat[category] = results or []
+            self._render_filtered()
+        except Exception as e:
+            logger.error(f"Error fetching results for {category}: {e}")
+            self._results_by_cat[category] = []
+            self._render_filtered()
 
     # ------------------------------------------------------------------
     # Rendering
     # ------------------------------------------------------------------
     def _clear_results(self):
+        if hasattr(self, '_created_cards'):
+            for card in self._created_cards:
+                card.deleteLater()
+            self._created_cards = []
         while self._results_layout.count():
             item = self._results_layout.takeAt(0)
             w = item.widget()
@@ -398,18 +475,14 @@ class SearchScreen(QWidget):
         self._clear_results()
         cat = self._active_category
 
-        # Partition results
-        filtered = []
-        for item in self._all_results:
-            rt = item.get("resultType", "")
-            if cat == "song" and rt in ("song", "video", ""):
-                filtered.append(item)
-            elif cat == "album" and rt == "album":
-                filtered.append(item)
-            elif cat == "artist" and rt == "artist":
-                filtered.append(item)
-            elif cat == "playlist" and rt == "playlist":
-                filtered.append(item)
+        # Reset grid variables when active category changes or is songs
+        self._grid_widget = None
+        self._grid_layout = None
+        self._filtered_items = []
+        self._current_columns = 0
+
+        # Retrieve category-filtered results from the cache
+        filtered = self._results_by_cat.get(cat, [])
 
         if not filtered:
             from pyrolist.ui.design import tokens
@@ -421,8 +494,26 @@ class SearchScreen(QWidget):
             self._results_layout.addStretch()
             return
 
-        # Top result card (for songs only, first item)
-        if cat == "song" and filtered:
+        from pyrolist.ui.design import tokens
+
+        # Top result card (for songs only, first item) - SPLIT SCREEN LAYOUT
+        if cat == "song":
+            # Main Split Screen Widget
+            split_widget = QWidget()
+            split_layout = QHBoxLayout(split_widget)
+            split_layout.setContentsMargins(24, 0, 24, 0)
+            split_layout.setSpacing(24)
+
+            # Left Column (Resultado Principal)
+            left_col = QVBoxLayout()
+            left_col.setSpacing(12)
+            left_col.setContentsMargins(0, 0, 0, 0)
+            
+            lbl_top = QLabel("Resultado principal")
+            lbl_top.setFont(QFont("Inter", 14, QFont.Weight.Bold))
+            lbl_top.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent;")
+            left_col.addWidget(lbl_top)
+
             top = filtered[0]
             video_id = top.get("videoId", "")
             title = top.get("title", "Unknown")
@@ -434,7 +525,7 @@ class SearchScreen(QWidget):
             )
             thumbnails = top.get("thumbnails", [])
             thumb_url = thumbnails[-1].get("url", "") if thumbnails else ""
-            rt = top.get("resultType", "Canción")
+            rt = top.get("resultType", "song")
             type_label = {"song": "Canción", "video": "Video", "": "Canción"}.get(rt, "Canción")
 
             top_card = _TopResultCard(
@@ -444,19 +535,100 @@ class SearchScreen(QWidget):
                 thumbnail_url=thumb_url,
                 on_play=lambda: self._handle_play(video_id, title, artists, thumb_url) if video_id else None
             )
-            self._results_layout.addWidget(top_card)
-            self._results_layout.addSpacing(8)
-            remaining = filtered[1:]
+            left_col.addWidget(top_card)
+            left_col.addStretch()
+            split_layout.addLayout(left_col)
+
+            # Right Column (Canciones)
+            right_col = QVBoxLayout()
+            right_col.setSpacing(8)
+            right_col.setContentsMargins(0, 0, 0, 0)
+
+            lbl_songs = QLabel("Canciones principales")
+            lbl_songs.setFont(QFont("Inter", 14, QFont.Weight.Bold))
+            lbl_songs.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent;")
+            right_col.addWidget(lbl_songs)
+
+            songs_to_render = filtered[1:5] if len(filtered) > 1 else []
+            for item in songs_to_render:
+                card = self._make_card(item, "song")
+                if card:
+                    right_col.addWidget(card)
+            right_col.addStretch()
+            split_layout.addLayout(right_col, stretch=1)
+
+            self._results_layout.addWidget(split_widget)
+
+            # Rest of the songs listed below in normal list
+            remaining = filtered[5:]
+            if remaining:
+                lbl_others = QLabel("Más canciones")
+                lbl_others.setFont(QFont("Inter", 14, QFont.Weight.Bold))
+                lbl_others.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent; padding-left: 24px; padding-top: 24px;")
+                self._results_layout.addWidget(lbl_others)
+                
+                for item in remaining:
+                    card = self._make_card(item, "song")
+                    if card:
+                        # Extra margin for clean visual alignment
+                        card_wrapper = QWidget()
+                        card_wrapper.setStyleSheet("background: transparent;")
+                        card_lay = QHBoxLayout(card_wrapper)
+                        card_lay.setContentsMargins(16, 0, 16, 0)
+                        card_lay.addWidget(card)
+                        self._results_layout.addWidget(card_wrapper)
+            
+            self._results_layout.addStretch()
         else:
-            remaining = filtered
+            # Multi-column grid layout for album/artist/playlist
+            self._grid_widget = QWidget()
+            self._grid_widget.setContentsMargins(24, 0, 24, 0)
+            self._grid_layout = QGridLayout(self._grid_widget)
+            self._grid_layout.setContentsMargins(0, 0, 0, 0)
+            self._grid_layout.setHorizontalSpacing(16)
+            self._grid_layout.setVerticalSpacing(16)
+            
+            self._results_layout.addWidget(self._grid_widget)
+            self._filtered_items = filtered
+            
+            # Pre-create all cards exactly once for this category results fetch
+            self._created_cards = []
+            for item in filtered:
+                card = self._make_card(item, self._active_category)
+                if card:
+                    self._created_cards.append(card)
 
-        # Render the rest
-        for item in remaining:
-            card = self._make_card(item, cat)
-            if card:
-                self._results_layout.addWidget(card)
+            # Reset column count to force _recalculate_grid to run
+            self._current_columns = 0
 
-        self._results_layout.addStretch()
+            # Recalculate and arrange the cards
+            self._recalculate_grid()
+            self._results_layout.addStretch()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._recalculate_grid()
+
+    def _recalculate_grid(self):
+        if not hasattr(self, '_grid_layout') or not self._grid_layout or not getattr(self, '_created_cards', None):
+            return
+            
+        width = self.width() or 800
+        # Card width is 168px + 16px spacing = ~184px
+        columns = max(2, width // 184)
+        
+        # Performance optimization: only rebuild the grid if column count actually changed!
+        if getattr(self, '_current_columns', 0) == columns:
+            return
+        self._current_columns = columns
+
+        # Remove widgets from grid without deleting/destroying them
+        while self._grid_layout.count():
+            self._grid_layout.takeAt(0)
+
+        # Re-add existing widgets to layout at new row and column positions
+        for idx, card in enumerate(self._created_cards):
+            self._grid_layout.addWidget(card, idx // columns, idx % columns)
 
     def _make_card(self, item: dict, cat: str) -> QWidget | None:
         thumbnails = item.get("thumbnails", [])
