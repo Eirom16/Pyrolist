@@ -23,27 +23,32 @@ class IconButton(QPushButton):
             self.setIcon(icon)
             self.setIconSize(QSize(size - 12, size - 12))
         
-        # Base style, size will be overridden if setFont is called
+        self._user_stylesheet = ""
         self._icon_size = size // 2 + 4
-        self.setStyleSheet(f"QPushButton {{ border: none; background: transparent; font-family: 'Material Symbols Rounded'; font-size: {self._icon_size}px; }}")
+        self.setStyleSheet("QPushButton { border: none; background: transparent; }")
 
         self._scale = 1.0
         
-    def setFont(self, font):
-        super().setFont(font)
-        sz = font.pixelSize() if font.pixelSize() > 0 else font.pointSize()
-        if sz > 0:
-            self._icon_size = sz
-        fam = font.family() or "Material Symbols Rounded"
-        self.setStyleSheet(f"QPushButton {{ border: none; background: transparent; font-family: '{fam}'; font-size: {self._icon_size}px; }}")
         self._bg_anim = QPropertyAnimation(self, b"bg_opacity", self)
         self._bg_anim.setDuration(150)
         self._bg_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
 
         self._scale_anim = QPropertyAnimation(self, b"icon_scale", self)
         self._scale_anim.setDuration(250)
+        
+    def setFont(self, font):
+        super().setFont(font)
+        sz = font.pixelSize() if font.pixelSize() > 0 else font.pointSize()
+        if sz > 0:
+            self._icon_size = sz
+        self._update_full_stylesheet()
 
     def setStyleSheet(self, stylesheet: str) -> None:
+        self._user_stylesheet = stylesheet
+        self._update_full_stylesheet()
+
+    def _update_full_stylesheet(self) -> None:
+        stylesheet = self._user_stylesheet or ""
         sz = getattr(self, "_icon_size", 0)
         if sz <= 0:
             font = self.font()
@@ -52,7 +57,7 @@ class IconButton(QPushButton):
                 sz = self.width() // 2 + 4 if self.width() > 0 else 18
             self._icon_size = sz
             
-        fam = "Material Symbols Rounded"
+        fam = self.font().family() or "Material Symbols Rounded"
         
         font_rules = []
         if "font-family" not in stylesheet:

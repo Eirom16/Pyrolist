@@ -45,7 +45,7 @@ class RippleButton(QPushButton):
             "primary": f"""
                 QPushButton {{
                     background-color: {accent};
-                    
+                    color: {tokens.CURRENT.text_on_accent};
                     border: none;
                     border-radius: 20px;
                     padding: 10px 26px;

@@ -275,7 +275,7 @@ class MainWindow(QMainWindow):
         self.album_screen = AlbumScreen(self.yt, self._play_song_sync, on_back=self._go_back)
         self.artist_screen = ArtistScreen(self.yt, self._play_song_sync, self._navigate_to, on_back=self._go_back)
         self.now_playing_screen = NowPlayingScreen(self.player, self.queue, self.yt, self._play_queue_item, self.settings, on_back=self._go_back)
-        self.search_screen = SearchScreen(self.yt, self._play_song_sync)
+        self.search_screen = SearchScreen(self.yt, self._play_song_sync, self._navigate_to)
         self.stats_screen = StatsScreen(self.yt, self._play_song_sync)
 
         for screen in [

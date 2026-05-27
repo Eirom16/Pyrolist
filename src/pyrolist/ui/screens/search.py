@@ -212,10 +212,11 @@ class SearchScreen(QWidget):
     add_to_playlist_requested = Signal(str, str)
     delete_download_requested = Signal(str)
 
-    def __init__(self, yt_client, on_play_song):
+    def __init__(self, yt_client, on_play_song, on_navigate=None):
         super().__init__()
         self.yt = yt_client
         self.on_play_song = on_play_song
+        self.on_navigate = on_navigate
         self._current_query = ""
         self._all_results: list = []       # raw API results
         self._active_category = "song"     # default filter
@@ -506,20 +507,31 @@ class SearchScreen(QWidget):
                 if isinstance(artists, list)
                 else str(artists)
             )
-            return AlbumCard(title=title, artist=artist_names, thumbnail_url=thumb_url)
+            card = AlbumCard(title=title, artist=artist_names, thumbnail_url=thumb_url)
+            browse_id = item.get("browseId", "")
+            if browse_id and self.on_navigate:
+                card.clicked.connect(partial(self.on_navigate, f"album?id={browse_id}"))
+            return card
 
         elif cat == "artist":
-            name = item.get("artist", item.get("name", "Unknown"))
-            return ArtistCard(name=name, thumbnail_url=thumb_url)
+            name = item.get("title", item.get("artist", item.get("name", "Unknown")))
+            card = ArtistCard(name=name, thumbnail_url=thumb_url)
+            browse_id = item.get("browseId", "")
+            if browse_id and self.on_navigate:
+                card.clicked.connect(partial(self.on_navigate, f"artist?id={browse_id}"))
+            return card
 
         elif cat == "playlist":
             title = item.get("title", "Unknown")
             playlist_id = item.get("playlistId", "")
-            return PlaylistCard(
+            card = PlaylistCard(
                 title=title,
                 thumbnail_url=thumb_url,
                 is_downloaded=playlist_id in getattr(self, "downloaded_playlist_ids", set())
             )
+            if playlist_id and self.on_navigate:
+                card.clicked.connect(partial(self.on_navigate, f"playlist?id={playlist_id}"))
+            return card
 
         return None
 

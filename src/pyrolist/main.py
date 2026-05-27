@@ -56,6 +56,13 @@ def setup_logging() -> None:
 def handle_async_exception(loop, context):
     msg = context.get("message", "Unhandled exception in event loop")
     exception = context.get("exception")
+    
+    # Ignore harmless asyncio/qasync shutdown exceptions
+    if isinstance(exception, RuntimeError) and "is not the running loop" in str(exception):
+        return
+    if "is not the running loop" in msg:
+        return
+
     if exception:
         logger.exception(f"{msg}: {exception}", exc_info=exception)
     else:

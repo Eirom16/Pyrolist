@@ -399,13 +399,14 @@ class NowPlayingScreen(QWidget):
             main._on_seek(ms)
 
     def _on_shuffle(self):
-        from pyrolist.ui.design import tokens
         is_shuffled = self.queue.toggle_shuffle()
-        # Always use high-contrast colors since the ambient background is saturated
-        color = tokens.CURRENT.accent if is_shuffled else "rgba(255,255,255,0.5)"
-        self.btn_shuffle.setStyleSheet(f"QPushButton {{ color: {color}; border: none; background: transparent; }}")
-        if hasattr(self, "queue_tab"):
-            self.queue_tab.set_queue(self.queue.items, self._liked_video_ids if hasattr(self, "_liked_video_ids") else set())
+        self.update_shuffle_repeat_state()
+        
+        main = self._find_main_window()
+        if main:
+            main._update_queue_panel()
+            if main.mpris:
+                main.mpris.update_shuffle(is_shuffled)
 
     def _on_repeat(self):
         self.queue.toggle_repeat()
