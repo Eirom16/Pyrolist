@@ -276,7 +276,7 @@ jobs:
         run: choco install vlc --yes --no-progress
 
       - name: Instalar dependencias Python
-        run: pip install -r requirements.txt pyinstaller
+        run: pip install . pyinstaller
 
       - name: Copiar DLLs de VLC
         shell: pwsh
