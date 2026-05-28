@@ -1,26 +1,26 @@
-# Pyrolist v1.2.0
+# Pyrolist v1.2.1
 
 ## Resumen
 
-Esta versión añade un changelog visible desde Acerca de, mejora la reproducción de álbumes y refuerza la estabilidad visual de la aplicación. También deja preparado el workflow para publicar estas notas en el apartado de Releases junto con los paquetes compilados.
+Esta versión optimiza significativamente la latencia al reproducir música local, introduce mejoras estéticas de carga con pantallas de carga tipo esqueleto (skeleton loaders) y animaciones de transición en las descargas, añade nuevos indicadores visuales y corrige varios problemas en la barra de búsqueda y el historial.
 
 ## Novedades
 
-- Nuevo apartado Changelog en Acerca de con los cambios de la versión instalada.
-- Reproducción de álbumes con acciones de reproducir y mezclar desde la cola.
-- Transición dinámica de tema para aplicar cambios visuales con menos cortes.
-- Menú contextual en descargas y ajustes de consistencia para iconos, tarjetas y navegación.
+- **Carga optimizada de música local:** Se reduce la latencia de carga para archivos locales en el reproductor de audio de 0.5 segundos a 0.01 segundos, permitiendo una reproducción instantánea.
+- **Mejoras visuales en Descargas:**
+  - Nuevas pantallas de carga tipo esqueleto (*skeleton loaders*) interactivos en forma de lista y rejilla al acceder a la pantalla de descargas.
+  - Efecto de animación suave con transición de desvanecimiento (*fade-in*) al cargar la lista y rejilla de descargas.
+  - Nuevo indicador de canciones favoritas ("Me gusta") directamente visible en las canciones descargadas.
+- **Movimiento fluido en Paneles Glass:** Transición de movimiento suave mediante animación cuando el panel flotante ya está visible, evitando saltos bruscos al cambiar su posición.
 
 ## Correcciones y bugs solucionados
 
-- Se corrigieron bloqueos visuales al aplicar estilos y cambios de tema.
-- Se ajustó la sincronización de cola y modo aleatorio para evitar estados desactualizados.
-- Se mejoró la legibilidad de letras sincronizadas en temas claros y oscuros.
-- Se corrigieron detalles de interacción en paneles glass, búsqueda global y componentes de descarga.
-- Se redujeron inconsistencias de espaciado y renderizado entre pantallas de biblioteca, álbumes, playlists y reproducción.
+- **Corrección de estadísticas:** Solucionado el error al desempaquetar el historial que provocaba fallos de carga en la pantalla de estadísticas.
+- **Optimización de Búsqueda Global:**
+  - Se detienen correctamente los temporizadores de sugerencias en segundo plano al ocultar, limpiar o confirmar una búsqueda, evitando posibles fugas de recursos.
+  - Se valida que las sugerencias recibidas coincidan exactamente con la búsqueda activa para evitar la sobreescritura con resultados lentos obsoletos.
 
 ## Build y release
 
-- Versión subida a `1.2.0` / `v1.2.0`.
-- El workflow de GitHub Actions ahora usa este informe como cuerpo del release y mantiene las notas automáticas generadas por GitHub.
-- Se corrigió la instalación de dependencias del build openSUSE para evitar conflictos entre `busybox-gawk` y `rpm-build`.
+- Versión subida a `1.2.1` / `v1.2.1`.
+- El workflow de compilación construirá paquetes para Arch (.pkg.tar.zst), Debian/Ubuntu (.deb), Fedora/RHEL (.rpm), openSUSE (.rpm) y Windows (.exe).

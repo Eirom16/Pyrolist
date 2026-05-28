@@ -62,8 +62,9 @@ test_*.png
 .DS_Store
 Thumbs.db
 
-# Ignore other markdown files except README.md and RELEASE_NOTES.md
+# Ignore all markdown files except README.md
 *.md
+*.MD
 !README.md
-!RELEASE_NOTES.md
-!docs/*.md
+!README.MD
+

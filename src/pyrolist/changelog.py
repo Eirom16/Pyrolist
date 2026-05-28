@@ -1,29 +1,28 @@
 from __future__ import annotations
 
-CURRENT_CHANGELOG_VERSION = "1.2.0"
+CURRENT_CHANGELOG_VERSION = "1.2.1"
 CURRENT_CHANGELOG_SUMMARY = (
-    "Esta versión reúne mejoras de reproducción, ajustes visuales y "
-    "correcciones de estabilidad incluidas desde v1.1.9."
+    "Esta versión optimiza la latencia de reproducción local, mejora las descargas con "
+    "esqueletos y animaciones de carga, y soluciona pequeños bugs visuales y de rendimiento."
 )
 
 CURRENT_CHANGELOG: tuple[tuple[str, tuple[str, ...]], ...] = (
     (
         "Novedades",
         (
-            "Nuevo apartado de changelog en Acerca de para revisar los cambios de la versión instalada.",
-            "Reproducción de álbumes con acciones de reproducir y mezclar desde la cola.",
-            "Transición dinámica de tema para que los cambios visuales se apliquen de forma más fluida.",
-            "Menú contextual en descargas y mejoras de consistencia en iconos y tarjetas.",
+            "Optimización de latencia en la reproducción de archivos locales, eliminando retrasos innecesarios.",
+            "Visualización mejorada en la pantalla de descargas con skeleton loaders interactivos.",
+            "Animación de transición suave con efecto 'fade-in' al cargar elementos descargados.",
+            "Indicadores de canciones marcadas como 'Me gusta' en la lista de descargas.",
+            "Transición de posición más fluida para el panel flotante 'glass' cuando ya está visible.",
         ),
     ),
     (
         "Correcciones",
         (
-            "Se corrigieron bloqueos visuales al aplicar estilos y cambios de tema.",
-            "Se ajustó la sincronización de cola y modo aleatorio para evitar estados desactualizados.",
-            "Se mejoró la legibilidad de letras sincronizadas en temas claros y oscuros.",
-            "Se corrigieron detalles de interacción en paneles glass y componentes de búsqueda global.",
-            "Se ajustó el build openSUSE para evitar conflictos al instalar rpm-build.",
+            "Solucionado un problema en la pantalla de estadísticas que causaba un error al desempaquetar el historial.",
+            "Corrección de fugas en el temporizador de sugerencias de la barra de búsqueda global.",
+            "Evitada la sobreescritura de sugerencias de búsqueda obsoletas si se cambia la consulta rápidamente.",
         ),
     ),
 )
