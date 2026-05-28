@@ -75,7 +75,9 @@ class MusicPlayer:
             self._player.set_media(media)
             self._player.play()
             
-            await asyncio.sleep(0.5)
+            # Reduce wait time for local files since they load instantly from disk
+            sleep_duration = 0.01 if not stream_url.startswith(("http://", "https://")) else 0.5
+            await asyncio.sleep(sleep_duration)
             
             state = self._player.get_state()
             if state == vlc.State.Error:

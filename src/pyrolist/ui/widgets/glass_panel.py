@@ -65,6 +65,25 @@ class GlassPanel(QWidget):
                 if target_x + self.width() > screen.geometry().right():
                     target_x = pos.x() - self.width() + 32
 
+        # Check if already visible and not in the process of closing
+        is_closing = False
+        if self._opacity_anim.state() == QPropertyAnimation.State.Running and self._opacity_anim.endValue() == 0.0:
+            is_closing = True
+
+        if self.isVisible() and not is_closing:
+            # Already visible and not closing, just smoothly transition to the new position if it changed
+            if self._opacity_anim.state() != QPropertyAnimation.State.Running:
+                self._opacity_effect.setOpacity(1.0)
+                self._opacity = 1.0
+            
+            target_pos = QPoint(target_x, target_y)
+            if self.pos() != target_pos:
+                self._pos_anim.stop()
+                self._pos_anim.setStartValue(self.pos())
+                self._pos_anim.setEndValue(target_pos)
+                self._pos_anim.start()
+            return
+
         self.move(target_x, target_y)
         self.show()
         

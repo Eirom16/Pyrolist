@@ -418,6 +418,7 @@ class GlobalSearchBar(QWidget):
         dd.raise_()
 
     def _hide_dropdown(self):
+        self._suggestion_timer.stop()
         if self._dropdown and self._dropdown.isVisible():
             self._dropdown.hide()
 
@@ -464,6 +465,11 @@ class GlobalSearchBar(QWidget):
 
     def _update_dropdown_suggestions(self, query: str, suggestions):
         """Rebuild dropdown with history + rich API suggestions."""
+        if not self._dropdown or not self._dropdown.isVisible():
+            return
+        if self.input.text().strip().lower() != query.lower():
+            return
+
         dd = self._ensure_dropdown()
         dd.clear_rows()
 
@@ -561,6 +567,7 @@ class GlobalSearchBar(QWidget):
 
     # ---- Commit the search (history + emit) ----
     def _commit_search(self, query: str):
+        self._suggestion_timer.stop()
         self._hide_dropdown()
 
         # Save to history (dedup, push to top)
@@ -574,6 +581,7 @@ class GlobalSearchBar(QWidget):
 
     # ---- Clear button ----
     def _clear_input(self):
+        self._suggestion_timer.stop()
         self.input.clear()
         self.input.setFocus()
         self._hide_dropdown()

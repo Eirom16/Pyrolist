@@ -10,6 +10,7 @@ from pyrolist.ui.design.icons import Icon
 from pyrolist.ui.widgets.icon_button import IconButton
 from pyrolist.services.download_manager import DownloadManager
 from pyrolist.db.repository import DownloadRepository
+from pyrolist.ui.widgets.skeleton_loader import SkeletonBlock, SkeletonListLoader
 
 
 class DownloadItemWidget(QFrame):
@@ -19,7 +20,7 @@ class DownloadItemWidget(QFrame):
     add_to_queue_requested = Signal(str, str, str, str)  # video_id, title, artist, thumbnail_url
     add_to_playlist_requested = Signal(str, str)  # video_id, title
 
-    def __init__(self, video_id, title, artist, thumbnail_url, parent_playlist_title=None, on_play_local=None):
+    def __init__(self, video_id, title, artist, thumbnail_url, parent_playlist_title=None, on_play_local=None, is_liked=False):
         super().__init__()
         self.video_id = video_id
         self.title = title
@@ -31,7 +32,11 @@ class DownloadItemWidget(QFrame):
         self._build_ui()
         if self.thumbnail_url:
             asyncio.create_task(self._load_thumbnail(self.thumbnail_url))
-        asyncio.create_task(self._check_like_state())
+        
+        # Apply initial like state immediately without spawning a database query task
+        self.btn_like.setFont(Icon.font(20, filled=is_liked))
+        self.btn_like.set_active(is_liked)
+        self._update_item_styles()
 
     def _build_ui(self):
         self.setObjectName("downloadCard")
@@ -342,13 +347,14 @@ class DownloadItemWidget(QFrame):
             super().mousePressEvent(event)
 
 class DownloadPlaylistItemWidget(QFrame):
-    def __init__(self, playlist_id, title, tracks, on_play_local=None, on_play_local_playlist=None):
+    def __init__(self, playlist_id, title, tracks, on_play_local=None, on_play_local_playlist=None, liked_ids=None):
         super().__init__()
         self.playlist_id = playlist_id
         self.title = title
         self.tracks = tracks
         self.on_play_local = on_play_local
         self.on_play_local_playlist = on_play_local_playlist
+        self.liked_ids = liked_ids
         self.is_expanded = False
         self._build_ui()
 
@@ -416,13 +422,17 @@ class DownloadPlaylistItemWidget(QFrame):
         
         # Agregar los widgets de canciones individuales dentro de la playlist agrupada
         for t in self.tracks:
+            is_liked = False
+            if self.liked_ids and t.video_id in self.liked_ids:
+                is_liked = True
             widget = DownloadItemWidget(
                 video_id=t.video_id,
                 title=t.title,
                 artist=t.artist,
                 thumbnail_url=t.thumbnail_url,
                 parent_playlist_title=None,
-                on_play_local=self.on_play_local
+                on_play_local=self.on_play_local,
+                is_liked=is_liked
             )
             widget.set_completed(t.file_path)
             # Make the card style slightly more compact inside the group
@@ -565,6 +575,41 @@ class DownloadPlaylistItemWidget(QFrame):
                 pixmap = pixmap.scaled(64, 64, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
                 self.thumb.setPixmap(pixmap)
                 self._update_playlist_item_styles()
+
+class SkeletonGridLoader(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        grid = QGridLayout(self)
+        grid.setSpacing(24)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        
+        columns = 4
+        for i in range(4):
+            card = QWidget()
+            from pyrolist.ui.design import tokens
+            card.setStyleSheet(f"""
+                QWidget {{
+                    background-color: {tokens.CURRENT.bg_surface};
+                    border-radius: 12px;
+                    border: 1px solid {tokens.CURRENT.border};
+                }}
+            """)
+            card.setFixedSize(168, 218)
+            lay = QVBoxLayout(card)
+            lay.setContentsMargins(10, 10, 10, 10)
+            lay.setSpacing(8)
+            
+            # Thumbnail block
+            lay.addWidget(SkeletonBlock(148, 148, 12))
+            # Title block
+            lay.addWidget(SkeletonBlock(120, 12, 6))
+            # Description block
+            lay.addWidget(SkeletonBlock(80, 10, 5))
+            
+            row = i // columns
+            col = i % columns
+            grid.addWidget(card, row, col)
 
 class DownloadsScreen(QWidget):
     like_requested = Signal(str, object)
@@ -764,10 +809,10 @@ class DownloadsScreen(QWidget):
         if video_id in self._items:
             self._items[video_id].set_error(error_msg)
 
-    def _add_item_to_ui(self, vid, title, artist, thumb_url, parent_playlist_title=None):
+    def _add_item_to_ui(self, vid, title, artist, thumb_url, parent_playlist_title=None, is_liked=False):
         if vid in self._items:
             return
-        widget = DownloadItemWidget(vid, title, artist, thumb_url, parent_playlist_title, self.on_play_local)
+        widget = DownloadItemWidget(vid, title, artist, thumb_url, parent_playlist_title, self.on_play_local, is_liked=is_liked)
         widget.like_requested.connect(self.like_requested.emit)
         widget.delete_requested.connect(self.delete_download_requested.emit)
         widget.play_next_requested.connect(self.play_next_requested.emit)
@@ -786,6 +831,7 @@ class DownloadsScreen(QWidget):
         self._current_load_task = current_task
         
         try:
+            # Clear current content immediately to show loading state
             while self.content_layout.count() > 0:
                 item = self.content_layout.takeAt(0)
                 if item.widget():
@@ -793,7 +839,32 @@ class DownloadsScreen(QWidget):
             self._items.clear()
             self._playlist_cards.clear()
 
+            # Show skeleton loader instantly
+            if self._current_tab == "songs":
+                skeleton = SkeletonListLoader(row_count=8)
+            else:
+                skeleton = SkeletonGridLoader()
+            self.content_layout.addWidget(skeleton)
+
+            # Briefly yield to the event loop so the skeleton renders immediately
+            await asyncio.sleep(0.01)
+
             downloads = await self._repo.get_downloads()
+            
+            from pyrolist.db.repository import SongRepository
+            song_repo = SongRepository()
+            liked_ids = await song_repo.get_liked_video_ids()
+            
+            # Check for cancellation before constructing widgets
+            if current_task.cancelled():
+                return
+
+            # Remove the skeleton loader
+            skeleton.deleteLater()
+            while self.content_layout.count() > 0:
+                item = self.content_layout.takeAt(0)
+                if item.widget():
+                    item.widget().deleteLater()
             
             if self._current_tab == "playlists" or self._current_tab == "albums":
                 # Group downloaded items by parent_playlist_id
@@ -814,7 +885,7 @@ class DownloadsScreen(QWidget):
                 
                 if not playlist_groups:
                     from pyrolist.ui.design import tokens
-                    empty_text = "No hay \u00e1lbumes descargados." if self._current_tab == "albums" else "No hay playlists descargadas."
+                    empty_text = "No hay álbumes descargados." if self._current_tab == "albums" else "No hay playlists descargadas."
                     msg = QLabel(empty_text)
                     msg.setStyleSheet(f" font-size: 16px; padding: 40px;")
                     msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -864,7 +935,8 @@ class DownloadsScreen(QWidget):
                     self.content_layout.insertWidget(0, msg)
                 
                 for i, d in enumerate(reversed(downloads)):
-                    self._add_item_to_ui(d.video_id, d.title, d.artist, d.thumbnail_url, d.parent_playlist_title)
+                    is_liked = d.video_id in liked_ids
+                    self._add_item_to_ui(d.video_id, d.title, d.artist, d.thumbnail_url, d.parent_playlist_title, is_liked=is_liked)
                     if d.video_id in self._items:
                         self._items[d.video_id].set_completed(d.file_path)
                     
@@ -872,11 +944,16 @@ class DownloadsScreen(QWidget):
                 mgr = DownloadManager.get_instance()
                 for i, (vid, task) in enumerate(mgr._tasks.items()):
                     if vid not in self._items:
-                        self._add_item_to_ui(task.video_id, task.title, task.artist, task.thumbnail_url, task.parent_playlist_title)
+                        is_liked = vid in liked_ids
+                        self._add_item_to_ui(task.video_id, task.title, task.artist, task.thumbnail_url, task.parent_playlist_title, is_liked=is_liked)
                         if task.status == "downloading":
                             self._items[vid].set_downloading()
                         elif task.status == "error":
                             self._items[vid].set_error("Error")
+            
+            # Animate content fading in beautifully!
+            self._fade_in_content()
+            
         except asyncio.CancelledError:
             raise
 
@@ -1133,6 +1210,20 @@ class DownloadsScreen(QWidget):
         self._update_toolbar_styles()
         for key, btn in self.tab_btns.items():
             btn.setStyleSheet(self._tab_style(key == self._current_tab))
+
+    def _fade_in_content(self) -> None:
+        """Smooth fade-in animation when content finishes loading."""
+        from PySide6.QtWidgets import QGraphicsOpacityEffect
+        from PySide6.QtCore import QPropertyAnimation, QEasingCurve
+        effect = QGraphicsOpacityEffect(self.scroll_content)
+        self.scroll_content.setGraphicsEffect(effect)
+        anim = QPropertyAnimation(effect, b"opacity", self)
+        anim.setDuration(250)
+        anim.setStartValue(0.0)
+        anim.setEndValue(1.0)
+        anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        anim.finished.connect(lambda: self.scroll_content.setGraphicsEffect(None))
+        anim.start()
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent

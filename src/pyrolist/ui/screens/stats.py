@@ -317,7 +317,8 @@ class StatsScreen(QWidget):
         history_repo = HistoryRepository()
         
         # Load all history items to get robust aggregates
-        all_history = await history_repo.get_history(limit=500)
+        all_history_raw = await history_repo.get_history(limit=500)
+        all_history = [entry for entry, _ in all_history_raw]
         liked_ids = await SongRepository().get_liked_video_ids()
 
         # Clear existing top songs in column
