@@ -52,18 +52,24 @@ class GlassPanel(QWidget):
         target_x = pos.x()
         target_y = pos.y() + 10
         
-        # Prevent cutoff on the right edge of the screen or parent window
+        # Prevent cutoff on the right and bottom edges of the parent window or screen
         if self.parentWidget():
             parent_global_top_left = self.parentWidget().mapToGlobal(QPoint(0, 0))
             parent_global_right = parent_global_top_left.x() + self.parentWidget().width()
+            parent_global_bottom = parent_global_top_left.y() + self.parentWidget().height()
             
             if target_x + self.width() > parent_global_right:
                 target_x = parent_global_right - self.width() - 8
+            
+            if target_y + self.height() > parent_global_bottom:
+                target_y = pos.y() - self.height() - 10
         else:
             screen = QApplication.screenAt(pos) or QApplication.primaryScreen()
             if screen:
                 if target_x + self.width() > screen.geometry().right():
                     target_x = pos.x() - self.width() + 32
+                if target_y + self.height() > screen.geometry().bottom():
+                    target_y = pos.y() - self.height() - 10
 
         # Check if already visible and not in the process of closing
         is_closing = False

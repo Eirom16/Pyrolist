@@ -18,6 +18,7 @@ class AboutScreen(QWidget):
         self._build_ui()
 
     def _build_ui(self) -> None:
+        from pyrolist.ui.design import tokens
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(14)
@@ -71,11 +72,11 @@ class AboutScreen(QWidget):
 
         current_ver_lbl = QLabel(f"Versión instalada: {CURRENT_VERSION}")
         current_ver_lbl.setFont(AppFont.mono(13))
-        current_ver_lbl.setStyleSheet("color: #6B6B9B;")
+        self._current_ver_lbl = current_ver_lbl
         layout.addWidget(current_ver_lbl)
 
         self._check_btn = RippleButton("Buscar actualizaciones", variant="secondary")
-        self._check_btn.setIcon(Icon.icon("sync", "#A78BFA", 20))
+        self._check_btn.setIcon(Icon.icon("sync", tokens.CURRENT.accent, 20))
         self._check_btn.setFont(AppFont.body(14))
         self._check_btn.setMinimumHeight(44)
         self._check_btn.clicked.connect(lambda: asyncio.ensure_future(self._manual_check()))
@@ -83,7 +84,6 @@ class AboutScreen(QWidget):
 
         self._update_status_lbl = QLabel("")
         self._update_status_lbl.setFont(AppFont.label(12))
-        self._update_status_lbl.setStyleSheet("color: #6B6B9B;")
         layout.addWidget(self._update_status_lbl)
 
         layout.addStretch()
@@ -198,6 +198,10 @@ class AboutScreen(QWidget):
             self.version.setStyleSheet(f" background: transparent;")
         if hasattr(self, "description") and self.description:
             self.description.setStyleSheet(f" background: transparent;")
+        if hasattr(self, "_current_ver_lbl") and self._current_ver_lbl:
+            self._current_ver_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent;")
+        if hasattr(self, "_update_status_lbl") and self._update_status_lbl:
+            self._update_status_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent;")
         if hasattr(self, "_changelog_labels"):
             for index, label in enumerate(self._changelog_labels):
                 color = tokens.CURRENT.text_primary if index == 0 else tokens.CURRENT.text_secondary
@@ -214,7 +218,7 @@ class AboutScreen(QWidget):
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
-        if event.type() in (QEvent.Type.PaletteChange,):
+        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
             if not getattr(self, '_in_style_change', False):
                 self._in_style_change = True
                 try:

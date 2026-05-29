@@ -14,7 +14,8 @@ class WebLoginDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Iniciar sesión en YouTube Music")
         self.resize(1000, 700)
-        self.setStyleSheet("background-color: #0F0F1A;")
+        from pyrolist.ui.design import tokens
+        self.setStyleSheet(f"background-color: {tokens.CURRENT.bg_base};")
 
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
@@ -23,12 +24,12 @@ class WebLoginDialog(QDialog):
         # Minimal header — thin strip with hint + close icon
         header = QWidget()
         header.setFixedHeight(32)
-        header.setStyleSheet("background-color: #1A1A2E; border-bottom: 1px solid #2A2A3E;")
+        header.setStyleSheet(f"background-color: {tokens.CURRENT.bg_elevated}; border-bottom: 1px solid {tokens.CURRENT.border};")
         header_layout = QHBoxLayout(header)
         header_layout.setContentsMargins(12, 0, 8, 0)
 
         hint = QLabel("Inicia sesión — la ventana se cerrará automáticamente")
-        hint.setStyleSheet("color: #6B7280; font-family: Inter; font-size: 11px;")
+        hint.setStyleSheet(f"color: {tokens.CURRENT.text_disabled}; font-family: Inter; font-size: 11px;")
         header_layout.addWidget(hint)
         header_layout.addStretch()
 
@@ -38,19 +39,19 @@ class WebLoginDialog(QDialog):
         self.btn_close.setAutoDefault(False)
         self.btn_close.setDefault(False)
         self.btn_close.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.btn_close.setStyleSheet("""
-            QPushButton {
+        self.btn_close.setStyleSheet(f"""
+            QPushButton {{
                 background-color: transparent;
-                color: #9CA3AF;
+                color: {tokens.CURRENT.text_secondary};
                 border: none;
                 border-radius: 12px;
                 font-size: 14px;
                 font-weight: 700;
-            }
-            QPushButton:hover {
-                color: #EF4444;
+            }}
+            QPushButton:hover {{
+                color: {tokens.CURRENT.error};
                 background-color: rgba(239, 68, 68, 0.1);
-            }
+            }}
         """)
         self.btn_close.clicked.connect(self.reject)
         header_layout.addWidget(self.btn_close)

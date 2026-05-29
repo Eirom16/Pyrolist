@@ -76,18 +76,24 @@ class UpdateDialog(QDialog):
         super().hideEvent(event)
 
     def _build(self) -> None:
+        from pyrolist.ui.design import tokens
+        from PySide6.QtGui import QColor as _QC
+        _acc = _QC(tokens.CURRENT.accent)
+        _ar, _ag, _ab = _acc.red(), _acc.green(), _acc.blue()
+
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
 
         # ── Panel principal con fondo ──────────────────────────────────
-        panel = QFrame()
+        self._panel = QFrame()
+        panel = self._panel
         panel.setObjectName("updatePanel")
-        panel.setStyleSheet("""
-            #updatePanel {
-                background-color: #16162A;
+        panel.setStyleSheet(f"""
+            #updatePanel {{
+                background-color: {tokens.CURRENT.bg_elevated};
                 border-radius: 20px;
-                border: 1px solid rgba(167,139,250,0.25);
-            }
+                border: 1px solid rgba({_ar},{_ag},{_ab},0.25);
+            }}
         """)
 
         # Sombra exterior
@@ -104,23 +110,24 @@ class UpdateDialog(QDialog):
 
         # ── Cabecera: ícono + título ───────────────────────────────────
         header_row = QHBoxLayout()
-        update_icon = Icon.label("new_releases", size=32, color="#A78BFA")
+        update_icon = Icon.label("new_releases", size=32, color=tokens.CURRENT.accent)
+        self._update_icon = update_icon
 
         title_col = QVBoxLayout()
         title_col.setSpacing(2)
 
-        title_lbl = QLabel("Nueva versión disponible")
-        title_lbl.setFont(AppFont.heading(18))
-        title_lbl.setStyleSheet("color: #F1F0FF;")
+        self._title_lbl = QLabel("Nueva versión disponible")
+        self._title_lbl.setFont(AppFont.heading(18))
+        self._title_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_primary};")
 
-        version_lbl = QLabel(
+        self._version_lbl = QLabel(
             f"{CURRENT_VERSION}  →  {self.release.version}"
         )
-        version_lbl.setFont(AppFont.mono(13))
-        version_lbl.setStyleSheet("color: #A78BFA;")
+        self._version_lbl.setFont(AppFont.mono(13))
+        self._version_lbl.setStyleSheet(f"color: {tokens.CURRENT.accent};")
 
-        title_col.addWidget(title_lbl)
-        title_col.addWidget(version_lbl)
+        title_col.addWidget(self._title_lbl)
+        title_col.addWidget(self._version_lbl)
 
         header_row.addWidget(update_icon)
         header_row.addSpacing(12)
@@ -140,30 +147,30 @@ class UpdateDialog(QDialog):
         # ── Separador ─────────────────────────────────────────────────
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet("color: rgba(167,139,250,0.10);")
+        sep.setStyleSheet(f"color: rgba({_ar},{_ag},{_ab},0.10);")
         layout.addWidget(sep)
 
         # ── Notas del release ──────────────────────────────────────────
-        notes_label = QLabel("Novedades en esta versión:")
-        notes_label.setFont(AppFont.label(12))
-        notes_label.setStyleSheet("color: #6B6B9B;")
-        layout.addWidget(notes_label)
+        self._notes_label = QLabel("Novedades en esta versión:")
+        self._notes_label.setFont(AppFont.label(12))
+        self._notes_label.setStyleSheet(f"color: {tokens.CURRENT.text_secondary};")
+        layout.addWidget(self._notes_label)
 
-        notes_box = QTextEdit()
-        notes_box.setReadOnly(True)
-        notes_box.setPlainText(self.release.release_notes or "Sin notas de versión.")
-        notes_box.setFont(AppFont.body(13))
-        notes_box.setFixedHeight(140)
-        notes_box.setStyleSheet("""
-            QTextEdit {
-                background: #10101E;
-                border: 1px solid rgba(167,139,250,0.08);
+        self._notes_box = QTextEdit()
+        self._notes_box.setReadOnly(True)
+        self._notes_box.setPlainText(self.release.release_notes or "Sin notas de versión.")
+        self._notes_box.setFont(AppFont.body(13))
+        self._notes_box.setFixedHeight(140)
+        self._notes_box.setStyleSheet(f"""
+            QTextEdit {{
+                background: {tokens.CURRENT.bg_surface};
+                border: 1px solid rgba({_ar},{_ag},{_ab},0.08);
                 border-radius: 12px;
-                color: #9B9BC0;
+                color: {tokens.CURRENT.text_secondary};
                 padding: 10px;
-            }
+            }}
         """)
-        layout.addWidget(notes_box)
+        layout.addWidget(self._notes_box)
 
         # ── Barra de progreso (oculta hasta que empieza la descarga) ───
         self._progress_container = QWidget()
@@ -176,7 +183,7 @@ class UpdateDialog(QDialog):
 
         self._progress_label = QLabel("Preparando descarga...")
         self._progress_label.setFont(AppFont.label(12))
-        self._progress_label.setStyleSheet("color: #6B6B9B;")
+        self._progress_label.setStyleSheet(f"color: {tokens.CURRENT.text_secondary};")
 
         prog_layout.addWidget(self._progress_bar)
         prog_layout.addWidget(self._progress_label)
@@ -188,7 +195,8 @@ class UpdateDialog(QDialog):
         btn_row.setSpacing(10)
 
         self._github_btn = RippleButton("Ver en GitHub", variant="ghost")
-        self._github_btn.setIcon(Icon.icon("open_in_new", "#6B6B9B", 20))
+        self._github_btn.setIcon(Icon.icon("open_in_new", tokens.CURRENT.text_secondary, 20))
+
         self._github_btn.setFont(AppFont.body(13))
         self._github_btn.clicked.connect(
             lambda: webbrowser.open(self.release.html_url)
@@ -200,7 +208,7 @@ class UpdateDialog(QDialog):
         self._update_btn = RippleButton(
             f"Actualizar a {self.release.version}", variant="primary"
         )
-        self._update_btn.setIcon(Icon.icon("download", "#F1F0FF", 20))
+        self._update_btn.setIcon(Icon.icon("download", tokens.CURRENT.text_on_accent, 20))
         self._update_btn.setFont(AppFont.body(14))
         self._update_btn.setMinimumHeight(44)
         self._update_btn.clicked.connect(self._on_update_clicked)
@@ -231,6 +239,7 @@ class UpdateDialog(QDialog):
 
     @asyncSlot()
     async def _on_update_clicked(self) -> None:
+        from pyrolist.ui.design import tokens
         asset = self.release.get_asset_for_platform()
         if not asset:
             self._progress_label.setText(
@@ -272,7 +281,7 @@ class UpdateDialog(QDialog):
                 "Instalación iniciada. Cerrando Pyrolist en breve para aplicar los cambios..."
             )
             self._update_btn.setText("Cerrando...")
-            self._update_btn.setIcon(Icon.icon("check_circle", "#F1F0FF", 20))
+            self._update_btn.setIcon(Icon.icon("check_circle", tokens.CURRENT.text_on_accent, 20))
             self.update_installed.emit()
             QTimer.singleShot(1500, QApplication.quit)
         else:

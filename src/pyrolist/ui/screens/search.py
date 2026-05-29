@@ -84,9 +84,18 @@ class _FilterChip(QPushButton):
 class _TopResultCard(QWidget):
     """A prominent, beautiful square card shown for the top search result."""
     clicked = Signal()
+    download_requested = Signal(str, str, str, str)  # video_id, title, artist, thumbnail_url
+    play_next_requested = Signal(str, str, str, str)
+    add_to_queue_requested = Signal(str, str, str, str)
+    add_to_playlist_requested = Signal(str, str)
+    delete_download_requested = Signal(str)
 
-    def __init__(self, title, artist, result_type, thumbnail_url="", on_play=None):
+    def __init__(self, title, artist, result_type, thumbnail_url="", on_play=None, video_id=""):
         super().__init__()
+        self._title = title
+        self._artist = artist
+        self._video_id = video_id
+        self._thumbnail_url = thumbnail_url
         self._on_play = on_play
         self._has_thumbnail = bool(thumbnail_url)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -98,7 +107,7 @@ class _TopResultCard(QWidget):
         lay.setContentsMargins(20, 20, 20, 20)
         lay.setSpacing(12)
 
-        # Top row: Large Thumbnail + Round Play Button
+        # Top row: Large Thumbnail + Round Play Button + Three Dots Menu Button
         top_row = QHBoxLayout()
         
         self.thumb = QLabel()
@@ -111,14 +120,29 @@ class _TopResultCard(QWidget):
 
         top_row.addStretch()
 
+        # Side-by-side action buttons layout
+        actions_layout = QHBoxLayout()
+        actions_layout.setSpacing(8)
+        actions_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+
         self.play_btn = QPushButton(self)
         self.play_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.play_btn.setText(Icon.get("play_arrow"))
         self.play_btn.setFixedSize(48, 48)
         if on_play:
             self.play_btn.clicked.connect(on_play)
-        top_row.addWidget(self.play_btn, alignment=Qt.AlignmentFlag.AlignVCenter)
+        actions_layout.addWidget(self.play_btn)
 
+        self.menu_btn = QPushButton(self)
+        self.menu_btn.setObjectName("menuBtn")
+        self.menu_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.menu_btn.setText(Icon.get("more_vert"))
+        self.menu_btn.setFixedSize(48, 48)
+        self.menu_btn.setVisible(bool(video_id))
+        self.menu_btn.clicked.connect(self._show_context_menu)
+        actions_layout.addWidget(self.menu_btn)
+
+        top_row.addLayout(actions_layout)
         lay.addLayout(top_row)
         lay.addStretch()
 
@@ -199,6 +223,23 @@ class _TopResultCard(QWidget):
             }}
         """)
 
+        # Style the menu button directly to show the Material symbol properly
+        self.menu_btn.setStyleSheet(f"""
+            QPushButton#menuBtn {{
+                background: transparent;
+                color: {tokens.CURRENT.text_secondary};
+                border: none;
+                border-radius: 24px;
+                font-family: 'Material Symbols Rounded';
+                font-size: 28px;
+                padding: 0px;
+            }}
+            QPushButton#menuBtn:hover {{
+                background-color: rgba(120, 120, 120, 0.15);
+                color: {tokens.CURRENT.accent};
+            }}
+        """)
+
     def _update_child_styles(self):
         from pyrolist.ui.design import tokens
         if not self._has_thumbnail:
@@ -234,6 +275,56 @@ class _TopResultCard(QWidget):
                 self.thumb.setText("")
                 self._has_thumbnail = True
                 self._update_child_styles()
+
+    def _on_download_clicked(self):
+        if self._video_id:
+            self.download_requested.emit(
+                self._video_id, self._title, self._artist, self._thumbnail_url
+            )
+
+    def _on_play_next_clicked(self):
+        if self._video_id:
+            self.play_next_requested.emit(
+                self._video_id, self._title, self._artist, self._thumbnail_url
+            )
+
+    def _on_add_to_queue_clicked(self):
+        if self._video_id:
+            self.add_to_queue_requested.emit(
+                self._video_id, self._title, self._artist, self._thumbnail_url
+            )
+
+    def _on_add_to_playlist_clicked(self):
+        if self._video_id:
+            self.add_to_playlist_requested.emit(self._video_id, self._title)
+
+    def _on_delete_download_clicked(self):
+        if self._video_id:
+            self.delete_download_requested.emit(self._video_id)
+
+    def _show_context_menu(self):
+        asyncio.create_task(self._show_context_menu_async())
+
+    async def _show_context_menu_async(self):
+        from pyrolist.db.repository import DownloadRepository
+        repo = DownloadRepository()
+        existing = await repo.get_download(self._video_id) if self._video_id else None
+        is_downloaded = existing is not None
+        
+        from pyrolist.ui.widgets.song_context_menu import SongContextMenu
+        self._current_menu = SongContextMenu(parent=self.window(), is_downloaded=is_downloaded)
+        self._current_menu.play_next.connect(self._on_play_next_clicked)
+        self._current_menu.add_to_queue.connect(self._on_add_to_queue_clicked)
+        self._current_menu.add_to_playlist.connect(self._on_add_to_playlist_clicked)
+        
+        if is_downloaded:
+            self._current_menu.delete_download.connect(self._on_delete_download_clicked)
+        else:
+            self._current_menu.download.connect(self._on_download_clicked)
+            
+        self._current_menu._trigger_widget = self.menu_btn
+        pos = self.menu_btn.mapToGlobal(self.menu_btn.rect().bottomLeft())
+        self._current_menu.popup_at(pos)
 
     def mousePressEvent(self, e):
         if e.button() == Qt.MouseButton.LeftButton and self._on_play:
@@ -573,8 +664,14 @@ class SearchScreen(QWidget):
                 artist=artist_str,
                 result_type=type_label,
                 thumbnail_url=thumb_url,
-                on_play=lambda: self._handle_play(video_id, title, artists, thumb_url) if video_id else None
+                on_play=lambda: self._handle_play(video_id, title, artists, thumb_url) if video_id else None,
+                video_id=video_id
             )
+            top_card.download_requested.connect(lambda *a: self.download_requested.emit(*a))
+            top_card.play_next_requested.connect(lambda *a: self.play_next_requested.emit(*a))
+            top_card.add_to_queue_requested.connect(lambda *a: self.add_to_queue_requested.emit(*a))
+            top_card.add_to_playlist_requested.connect(lambda *a: self.add_to_playlist_requested.emit(*a))
+            top_card.delete_download_requested.connect(lambda *a: self.delete_download_requested.emit(*a))
             left_col.addWidget(top_card)
             left_col.addStretch()
             split_layout.addLayout(left_col)

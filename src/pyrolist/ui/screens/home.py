@@ -22,10 +22,18 @@ _image_cache = ImageCache()
 
 class QuickAccessTile(QWidget):
     clicked = Signal()
+    download_requested = Signal(str, str, str, str)  # video_id, title, artist, thumbnail_url
+    play_next_requested = Signal(str, str, str, str)
+    add_to_queue_requested = Signal(str, str, str, str)
+    add_to_playlist_requested = Signal(str, str)
+    like_requested = Signal(str, object)
+    delete_download_requested = Signal(str)
 
-    def __init__(self, title: str, thumbnail_url: str = "", on_play=None, parent=None):
+    def __init__(self, title: str, thumbnail_url: str = "", on_play=None, video_id: str = "", artist: str = "", parent=None):
         super().__init__(parent)
         self._title = title
+        self._artist = artist
+        self._video_id = video_id
         self._thumbnail_url = thumbnail_url
         self._on_play = on_play
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -90,6 +98,18 @@ class QuickAccessTile(QWidget):
             self.play_btn.clicked.connect(self._on_play)
         lay.addWidget(self.play_btn)
 
+        # Small hover three dots button
+        self.menu_btn = QPushButton()
+        self.menu_btn.setObjectName("menuBtn")
+        self.menu_btn.setText(Icon.get("more_vert"))
+        self.menu_btn.setFont(Icon.font(16))
+        self.menu_btn.setFixedSize(32, 32)
+        self.menu_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.menu_btn.clicked.connect(self._show_context_menu)
+        lay.addWidget(self.menu_btn)
+
+        self.menu_btn.setVisible(bool(self._video_id))
+
         self._apply_style()
 
     def _apply_style(self):
@@ -118,7 +138,66 @@ class QuickAccessTile(QWidget):
             QPushButton:hover {{
                 background-color: {t.accent_bright};
             }}
+            QPushButton#menuBtn {{
+                background-color: transparent;
+                color: {t.text_secondary};
+                border-radius: 16px;
+            }}
+            QPushButton#menuBtn:hover {{
+                background-color: rgba(120, 120, 120, 0.15);
+                color: {t.accent};
+            }}
         """)
+
+    def _on_download_clicked(self):
+        if self._video_id:
+            self.download_requested.emit(
+                self._video_id, self._title, self._artist, self._thumbnail_url
+            )
+
+    def _on_play_next_clicked(self):
+        if self._video_id:
+            self.play_next_requested.emit(
+                self._video_id, self._title, self._artist, self._thumbnail_url
+            )
+
+    def _on_add_to_queue_clicked(self):
+        if self._video_id:
+            self.add_to_queue_requested.emit(
+                self._video_id, self._title, self._artist, self._thumbnail_url
+            )
+
+    def _on_add_to_playlist_clicked(self):
+        if self._video_id:
+            self.add_to_playlist_requested.emit(self._video_id, self._title)
+
+    def _on_delete_download_clicked(self):
+        if self._video_id:
+            self.delete_download_requested.emit(self._video_id)
+
+    def _show_context_menu(self):
+        asyncio.create_task(self._show_context_menu_async())
+
+    async def _show_context_menu_async(self):
+        from pyrolist.db.repository import DownloadRepository
+        repo = DownloadRepository()
+        existing = await repo.get_download(self._video_id) if self._video_id else None
+        is_downloaded = existing is not None
+        
+        from pyrolist.ui.widgets.song_context_menu import SongContextMenu
+        self._current_menu = SongContextMenu(parent=self.window(), is_downloaded=is_downloaded)
+        self._current_menu.play_next.connect(self._on_play_next_clicked)
+        self._current_menu.add_to_queue.connect(self._on_add_to_queue_clicked)
+        self._current_menu.add_to_playlist.connect(self._on_add_to_playlist_clicked)
+        
+        if is_downloaded:
+            self._current_menu.delete_download.connect(self._on_delete_download_clicked)
+        else:
+            self._current_menu.download.connect(self._on_download_clicked)
+            
+        self._current_menu._trigger_widget = self.menu_btn
+        pos = self.menu_btn.mapToGlobal(self.menu_btn.rect().bottomLeft())
+        self._current_menu.popup_at(pos)
 
     def enterEvent(self, event):
         self.play_btn.show()
@@ -567,10 +646,10 @@ class HomeScreen(QWidget):
             for item in sec_items:
                 if len(valid_items) >= 6:
                     break
-                if isinstance(item, dict) and (item.get('playlistId') or item.get('browseId') or item.get('videoId')):
+                if isinstance(item, dict) and item.get('videoId'):
                     # Avoid duplicates
-                    v_id = item.get('videoId') or item.get('playlistId') or item.get('browseId')
-                    if not any((x.get('videoId') == v_id or x.get('playlistId') == v_id or x.get('browseId') == v_id) for x in valid_items):
+                    v_id = item.get('videoId')
+                    if not any(x.get('videoId') == v_id for x in valid_items):
                         valid_items.append(item)
             if len(valid_items) >= 6:
                 break
@@ -592,25 +671,30 @@ class HomeScreen(QWidget):
             thumbnails = item.get('thumbnails', [])
             thumb_url = thumbnails[-1].get('url', '') if thumbnails else ''
             
-            playlist_id = item.get('playlistId')
-            browse_id = item.get('browseId')
             video_id = item.get('videoId')
+            
+            artists = item.get('artists', [])
+            if isinstance(artists, list):
+                artist_names = ", ".join([a.get('name', '') for a in artists if isinstance(a, dict)]) or 'Unknown'
+            elif isinstance(artists, str):
+                artist_names = artists
+            else:
+                artist_names = 'Unknown'
             
             on_play = None
             if video_id:
-                artists = item.get('artists', 'Unknown')
-                on_play = partial(self._handle_play, video_id, str(title), artists, thumb_url)
+                on_play = partial(self._handle_play, video_id, str(title), artist_names, thumb_url)
             
-            tile = QuickAccessTile(str(title), thumb_url, on_play=on_play)
+            tile = QuickAccessTile(
+                title=str(title),
+                thumbnail_url=thumb_url,
+                on_play=on_play,
+                video_id=video_id or "",
+                artist=artist_names
+            )
+            self._connect_card_signals(tile)
             
-            if playlist_id and self.on_navigate:
-                tile.clicked.connect(partial(self.on_navigate, f"playlist?id={playlist_id}"))
-            elif browse_id and self.on_navigate:
-                if str(browse_id).startswith("UC"):
-                    tile.clicked.connect(partial(self.on_navigate, f"artist?id={browse_id}"))
-                else:
-                    tile.clicked.connect(partial(self.on_navigate, f"album?id={browse_id}"))
-            elif video_id and on_play:
+            if video_id and on_play:
                 tile.clicked.connect(on_play)
                 
             grid_lay.addWidget(tile, idx // 3, idx % 3)
