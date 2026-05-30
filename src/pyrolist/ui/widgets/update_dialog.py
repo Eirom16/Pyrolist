@@ -22,7 +22,7 @@ from pyrolist.ui.design.icons import Icon
 from pyrolist.ui.widgets.ripple_button import RippleButton
 from pyrolist.ui.widgets.animated_progress import AnimatedProgressBar
 from pyrolist.utils.updater import (
-    ReleaseInfo, download_update, install_update, CURRENT_VERSION
+    ReleaseInfo, download_update, install_update_async, CURRENT_VERSION
 )
 
 
@@ -240,6 +240,9 @@ class UpdateDialog(QDialog):
     @asyncSlot()
     async def _on_update_clicked(self) -> None:
         from pyrolist.ui.design import tokens
+        import platform
+        from loguru import logger
+
         asset = self.release.get_asset_for_platform()
         if not asset:
             self._progress_label.setText(
@@ -268,24 +271,63 @@ class UpdateDialog(QDialog):
             )
             self._update_btn.setEnabled(True)
             self._postpone_btn.setEnabled(True)
+            self._downloading = False
             return
 
         self._progress_bar.set_value(1.0)
+
+        # Solicitar contraseña de administrador en Linux
+        password = None
+        if platform.system() == "Linux":
+            self._progress_label.setText("Autenticación requerida para la instalación...")
+            from pyrolist.ui.dialogs.sudo_dialog import SudoPasswordDialog
+            sudo_dlg = SudoPasswordDialog(self)
+            res = sudo_dlg.exec()
+
+            if res == QDialog.DialogCode.Accepted:
+                password = sudo_dlg.get_password()
+            else:
+                self._progress_label.setText(
+                    f"Instalación cancelada. El archivo se descargó en:\n{pkg_path}"
+                )
+                self._update_btn.setEnabled(True)
+                self._postpone_btn.setEnabled(True)
+                self._downloading = False
+                return
+
         self._progress_label.setText(
-            "Descarga completada. Instalando actualización..."
+            "Instalando actualización... Por favor, no cierres la aplicación."
         )
 
-        success = install_update(pkg_path)
+        success = await install_update_async(pkg_path, password)
         if success:
             self._progress_label.setText(
-                "Instalación iniciada. Cerrando Pyrolist en breve para aplicar los cambios..."
+                "¡Instalación completada con éxito! Reiniciando Pyrolist..."
             )
-            self._update_btn.setText("Cerrando...")
+            self._update_btn.setText("Reiniciando...")
             self._update_btn.setIcon(Icon.icon("check_circle", tokens.CURRENT.text_on_accent, 20))
             self.update_installed.emit()
-            QTimer.singleShot(1500, QApplication.quit)
+            QTimer.singleShot(2000, self._restart_app)
         else:
             self._progress_label.setText(
-                f"No se pudo instalar automáticamente.\n"
+                f"No se pudo completar la instalación automática.\n"
                 f"Archivo descargado en: {pkg_path}"
             )
+            self._update_btn.setEnabled(True)
+            self._postpone_btn.setEnabled(True)
+            self._downloading = False
+
+    def _restart_app(self) -> None:
+        import sys
+        import subprocess
+        from loguru import logger
+        logger.info("Reiniciando Pyrolist para aplicar la actualización...")
+        try:
+            if getattr(sys, 'frozen', False):
+                subprocess.Popen([sys.executable] + sys.argv[1:])
+            else:
+                subprocess.Popen([sys.executable] + sys.argv)
+        except Exception as e:
+            logger.error(f"Error al reiniciar la aplicación de forma automática: {e}")
+        QApplication.quit()
+

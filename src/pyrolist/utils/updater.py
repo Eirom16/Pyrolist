@@ -177,7 +177,7 @@ async def download_update(
 
 def install_update(package_path: Path) -> bool:
     """
-    Instala el paquete descargado usando el gestor nativo.
+    Instala el paquete descargado usando el gestor nativo (síncrono, pkexec/Windows).
     Devuelve True si el comando se lanzó correctamente.
 
     IMPORTANTE: en Linux requiere pkexec o sudo para elevar privilegios.
@@ -231,3 +231,99 @@ def install_update(package_path: Path) -> bool:
         return False
 
     return False
+
+
+async def install_update_async(package_path: Path, password: str | None = None) -> bool:
+    """
+    Instala el paquete descargado de manera asíncrona usando el gestor nativo.
+    Si se proporciona password (en Linux), se utiliza sudo -S para ejecutar
+    el comando de instalación escribiendo la contraseña por stdin sin pkexec,
+    esperando a que termine el proceso para confirmar que se aplicó.
+    """
+    system = platform.system()
+    path   = str(package_path)
+
+    if system == "Windows":
+        # Lanzar el instalador Inno Setup y cerrar la app (Windows no requiere elevación previa)
+        subprocess.Popen([path, "/SILENT", "/NORESTART"])
+        return True
+
+    if system == "Linux":
+        mgr = _detect_package_manager()
+
+        if password is not None:
+            # sudo -S lee la contraseña desde la entrada estándar
+            install_cmds = {
+                "pacman": ["sudo", "-S", "pacman", "-U", "--noconfirm", path],
+                "apt":    ["sudo", "-S", "apt",    "install", "-y", path],
+                "dnf":    ["sudo", "-S", "dnf",    "install", "-y", path],
+                "zypper": ["sudo", "-S", "zypper", "install", "-y", path],
+            }
+            cmd = install_cmds.get(mgr)
+            if not cmd:
+                logger.warning(f"Unknown package manager: {mgr}")
+                return False
+
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                
+                # Escribir contraseña en stdin
+                proc.stdin.write((password + "\n").encode())
+                await proc.stdin.drain()
+                
+                # Esperar a que termine la instalación
+                stdout, stderr = await proc.communicate()
+                
+                logger.info(f"Installation process finished with return code: {proc.returncode}")
+                if proc.returncode == 0:
+                    return True
+                else:
+                    err_msg = stderr.decode().strip()
+                    logger.error(f"Installation failed: {err_msg}")
+                    return False
+            except Exception as e:
+                logger.error(f"Async installation execution failed: {e}")
+                return False
+        else:
+            # Caso fallback si no se proporciona contraseña (usa pkexec original)
+            install_cmds = {
+                "pacman": ["pkexec", "pacman", "-U", "--noconfirm", path],
+                "apt":    ["pkexec", "apt",    "install", "-y", path],
+                "dnf":    ["pkexec", "dnf",    "install", "-y", path],
+                "zypper": ["pkexec", "zypper", "install", "-y", path],
+            }
+
+            cmd = install_cmds.get(mgr)
+            if not cmd:
+                logger.warning(f"Unknown package manager: {mgr}")
+                return False
+
+            try:
+                subprocess.Popen(cmd, start_new_session=True)
+                return True
+            except FileNotFoundError:
+                # pkexec no disponible — intentar con sudo en terminal
+                terminal_cmds = {
+                    "pacman": f"sudo pacman -U --noconfirm {path}",
+                    "apt":    f"sudo apt install -y {path}",
+                    "dnf":    f"sudo dnf install -y {path}",
+                    "zypper": f"sudo zypper install -y {path}",
+                }
+                cmd_str = terminal_cmds.get(mgr, "")
+                if cmd_str:
+                    # Abrir en la terminal disponible
+                    for term in ["konsole", "gnome-terminal", "xterm", "alacritty"]:
+                        if shutil.which(term):
+                            subprocess.Popen([term, "-e", "bash", "-c",
+                                             f"{cmd_str}; read -p 'Presiona Enter para cerrar'"],
+                                             start_new_session=True)
+                            return True
+            return False
+
+    return False
+
