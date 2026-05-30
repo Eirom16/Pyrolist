@@ -4,6 +4,7 @@ from pathlib import Path
 from pyrolist.config.paths import AppDirs
 from loguru import logger
 import io
+import httpx
 
 
 class ImageCache:
@@ -25,7 +26,18 @@ class ImageCache:
         self._memory_cache: dict[str, str] = {}
         self._lock = asyncio.Lock()
         self._locks: dict[str, asyncio.Lock] = {}
+        self._http_client: "httpx.AsyncClient | None" = None
         self._initialized = True
+
+    async def _get_client(self):
+        """Returns a shared httpx.AsyncClient, creating one if needed."""
+        if self._http_client is None or self._http_client.is_closed:
+            self._http_client = httpx.AsyncClient(
+                timeout=10.0,
+                follow_redirects=True,
+                limits=httpx.Limits(max_connections=8, max_keepalive_connections=5),
+            )
+        return self._http_client
 
     def _is_valid_url(self, url: str) -> bool:
         if not isinstance(url, str):
@@ -78,46 +90,45 @@ class ImageCache:
                 return existing
 
             try:
-                import httpx
-                async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
-                    r = await client.get(url)
-                    if r.status_code != 200:
-                        self._locks.pop(url, None)
-                        return None
-                    
-                    from PIL import Image
-                    img = Image.open(io.BytesIO(r.content))
-                    
-                    # Robustly convert ANY mode to RGB for JPEG
-                    if img.mode != 'RGB':
-                        try:
-                            # Handle transparency by compositing onto dark bg
-                            if img.mode in ('RGBA', 'LA', 'PA'):
-                                background = Image.new('RGB', img.size, (30, 30, 46))
-                                if img.mode == 'PA':
-                                    img = img.convert('RGBA')
-                                background.paste(img, mask=img.split()[-1])
-                                img = background
-                            elif img.mode == 'P':
-                                # Palette mode - try converting through RGBA first
-                                img = img.convert('RGBA')
-                                background = Image.new('RGB', img.size, (30, 30, 46))
-                                background.paste(img, mask=img.split()[-1])
-                                img = background
-                            else:
-                                img = img.convert('RGB')
-                        except Exception:
-                            # Last resort
-                            img = img.convert('RGB')
-                    
-                    filename = self._get_filename(url)
-                    path = self._cache_dir / filename
-                    img.save(path, "JPEG", quality=85)
-                    
-                    self._memory_cache[url] = str(path)
-                    logger.debug(f"Cached artwork: {url[:40]}...")
+                client = await self._get_client()  # reutiliza la sesión
+                r = await client.get(url)
+                if r.status_code != 200:
                     self._locks.pop(url, None)
-                    return path
+                    return None
+                    
+                from PIL import Image
+                img = Image.open(io.BytesIO(r.content))
+                
+                # Robustly convert ANY mode to RGB for JPEG
+                if img.mode != 'RGB':
+                    try:
+                        # Handle transparency by compositing onto dark bg
+                        if img.mode in ('RGBA', 'LA', 'PA'):
+                            background = Image.new('RGB', img.size, (30, 30, 46))
+                            if img.mode == 'PA':
+                                img = img.convert('RGBA')
+                            background.paste(img, mask=img.split()[-1])
+                            img = background
+                        elif img.mode == 'P':
+                            # Palette mode - try converting through RGBA first
+                            img = img.convert('RGBA')
+                            background = Image.new('RGB', img.size, (30, 30, 46))
+                            background.paste(img, mask=img.split()[-1])
+                            img = background
+                        else:
+                            img = img.convert('RGB')
+                    except Exception:
+                        # Last resort
+                        img = img.convert('RGB')
+                
+                filename = self._get_filename(url)
+                path = self._cache_dir / filename
+                img.save(path, "JPEG", quality=85)
+                
+                self._memory_cache[url] = str(path)
+                logger.debug(f"Cached artwork: {url[:40]}...")
+                self._locks.pop(url, None)
+                return path
             except Exception as e:
                 logger.debug(f"Failed to cache artwork: {e}")
                 self._locks.pop(url, None)
@@ -129,9 +140,7 @@ class ImageCache:
         self._memory_cache.clear()
 
 
-import concurrent.futures
-
-_executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+from pyrolist.utils.thread_pool import IO_POOL
 
 
 def load_scaled_async(path, width: int, height: int, context_qobject, callback) -> None:
@@ -182,5 +191,5 @@ def load_scaled_async(path, width: int, height: int, context_qobject, callback) 
             # Schedule the callback to execute on the main thread (thread of context_qobject)
             QTimer.singleShot(0, context_qobject, lambda: callback(bytes_data))
 
-    future = _executor.submit(load_fn)
+    future = IO_POOL.submit(load_fn)
     future.add_done_callback(done_callback)

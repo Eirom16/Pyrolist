@@ -387,6 +387,10 @@ class AlbumScreen(QWidget):
                 
                 self.tracks_layout.addWidget(card)
 
+            # Ceder control al event loop cada 5 canciones para no congelar la UI
+            if i > 0 and i % 5 == 0:
+                await asyncio.sleep(0)
+
     async def _load_cover(self, url: str):
         path = await _image_cache.download(url)
         import shiboken6

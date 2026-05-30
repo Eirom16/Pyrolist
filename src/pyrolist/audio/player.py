@@ -148,15 +148,16 @@ class MusicPlayer:
             vlc.libvlc_audio_equalizer_set_preamp(eq, preamp)
             for i, gain in enumerate(bands[:10]):
                 vlc.libvlc_audio_equalizer_set_amp_at_index(eq, gain, i)
-            self._player.audio_set_equalizer(eq)
+            self._player.set_equalizer(eq)
+            self._eq = eq
             logger.debug(f"EQ applied: preamp={preamp}, bands={bands}")
         except Exception as e:
             logger.warning(f"Equalizer not available: {e}")
 
     def reset_equalizer(self) -> None:
         try:
-            eq = vlc.libvlc_audio_equalizer_new()
-            self._player.audio_set_equalizer(eq)
+            self._player.set_equalizer(None)
+            self._eq = None
         except Exception:
             pass
 

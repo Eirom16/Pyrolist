@@ -1,26 +1,25 @@
-# Pyrolist v1.2.1
+# Pyrolist v1.3.0
 
 ## Resumen
 
-Esta versión optimiza significativamente la latencia al reproducir música local, introduce mejoras estéticas de carga con pantallas de carga tipo esqueleto (skeleton loaders) y animaciones de transición en las descargas, añade nuevos indicadores visuales y corrige varios problemas en la barra de búsqueda y el historial.
+Esta versión representa una de las actualizaciones de rendimiento y estabilidad estructural más importantes de Pyrolist. Introduce la centralización de hilos mediante pools de E/S y CPU, implementa un sistema inteligente de caché en memoria de 5 minutos para metadatos, optimiza drásticamente la latencia y la eficiencia de descarga de portadas, y añade mejoras críticas para evitar micro-congelamientos de la interfaz gráfica al cargar contenido masivo.
 
-## Novedades
+## Novedades y Mejoras de Rendimiento
 
-- **Carga optimizada de música local:** Se reduce la latencia de carga para archivos locales en el reproductor de audio de 0.5 segundos a 0.01 segundos, permitiendo una reproducción instantánea.
-- **Mejoras visuales en Descargas:**
-  - Nuevas pantallas de carga tipo esqueleto (*skeleton loaders*) interactivos en forma de lista y rejilla al acceder a la pantalla de descargas.
-  - Efecto de animación suave con transición de desvanecimiento (*fade-in*) al cargar la lista y rejilla de descargas.
-  - Nuevo indicador de canciones favoritas ("Me gusta") directamente visible en las canciones descargadas.
-- **Movimiento fluido en Paneles Glass:** Transición de movimiento suave mediante animación cuando el panel flotante ya está visible, evitando saltos bruscos al cambiar su posición.
+- **Pools de Hilos Centralizados:** Consolidación estructural de subprocesos en pools administrados globales (`IO_POOL` de 6 hilos para descargas/escalado y `CPU_POOL` de 2 hilos para análisis de color y cálculo computacional). Esto reduce de forma masiva el consumo de memoria al evitar la creación descontrolada de hilos.
+- **Caché de Metadatos de 5 Minutos:** Implementación de un sistema de caché en memoria de corto plazo (300 segundos) para consultas de álbumes, artistas y listas de reproducción. Las transiciones entre pantallas ahora son instantáneas sin necesidad de llamadas redundantes a la API de YouTube Music.
+- **Reducción de Consumo de CPU (AmbientBackground):** El fondo dinámico fluido de la interfaz ahora limita su refresco de renderizado a un máximo de **20 FPS** (intervalo de 50ms) en lugar de intentar ejecutarse a 60 FPS. Esto ahorra una enorme cantidad de ciclos de CPU y prolonga la vida útil de la batería en ordenadores portátiles.
+- **Persistencia de Sesión HTTP (Reutilización de Sockets):** El gestor de imágenes (`ImageCache`) ahora utiliza un cliente HTTP asíncrono persistente (`httpx.AsyncClient`) con límites optimizados. Se elimina la sobrecarga de apertura y cierre de sockets TCP/TLS en cada descarga de portada, haciendo que las imágenes se carguen de manera fluida y ultrarrápida.
+- **Carga Asíncrona sin Bloqueos (Event Loop Yielding):** Al cargar las pantallas de álbumes y listas de reproducción, la interfaz ahora cede control al bucle de eventos de Qt cada 5 canciones. Esto elimina por completo las micro-congelaciones al cargar álbumes o listas masivas de más de 50 elementos.
+- **Caché Estática de Stylesheets:** Las tarjetas de acceso rápido (`QuickAccessTile`) y banners principales (`SpotlightBanner`) ahora almacenan su hoja de estilo en memoria caché estática. Se evitan costosas e innecesarias lecturas y parses repetitivos de CSS por parte del motor de Qt al cambiar de tema o navegar.
 
-## Correcciones y bugs solucionados
+## Correcciones de Errores
 
-- **Corrección de estadísticas:** Solucionado el error al desempaquetar el historial que provocaba fallos de carga en la pantalla de estadísticas.
-- **Optimización de Búsqueda Global:**
-  - Se detienen correctamente los temporizadores de sugerencias en segundo plano al ocultar, limpiar o confirmar una búsqueda, evitando posibles fugas de recursos.
-  - Se valida que las sugerencias recibidas coincidan exactamente con la búsqueda activa para evitar la sobreescritura con resultados lentos obsoletos.
+- **Restablecimiento del Ecualizador de VLC:** Corregida la desactivación del ecualizador del reproductor aplicando una limpieza nativa real (`set_equalizer(None)`) en lugar de recrear un ecualizador vacío.
+- **Resolución Automática de Playlists "VL":** Se añade soporte y conversión automatizada en la barra principal para identificadores de playlist con el prefijo nativo `"VL"`.
+- **Datos en Tarjetas de Playlists:** Las tarjetas de playlists en la pantalla de inicio ahora muestran correctamente la descripción o autor real en su campo secundario en lugar de un nombre de artista erróneo.
 
 ## Build y release
 
-- Versión subida a `1.2.1` / `v1.2.1`.
-- El workflow de compilación construirá paquetes para Arch (.pkg.tar.zst), Debian/Ubuntu (.deb), Fedora/RHEL (.rpm), openSUSE (.rpm) y Windows (.exe).
+- Versión subida a `1.3.0` / `v1.3.0`.
+- El workflow de compilación multiplataforma generará paquetes nativos actualizados para todos los sistemas soportados.

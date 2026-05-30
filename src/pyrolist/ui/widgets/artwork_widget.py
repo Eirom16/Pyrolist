@@ -33,12 +33,16 @@ class ArtworkWidget(QWidget):
         if pixmap.isNull():
             self.set_placeholder()
             return
-        self._pixmap = pixmap.scaled(
-            self._size,
-            self._size,
-            Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-            Qt.TransformationMode.SmoothTransformation,
-        )
+        # Si ya viene del tamaño correcto (cargado por load_scaled_async), evita re-escalar
+        if pixmap.width() == self._size and pixmap.height() == self._size:
+            self._pixmap = pixmap
+        else:
+            self._pixmap = pixmap.scaled(
+                self._size,
+                self._size,
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                Qt.TransformationMode.FastTransformation,  # más rápido, diferencia mínima en thumbnails
+            )
         self._fade_anim.stop()
         self._fade_anim.setStartValue(self._opacity)
         self._fade_anim.setEndValue(1.0)

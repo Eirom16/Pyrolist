@@ -29,6 +29,9 @@ class QuickAccessTile(QWidget):
     like_requested = Signal(str, object)
     delete_download_requested = Signal(str)
 
+    _cached_style: str | None = None
+    _cached_theme_id: str | None = None
+
     def __init__(self, title: str, thumbnail_url: str = "", on_play=None, video_id: str = "", artist: str = "", parent=None):
         super().__init__(parent)
         self._title = title
@@ -114,7 +117,13 @@ class QuickAccessTile(QWidget):
 
     def _apply_style(self):
         t = tokens.CURRENT
-        self.setStyleSheet(f"""
+        theme_id = t.bg_surface  # usar cualquier token como fingerprint del tema
+
+        if QuickAccessTile._cached_style and QuickAccessTile._cached_theme_id == theme_id:
+            self.setStyleSheet(QuickAccessTile._cached_style)
+            return
+
+        style = f"""
             QWidget {{
                 background-color: {t.bg_surface};
                 border: 1px solid {t.border};
@@ -147,7 +156,10 @@ class QuickAccessTile(QWidget):
                 background-color: rgba(120, 120, 120, 0.15);
                 color: {t.accent};
             }}
-        """)
+        """
+        QuickAccessTile._cached_style = style
+        QuickAccessTile._cached_theme_id = theme_id
+        self.setStyleSheet(style)
 
     def _on_download_clicked(self):
         if self._video_id:
@@ -214,6 +226,9 @@ class QuickAccessTile(QWidget):
 
 
 class SpotlightBanner(QFrame):
+    _cached_style: str | None = None
+    _cached_theme_id: str | None = None
+
     def __init__(self, title: str, subtitle: str, thumbnail_url: str = "", on_play=None, on_explore=None, parent=None):
         super().__init__(parent)
         self._title = title
@@ -315,7 +330,13 @@ class SpotlightBanner(QFrame):
 
     def _apply_style(self):
         t = tokens.CURRENT
-        self.setStyleSheet(f"""
+        theme_id = t.bg_surface
+
+        if SpotlightBanner._cached_style and SpotlightBanner._cached_theme_id == theme_id:
+            self.setStyleSheet(SpotlightBanner._cached_style)
+            return
+
+        style = f"""
             #spotlightBanner {{
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
                     stop:0 {t.bg_surface}, stop:0.5 {t.bg_elevated}, stop:1 {t.accent_dim});
@@ -334,7 +355,10 @@ class SpotlightBanner(QFrame):
             QLabel#spotlightSubtitle {{
                 color: {t.text_secondary};
             }}
-        """)
+        """
+        SpotlightBanner._cached_style = style
+        SpotlightBanner._cached_theme_id = theme_id
+        self.setStyleSheet(style)
 
 
 class HomeScreen(QWidget):
@@ -578,6 +602,9 @@ class HomeScreen(QWidget):
                     
                     playlist_id = spotlight_item.get('playlistId')
                     browse_id = spotlight_item.get('browseId')
+                    if not playlist_id and browse_id and str(browse_id).startswith("VL"):
+                        playlist_id = browse_id
+                        browse_id = None
                     
                     on_explore = None
                     if playlist_id and self.on_navigate:
@@ -709,6 +736,9 @@ class HomeScreen(QWidget):
         video_id = item.get('videoId', '')
         playlist_id = item.get('playlistId', '')
         browse_id = item.get('browseId', '')
+        if not playlist_id and browse_id and str(browse_id).startswith("VL"):
+            playlist_id = browse_id
+            browse_id = ''
         
         artists = item.get('artists', [])
         if isinstance(artists, list):
@@ -735,9 +765,24 @@ class HomeScreen(QWidget):
             self._connect_card_signals(card)
             return card
         elif playlist_id:
+            author = item.get('author')
+            playlist_desc = ""
+            if isinstance(author, list):
+                playlist_desc = ", ".join([a.get('name', '') for a in author if isinstance(a, dict)])
+            elif isinstance(author, dict):
+                playlist_desc = author.get('name', '')
+            elif isinstance(author, str):
+                playlist_desc = author
+            
+            if not playlist_desc:
+                playlist_desc = item.get('description', '')
+                
+            if not playlist_desc or playlist_desc == 'Unknown':
+                playlist_desc = ""
+
             card = PlaylistCard(
                 title=str(title),
-                description=artist_names,
+                description=playlist_desc,
                 thumbnail_url=thumbnail_url,
                 is_downloaded=playlist_id in getattr(self, "downloaded_playlist_ids", set())
             )
@@ -823,6 +868,9 @@ class HomeScreen(QWidget):
                 self.content_layout.addWidget(section_widget)
             else:
                 section_widget.deleteLater()
+
+            # Ceder al event loop para que Qt procese eventos de UI entre secciones
+            await asyncio.sleep(0)
         
         self.content_layout.addStretch()
 

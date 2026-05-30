@@ -16,6 +16,12 @@ class YouTubeMusicClient:
         self._stream_cache = {}
         self._search_cache = {}
         self._search_time = {}
+        self._playlist_cache = {}
+        self._playlist_time = {}
+        self._album_cache = {}
+        self._album_time = {}
+        self._artist_cache = {}
+        self._artist_time = {}
         self._ytmusicapi = None          # authenticated instance (for library)
         self._ytmusicapi_public = None   # unauthenticated instance (for search/home/charts)
         self._is_authenticated = False
@@ -320,8 +326,22 @@ class YouTubeMusicClient:
             return {'items': []}
 
     async def get_playlist(self, playlist_id: str) -> dict:
-        """Get playlist details - uses public client."""
-        client = self._public
+        """Get playlist details - uses authenticated client if available, falls back to public."""
+        if not playlist_id:
+            return {}
+
+        # Strip the "VL" prefix from the browse ID if present, as ytmusicapi
+        # expects raw playlist IDs (e.g. starting with "PL" or "RD").
+        if playlist_id.startswith("VL"):
+            playlist_id = playlist_id[2:]
+
+        if playlist_id in self._playlist_cache:
+            age = time.time() - self._playlist_time.get(playlist_id, 0)
+            if age < 300:
+                logger.debug(f"Using cached playlist for '{playlist_id}'")
+                return self._playlist_cache[playlist_id]
+
+        client = self._ytmusicapi if (self._is_authenticated and self._ytmusicapi) else self._public
         if not client:
             return {}
 
@@ -330,15 +350,35 @@ class YouTubeMusicClient:
                 return client.get_playlist(playlist_id)
             except Exception as e:
                 logger.error(f"get_playlist error: {e}")
+                # Fall back to public client if the authenticated one failed
+                if client != self._public and self._public:
+                    try:
+                        logger.info("Falling back to public client for get_playlist...")
+                        return self._public.get_playlist(playlist_id)
+                    except Exception as e2:
+                        logger.error(f"get_playlist public fallback error: {e2}")
                 return {}
 
         try:
-            return await self._run(_get_playlist)
+            res = await self._run(_get_playlist)
+            if res and (res.get("tracks") or "title" in res):
+                self._playlist_cache[playlist_id] = res
+                self._playlist_time[playlist_id] = time.time()
+            return res
         except Exception:
             return {}
 
     async def get_album(self, browse_id: str) -> dict:
         """Get album details - uses public client."""
+        if not browse_id:
+            return {}
+
+        if browse_id in self._album_cache:
+            age = time.time() - self._album_time.get(browse_id, 0)
+            if age < 300:
+                logger.debug(f"Using cached album for '{browse_id}'")
+                return self._album_cache[browse_id]
+
         client = self._public
         if not client:
             return {}
@@ -351,12 +391,25 @@ class YouTubeMusicClient:
                 return {}
 
         try:
-            return await self._run(_get_album)
+            res = await self._run(_get_album)
+            if res and (res.get("tracks") or "title" in res):
+                self._album_cache[browse_id] = res
+                self._album_time[browse_id] = time.time()
+            return res
         except Exception:
             return {}
 
     async def get_artist(self, channel_id: str) -> dict:
         """Get artist details - uses public client."""
+        if not channel_id:
+            return {}
+
+        if channel_id in self._artist_cache:
+            age = time.time() - self._artist_time.get(channel_id, 0)
+            if age < 300:
+                logger.debug(f"Using cached artist for '{channel_id}'")
+                return self._artist_cache[channel_id]
+
         client = self._public
         if not client:
             return {}
@@ -369,7 +422,11 @@ class YouTubeMusicClient:
                 return {}
 
         try:
-            return await self._run(_get_artist)
+            res = await self._run(_get_artist)
+            if res and (res.get("songs") or "name" in res):
+                self._artist_cache[channel_id] = res
+                self._artist_time[channel_id] = time.time()
+            return res
         except Exception:
             return {}
 
@@ -431,6 +488,8 @@ class YouTubeMusicClient:
         if not self._is_authenticated or not self._ytmusicapi:
             return ""
 
+        self.invalidate_playlist_cache()
+
         def _create():
             try:
                 # Returns the playlistId as a string
@@ -448,6 +507,8 @@ class YouTubeMusicClient:
         """Add songs to a playlist - requires auth."""
         if not self._is_authenticated or not self._ytmusicapi:
             return {}
+
+        self.invalidate_playlist_cache(playlist_id)
 
         def _add():
             try:
@@ -486,7 +547,45 @@ class YouTubeMusicClient:
             auth_file.unlink()
         self._ytmusicapi = None
         self._is_authenticated = False
+        self.invalidate_playlist_cache()
+        self.invalidate_album_cache()
+        self.invalidate_artist_cache()
         logger.info("Logged out of YouTube")
+
+    def invalidate_playlist_cache(self, playlist_id: str = None):
+        """Invalidate the cache for a specific playlist or all playlists."""
+        if playlist_id:
+            if playlist_id.startswith("VL"):
+                playlist_id = playlist_id[2:]
+            self._playlist_cache.pop(playlist_id, None)
+            self._playlist_time.pop(playlist_id, None)
+            logger.debug(f"Invalidated cache for playlist '{playlist_id}'")
+        else:
+            self._playlist_cache.clear()
+            self._playlist_time.clear()
+            logger.debug("Cleared all playlist cache")
+
+    def invalidate_album_cache(self, browse_id: str = None):
+        """Invalidate the cache for a specific album or all albums."""
+        if browse_id:
+            self._album_cache.pop(browse_id, None)
+            self._album_time.pop(browse_id, None)
+            logger.debug(f"Invalidated cache for album '{browse_id}'")
+        else:
+            self._album_cache.clear()
+            self._album_time.clear()
+            logger.debug("Cleared all album cache")
+
+    def invalidate_artist_cache(self, channel_id: str = None):
+        """Invalidate the cache for a specific artist or all artists."""
+        if channel_id:
+            self._artist_cache.pop(channel_id, None)
+            self._artist_time.pop(channel_id, None)
+            logger.debug(f"Invalidated cache for artist '{channel_id}'")
+        else:
+            self._artist_cache.clear()
+            self._artist_time.clear()
+            logger.debug("Cleared all artist cache")
 
     async def search_suggestions(self, query: str) -> dict:
         """Get rich search suggestions - uses search API for top results."""

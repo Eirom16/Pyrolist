@@ -4,8 +4,7 @@ from PySide6.QtWidgets import QWidget
 from PySide6.QtCore import Qt, QVariantAnimation, QPointF, QEasingCurve
 from PySide6.QtGui import QPainter, QRadialGradient, QColor, QPainterPath
 
-import concurrent.futures
-_executor = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="ambient")
+from pyrolist.utils.thread_pool import CPU_POOL
 
 def extract_colors_from_image(image_data: bytes) -> list[QColor]:
     """Extrait 3 colores dominantes de los bytes de una imagen usando PIL."""
@@ -58,6 +57,7 @@ class AmbientBackgroundWidget(QWidget):
             AmbientBlob(QColor(20, 20, 20), 0.5, 0.5, 1.0)
         ]
         self._raw_colors = []
+        self._last_paint_time = 0.0  # throttle repaints to ~20fps
         
         self._anim = QVariantAnimation(self)
         self._anim.setDuration(15000) # 15 seconds for a full fluid movement cycle
@@ -83,6 +83,8 @@ class AmbientBackgroundWidget(QWidget):
             blob.target_y_ratio = random.uniform(0.1, 0.9)
 
     def _on_anim_step(self, val):
+        import time
+        now = time.monotonic()
         # Mover lentamente los blobs hacia su objetivo
         dt = 0.005
         reached_targets = 0
@@ -98,8 +100,11 @@ class AmbientBackgroundWidget(QWidget):
                 
         if reached_targets == len(self._blobs):
             self._generate_new_targets()
-            
-        self.update()
+
+        # Solo redibujar si han pasado al menos 50ms (20fps en vez de 60fps)
+        if now - self._last_paint_time >= 0.050:
+            self._last_paint_time = now
+            self.update()
 
     def _on_color_fade(self, progress: float):
         for blob in self._blobs:
@@ -160,7 +165,7 @@ class AmbientBackgroundWidget(QWidget):
                     self._set_colors(colors)
                 QTimer.singleShot(0, self, apply_colors)
 
-        future = _executor.submit(extract_colors_from_image, image_data)
+        future = CPU_POOL.submit(extract_colors_from_image, image_data)
         future.add_done_callback(on_done)
 
     def _set_colors(self, colors: list[QColor]):
