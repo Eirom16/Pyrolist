@@ -224,6 +224,17 @@ class QuickAccessTile(QWidget):
             self.clicked.emit()
         super().mousePressEvent(event)
 
+    def changeEvent(self, event) -> None:
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
+            if not getattr(self, '_in_style_change', False):
+                self._in_style_change = True
+                try:
+                    self._apply_style()
+                finally:
+                    self._in_style_change = False
+        super().changeEvent(event)
+
 
 class SpotlightBanner(QFrame):
     _cached_style: str | None = None
@@ -360,6 +371,56 @@ class SpotlightBanner(QFrame):
         SpotlightBanner._cached_theme_id = theme_id
         self.setStyleSheet(style)
 
+    def changeEvent(self, event) -> None:
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
+            if not getattr(self, '_in_style_change', False):
+                self._in_style_change = True
+                try:
+                    self._apply_style()
+                finally:
+                    self._in_style_change = False
+        super().changeEvent(event)
+
+
+class GenreButton(RippleButton):
+    def __init__(self, name: str, query: str, on_genre_click, parent=None):
+        super().__init__(name, "secondary", parent)
+        self._query = query
+        self._on_genre_click = on_genre_click
+        self.setFixedSize(150, 80)
+        self.clicked.connect(lambda: self._on_genre_click(self._query))
+        self._update_styles()
+
+    def _update_styles(self) -> None:
+        from pyrolist.ui.design import tokens
+        t = tokens.CURRENT
+        self.setStyleSheet(f"""
+            QPushButton {{
+                background: {t.bg_elevated};
+                color: {t.text_primary};
+                border: 1px solid {t.border};
+                border-radius: 12px;
+                font-size: 14px;
+                font-weight: 700;
+            }}
+            QPushButton:hover {{
+                background: {t.bg_high};
+                border-color: {t.accent}55;
+            }}
+        """)
+
+    def changeEvent(self, event) -> None:
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
+            if not getattr(self, '_in_style_change', False):
+                self._in_style_change = True
+                try:
+                    self._update_styles()
+                finally:
+                    self._in_style_change = False
+        super().changeEvent(event)
+
 
 class HomeScreen(QWidget):
     download_requested = Signal(str, str, str, str)
@@ -418,25 +479,7 @@ class HomeScreen(QWidget):
             self.on_navigate(f"search?query={query}")
 
     def _create_genre_card(self, name, query):
-        card = RippleButton(name, "secondary")
-        card.setFixedSize(150, 80)
-        from pyrolist.ui.design import tokens
-        card.setStyleSheet(f"""
-            QPushButton {{
-                background: {tokens.CURRENT.bg_elevated};
-                
-                border: 1px solid {tokens.CURRENT.border};
-                border-radius: 12px;
-                font-size: 14px;
-                font-weight: 700;
-            }}
-            QPushButton:hover {{
-                background: {tokens.CURRENT.bg_high};
-                border-color: {tokens.CURRENT.accent}55;
-            }}
-        """)
-        card.clicked.connect(lambda: self._on_genre_click(query))
-        return card
+        return GenreButton(name, query, self._on_genre_click)
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
