@@ -1,9 +1,17 @@
-import vlc
 import asyncio
 from enum import Enum
 from dataclasses import dataclass
 from typing import Callable
 from loguru import logger
+
+# Lazy loading of vlc library to prevent DLL import errors during startup
+_vlc = None
+def get_vlc():
+    global _vlc
+    if _vlc is None:
+        import vlc
+        _vlc = vlc
+    return _vlc
 
 
 class PlayerState(Enum):
@@ -29,14 +37,15 @@ class MusicPlayer:
     END_REACHED_DURATION_TOLERANCE_MS = 1500
 
     def __init__(self):
-        self._instance = vlc.Instance(
+        vlc_lib = get_vlc()
+        self._instance = vlc_lib.Instance(
             "--no-video",
             "--quiet",
             "--audio-resampler=soxr",
             "--network-caching=3000",
             "--live-caching=3000",
         )
-        self._player: vlc.MediaPlayer = self._instance.media_player_new()
+        self._player = self._instance.media_player_new()
         self._eq = None
         self.status = PlayerStatus()
         self._callbacks: dict[str, list[Callable]] = {
@@ -49,11 +58,11 @@ class MusicPlayer:
         self._poll_task: asyncio.Task | None = None
 
         em = self._player.event_manager()
-        em.event_attach(vlc.EventType.MediaPlayerEndReached, self._on_ended)
-        em.event_attach(vlc.EventType.MediaPlayerEncounteredError, self._on_error)
-        em.event_attach(vlc.EventType.MediaPlayerPlaying, self._on_playing)
-        em.event_attach(vlc.EventType.MediaPlayerPaused, self._on_paused)
-        em.event_attach(vlc.EventType.MediaPlayerBuffering, self._on_buffering)
+        em.event_attach(vlc_lib.EventType.MediaPlayerEndReached, self._on_ended)
+        em.event_attach(vlc_lib.EventType.MediaPlayerEncounteredError, self._on_error)
+        em.event_attach(vlc_lib.EventType.MediaPlayerPlaying, self._on_playing)
+        em.event_attach(vlc_lib.EventType.MediaPlayerPaused, self._on_paused)
+        em.event_attach(vlc_lib.EventType.MediaPlayerBuffering, self._on_buffering)
 
     # ─── REPRODUCCIÓN ─────────────────────────────────────────────────
 
@@ -80,7 +89,7 @@ class MusicPlayer:
             await asyncio.sleep(sleep_duration)
             
             state = self._player.get_state()
-            if state == vlc.State.Error:
+            if state == get_vlc().State.Error:
                 logger.error(f"VLC error playing {video_id}")
                 return False
             
@@ -104,9 +113,10 @@ class MusicPlayer:
     async def resume(self) -> None:
         state = self._player.get_state()
         logger.debug(f"resume() called, vlc_state={state}")
-        if state == vlc.State.Paused:
+        vlc_lib = get_vlc()
+        if state == vlc_lib.State.Paused:
             self._player.set_pause(0)
-        elif state == vlc.State.Ended or state == vlc.State.Stopped:
+        elif state == vlc_lib.State.Ended or state == vlc_lib.State.Stopped:
             self._player.play()
         else:
             # Try unpause regardless
@@ -144,10 +154,11 @@ class MusicPlayer:
 
     def apply_equalizer(self, preamp: float, bands: list[float]) -> None:
         try:
-            eq = vlc.libvlc_audio_equalizer_new()
-            vlc.libvlc_audio_equalizer_set_preamp(eq, preamp)
+            vlc_lib = get_vlc()
+            eq = vlc_lib.libvlc_audio_equalizer_new()
+            vlc_lib.libvlc_audio_equalizer_set_preamp(eq, preamp)
             for i, gain in enumerate(bands[:10]):
-                vlc.libvlc_audio_equalizer_set_amp_at_index(eq, gain, i)
+                vlc_lib.libvlc_audio_equalizer_set_amp_at_index(eq, gain, i)
             self._player.set_equalizer(eq)
             self._eq = eq
             logger.debug(f"EQ applied: preamp={preamp}, bands={bands}")
@@ -182,6 +193,7 @@ class MusicPlayer:
                 logger.error(f"Player callback error [{event}]: {e}")
 
     async def _poll_position(self) -> None:
+        vlc_lib = get_vlc()
         while True:
             await asyncio.sleep(0.5)
             if self._player.is_playing():
@@ -196,7 +208,7 @@ class MusicPlayer:
                     if dur > 0:
                         self.status.duration_ms = dur
                     self._notify("position_changed", self.status)
-            elif self._player.get_state() == vlc.State.Paused:
+            elif self._player.get_state() == vlc_lib.State.Paused:
                 if self.status.state != PlayerState.PAUSED:
                     logger.debug(f"Self-correcting player state from {self.status.state} to PAUSED")
                     self.status.state = PlayerState.PAUSED

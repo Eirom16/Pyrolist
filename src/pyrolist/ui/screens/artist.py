@@ -57,7 +57,9 @@ class ArtistScreen(QWidget):
             if item.widget():
                 item.widget().deleteLater()
             elif item.layout():
-                self._clear_layout(item.layout())
+                sub_layout = item.layout()
+                self._clear_layout(sub_layout)
+                sub_layout.deleteLater()
 
     def _clear_layout(self, layout):
         while layout.count():
@@ -65,7 +67,9 @@ class ArtistScreen(QWidget):
             if child.widget():
                 child.widget().deleteLater()
             elif child.layout():
-                self._clear_layout(child.layout())
+                sub_layout = child.layout()
+                self._clear_layout(sub_layout)
+                sub_layout.deleteLater()
 
     async def load(self, channel_id: str):
         if not channel_id:

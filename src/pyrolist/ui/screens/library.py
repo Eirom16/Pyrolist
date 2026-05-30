@@ -423,8 +423,9 @@ class LibraryScreen(QWidget):
             if item.widget():
                 item.widget().deleteLater()
             elif item.layout():
-                # Recursively delete layouts if present
-                self._clear_sub_layout(item.layout())
+                sub_layout = item.layout()
+                self._clear_sub_layout(sub_layout)
+                sub_layout.deleteLater()
 
     def _clear_sub_layout(self, layout):
         if layout is not None:
@@ -433,7 +434,9 @@ class LibraryScreen(QWidget):
                 if item.widget():
                     item.widget().deleteLater()
                 elif item.layout():
-                    self._clear_sub_layout(item.layout())
+                    sub_layout = item.layout()
+                    self._clear_sub_layout(sub_layout)
+                    sub_layout.deleteLater()
 
     def _fade_in_content(self):
         """Smooth fade-in animation when content finishes loading."""

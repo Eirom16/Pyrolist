@@ -1,3 +1,25 @@
+import sys
+import os
+
+# Forzar renderizado por software en Linux para evitar fallos de GLX/EGL/Wayland
+# tanto en entornos sin pantalla física/Wayland como en el sandbox del AppImage.
+if sys.platform.startswith('linux'):
+    os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
+    os.environ.setdefault("QT_QUICK_BACKEND", "software")
+    os.environ.setdefault("QT_RHI_BACKEND", "software")
+    os.environ.setdefault("QT_XCB_GL_INTEGRATION", "none")
+    os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", "--disable-gpu")
+
+# Monkey-patch gettext to prevent FileNotFoundError when translation files (e.g. ytmusicapi) are missing
+import gettext
+orig_translation = gettext.translation
+def patched_translation(*args, **kwargs):
+    try:
+        return orig_translation(*args, **kwargs)
+    except FileNotFoundError:
+        return gettext.NullTranslations()
+gettext.translation = patched_translation
+
 # Monkey-patch to fix PySide6 6.7+ event dispatcher compatibility with qasync
 try:
     from PySide6.QtCore import QAbstractEventDispatcher, QEventLoop
@@ -15,7 +37,6 @@ try:
 except Exception:
     pass
 
-import sys
 import subprocess
 
 # Prevenir parpadeo de ventanas de consola secundarias en Windows
