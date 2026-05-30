@@ -68,3 +68,7 @@ Thumbs.db
 !README.md
 !README.MD
 
+# Módulos nativos compilados (se recompilan localmente)
+src/pyrolist/native/*.so
+src/pyrolist/native/*.o
+

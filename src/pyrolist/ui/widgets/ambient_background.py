@@ -6,33 +6,48 @@ from PySide6.QtGui import QPainter, QRadialGradient, QColor, QPainterPath
 
 from pyrolist.utils.thread_pool import CPU_POOL
 
+try:
+    from pyrolist.native.bindings import (
+        extract_n_colors_native as _extract_native,
+        update_blobs_native as _blobs_native,
+        _NATIVE_AVAILABLE,
+    )
+except ImportError:
+    _extract_native = None
+    _blobs_native = None
+    _NATIVE_AVAILABLE = False
+
 def extract_colors_from_image(image_data: bytes) -> list[QColor]:
-    """Extrait 3 colores dominantes de los bytes de una imagen usando PIL."""
+    """Extrae 3 colores dominantes. Usa C si está disponible, Python como fallback."""
+
+    # ── Intento con módulo nativo C ───────────────────────────────────────────
+    if _NATIVE_AVAILABLE and _extract_native is not None:
+        try:
+            rgb_list = _extract_native(image_data, n_colors=3, resize_to=30)
+            if rgb_list and len(rgb_list) == 3:
+                return [QColor(r, g, b) for r, g, b in rgb_list]
+        except Exception:
+            pass  # caer al fallback Python
+
+    # ── Fallback Python original (código sin cambios) ─────────────────────────
     try:
         from PIL import Image
         import io
         img = Image.open(io.BytesIO(image_data))
         img = img.convert("RGB")
-        
-        # Redimensionar a muy pequeño para promediar zonas
         img = img.resize((3, 3), Image.Resampling.LANCZOS)
-        
-        # Obtener color predominante de diferentes áreas
         pixels = img.load()
-        c1 = pixels[0, 0] # top-left
-        c2 = pixels[2, 2] # bottom-right
-        c3 = pixels[1, 1] # center
-        
-        # Asegurarse de que no sean idénticos, o agregar algo de variación
+        c1 = pixels[0, 0]
+        c2 = pixels[2, 2]
+        c3 = pixels[1, 1]
         return [
             QColor(c1[0], c1[1], c1[2]),
             QColor(c2[0], c2[1], c2[2]),
-            QColor(c3[0], c3[1], c3[2])
+            QColor(c3[0], c3[1], c3[2]),
         ]
     except Exception as e:
         from loguru import logger
         logger.warning(f"Error extracting colors: {e}")
-        # Colores por defecto si falla
         return [QColor(20, 20, 20), QColor(40, 40, 40), QColor(30, 30, 30)]
 
 class AmbientBlob:
@@ -84,27 +99,49 @@ class AmbientBackgroundWidget(QWidget):
 
     def _on_anim_step(self, val):
         import time
+
+        # ── Throttle a 20fps (los blobs se mueven en 15s, imperceptible a 60fps) ──
         now = time.monotonic()
-        # Mover lentamente los blobs hacia su objetivo
+        if not hasattr(self, '_last_paint_time'):
+            self._last_paint_time = 0.0
+        if now - self._last_paint_time < 0.050:  # 50ms = 20fps
+            return
+        self._last_paint_time = now
+
+        # ── Intento con módulo nativo C ───────────────────────────────────────────
+        if _NATIVE_AVAILABLE and _blobs_native is not None:
+            try:
+                xs  = [b.x_ratio for b in self._blobs]
+                ys  = [b.y_ratio for b in self._blobs]
+                txs = [b.target_x_ratio for b in self._blobs]
+                tys = [b.target_y_ratio for b in self._blobs]
+
+                result = _blobs_native(xs, ys, txs, tys, dt=0.005, threshold_sq=0.0025)
+                if result is not None:
+                    new_xs, new_ys, reached = result
+                    for i, blob in enumerate(self._blobs):
+                        blob.x_ratio = new_xs[i]
+                        blob.y_ratio = new_ys[i]
+                    if reached == len(self._blobs):
+                        self._generate_new_targets()
+                    self.update()
+                    return
+            except Exception:
+                pass  # caer al fallback Python
+
+        # ── Fallback Python original (código sin cambios) ─────────────────────────
         dt = 0.005
         reached_targets = 0
         for blob in self._blobs:
             dx = blob.target_x_ratio - blob.x_ratio
             dy = blob.target_y_ratio - blob.y_ratio
-            
             blob.x_ratio += dx * dt
             blob.y_ratio += dy * dt
-            
             if abs(dx) < 0.05 and abs(dy) < 0.05:
                 reached_targets += 1
-                
         if reached_targets == len(self._blobs):
             self._generate_new_targets()
-
-        # Solo redibujar si han pasado al menos 50ms (20fps en vez de 60fps)
-        if now - self._last_paint_time >= 0.050:
-            self._last_paint_time = now
-            self.update()
+        self.update()
 
     def _on_color_fade(self, progress: float):
         for blob in self._blobs:

@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-
-from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
-
+from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget, QFileDialog
 from pyrolist.config.paths import AppDirs
 from pyrolist.ui.screens.settings.components import SettingsRow, SettingsSection, page_title
 from pyrolist.ui.widgets.ripple_button import RippleButton
+from pyrolist.utils.i18n import _
 
 
 class StorageSettingsScreen(QWidget):
@@ -19,22 +18,35 @@ class StorageSettingsScreen(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-        layout.addWidget(page_title("Almacenamiento"))
+        layout.addWidget(page_title(_("Almacenamiento")))
 
-        usage = SettingsSection("Uso")
-        usage.add_row(SettingsRow("Base de datos", "Historial y biblioteca local", self._metric(AppDirs.database)))
-        usage.add_row(SettingsRow("Cache", "Imagenes y datos temporales", self._metric(AppDirs.cache)))
-        usage.add_row(SettingsRow("Descargas", "Canciones guardadas offline", self._metric(AppDirs.downloads)))
+        usage = SettingsSection(_("Uso"))
+        usage.add_row(SettingsRow(_("Base de datos"), _("Historial y biblioteca local"), self._metric(AppDirs.database)))
+        usage.add_row(SettingsRow(_("Cache"), _("Imagenes y datos temporales"), self._metric(AppDirs.cache)))
+        usage.add_row(SettingsRow(_("Descargas"), _("Canciones guardadas offline"), self._metric(AppDirs.downloads)))
         layout.addWidget(usage)
 
-        actions = SettingsSection("Limpieza")
-        clear_cache = RippleButton("Limpiar cache", "secondary")
+        actions = SettingsSection(_("Limpieza"))
+        clear_cache = RippleButton(_("Limpiar cache"), "secondary")
         clear_cache.clicked.connect(self._clear_cache)
-        actions.add_row(SettingsRow("Cache", "Elimina archivos temporales", clear_cache))
-        clear_downloads = RippleButton("Eliminar descargas", "danger")
+        actions.add_row(SettingsRow(_("Cache"), _("Elimina archivos temporales"), clear_cache))
+        clear_downloads = RippleButton(_("Eliminar descargas"), "danger")
         clear_downloads.clicked.connect(self._clear_downloads)
-        actions.add_row(SettingsRow("Descargas", "Elimina los archivos descargados", clear_downloads))
+        actions.add_row(SettingsRow(_("Descargas"), _("Elimina los archivos descargados"), clear_downloads))
         layout.addWidget(actions)
+
+        # Nueva sección: Copias de seguridad
+        backups = SettingsSection(_("Copia de seguridad"))
+        
+        btn_export = RippleButton(_("Exportar copia"), "primary")
+        btn_export.clicked.connect(self._export_backup)
+        backups.add_row(SettingsRow(_("Exportar"), _("Exporta tu biblioteca y configuraciones en un zip"), btn_export))
+        
+        btn_import = RippleButton(_("Restaurar copia"), "secondary")
+        btn_import.clicked.connect(self._import_backup)
+        backups.add_row(SettingsRow(_("Restaurar"), _("Restaura tu biblioteca y configuraciones desde un zip"), btn_import))
+        
+        layout.addWidget(backups)
         layout.addStretch()
 
     def _metric(self, path: Path) -> QLabel:
@@ -56,11 +68,54 @@ class StorageSettingsScreen(QWidget):
         for file in AppDirs.cache.glob("*"):
             if file.is_file():
                 file.unlink()
+        from pyrolist.ui.widgets.toast import ToastNotification
+        ToastNotification.show(self, _("Caché limpiada con éxito"), "success")
 
     def _clear_downloads(self) -> None:
         for file in AppDirs.downloads.glob("*"):
             if file.is_file():
                 file.unlink()
+        from pyrolist.ui.widgets.toast import ToastNotification
+        ToastNotification.show(self, _("Descargas eliminadas con éxito"), "success")
+
+    def _export_backup(self) -> None:
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            _("Exportar copia de seguridad"),
+            str(Path.home() / "pyrolist_backup.zip"),
+            "Zip Files (*.zip)"
+        )
+        if file_path:
+            from pyrolist.utils.backup import BackupManager
+            from pyrolist.ui.widgets.toast import ToastNotification
+            
+            success = BackupManager.export_backup(Path(file_path))
+            if success:
+                ToastNotification.show(self, _("Copia de seguridad exportada con éxito"), "success")
+            else:
+                ToastNotification.show(self, _("Error al exportar copia de seguridad"), "error")
+
+    def _import_backup(self) -> None:
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            _("Importar copia de seguridad"),
+            str(Path.home()),
+            "Zip Files (*.zip)"
+        )
+        if file_path:
+            import asyncio
+            from pyrolist.utils.backup import BackupManager
+            from pyrolist.ui.widgets.toast import ToastNotification
+            
+            async def run_import():
+                toast = ToastNotification.show(self, _("Restaurando copia de seguridad..."), "info")
+                success = await BackupManager.import_backup_async(Path(file_path))
+                if success:
+                    ToastNotification.show(self, _("Copia de seguridad restaurada. Por favor reinicia la aplicación."), "success")
+                else:
+                    ToastNotification.show(self, _("Error al restaurar la copia de seguridad"), "error")
+                    
+            asyncio.create_task(run_import())
 
     def _update_metric_labels_style(self) -> None:
         if not hasattr(self, "_metric_labels"):

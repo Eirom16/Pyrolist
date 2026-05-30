@@ -68,17 +68,40 @@ class AppSettings(BaseModel):
 
     def save(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
+        
         data = self.model_dump(exclude_none=True)
+        
+        # Exclude secrets from the saved settings.toml file
+        if "integrations" in data:
+            data["integrations"].pop("lastfm_api_key", None)
+            data["integrations"].pop("lastfm_api_secret", None)
+            data["integrations"].pop("lastfm_session_key", None)
+            
         with open(path, "wb") as f:
             tomli_w.dump(data, f)
 
     @classmethod
     def load(cls, path: Path) -> AppSettings:
-        if not path.exists():
-            return cls()
+        settings = cls()
+        if path.exists():
+            try:
+                with open(path, "rb") as f:
+                    data = tomllib.load(f)
+                settings = cls(**data)
+            except Exception:
+                pass
+                
+        # Load Last.fm credentials securely from keyring
         try:
-            with open(path, "rb") as f:
-                data = tomllib.load(f)
-            return cls(**data)
+            from pyrolist.utils.secure_storage import SecureStorage
+            api_key, api_secret, session_key = SecureStorage.load_lastfm_credentials()
+            if api_key:
+                settings.integrations.lastfm_api_key = api_key
+            if api_secret:
+                settings.integrations.lastfm_api_secret = api_secret
+            if session_key:
+                settings.integrations.lastfm_session_key = session_key
         except Exception:
-            return cls()
+            pass
+            
+        return settings

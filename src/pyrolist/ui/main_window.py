@@ -146,7 +146,7 @@ class MainWindow(QMainWindow):
                 return False
 
         self._shortcut_filter = GlobalShortcutFilter(self)
-        QApplication.instance().installEventFilter(self._shortcut_filter)
+        self.installEventFilter(self._shortcut_filter)
 
         # Verificar actualizaciones 10 segundos después de arrancar
         # (no al instante para no retrasar la carga inicial)
@@ -1895,6 +1895,17 @@ class MainWindow(QMainWindow):
         new_qss = new_qss.replace('167, 139, 250', f"{r}, {g}, {b}")
         new_qss = new_qss.replace('139,92,246', f"{dark_r},{dark_g},{dark_b}")
         new_qss = new_qss.replace('139, 92, 246', f"{dark_r}, {dark_g}, {dark_b}")
+
+        # Replace like color dynamically
+        new_qss = new_qss.replace('#FF4A70', tokens.CURRENT.like_color)
+        new_qss = new_qss.replace('#ff4a70', tokens.CURRENT.like_color.lower())
+        try:
+            lc = QColor(tokens.CURRENT.like_color)
+            if lc.isValid():
+                new_qss = new_qss.replace('255, 74, 112', f"{lc.red()}, {lc.green()}, {lc.blue()}")
+                new_qss = new_qss.replace('255,74,112', f"{lc.red()},{lc.green()},{lc.blue()}")
+        except Exception:
+            pass
 
         # Replace base dark background & text colors with dynamic values
         new_qss = new_qss.replace('#0A0A14', tokens.CURRENT.bg_base)

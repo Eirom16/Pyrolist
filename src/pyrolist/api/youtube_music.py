@@ -38,16 +38,25 @@ class YouTubeMusicClient:
             logger.warning(f"Failed to init public ytmusicapi: {e}")
 
     def _load_auth_session(self):
-        """Load auth session from browser cookies (headers_auth.json)."""
-        auth_file = AppDirs.config / "headers_auth.json"
+        """Load auth session securely using SecureStorage."""
+        from pyrolist.utils.secure_storage import SecureStorage
         
-        if auth_file.exists():
+        path, temp_file = SecureStorage.make_secure_temp_auth_file()
+        if path:
             try:
-                self._setup_ytmusicapi(str(auth_file))
-                logger.info("ytmusicapi initialized from browser cookies (headers_auth.json)")
+                self._setup_ytmusicapi(path)
+                logger.info("ytmusicapi initialized securely from keyring/secure credentials")
             except Exception as e:
                 logger.error(f"Failed to load browser cookies: {e}")
                 self._is_authenticated = False
+            finally:
+                if temp_file and temp_file.exists():
+                    try:
+                        temp_file.unlink()
+                    except Exception as ex:
+                        logger.warning(f"Could not delete secure temp auth file: {ex}")
+        else:
+            self._is_authenticated = False
 
     def _setup_ytmusicapi(self, auth_path: str):
         """Setup ytmusicapi with the given auth file."""
@@ -84,8 +93,7 @@ class YouTubeMusicClient:
         return self._stream_cache.get(video_id, "")
 
     async def _run(self, func):
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(self._executor, func)
+        return await asyncio.to_thread(func)
 
 
 
@@ -541,10 +549,9 @@ class YouTubeMusicClient:
             return False
 
     def logout(self) -> None:
-        """Clear auth session and reset auth state."""
-        auth_file = AppDirs.config / "headers_auth.json"
-        if auth_file.exists():
-            auth_file.unlink()
+        """Clear auth session and reset auth state securely."""
+        from pyrolist.utils.secure_storage import SecureStorage
+        SecureStorage.delete_youtube_headers()
         self._ytmusicapi = None
         self._is_authenticated = False
         self.invalidate_playlist_cache()

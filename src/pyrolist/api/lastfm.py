@@ -1,5 +1,4 @@
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
 import pylast
 from loguru import logger
 
@@ -14,7 +13,6 @@ class LastFmScrobbler:
             api_secret=api_secret,
             session_key=session_key,
         )
-        self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="lastfm")
 
     def _now_playing(self, artist: str, title: str, album: str = "") -> None:
         try:
@@ -31,15 +29,13 @@ class LastFmScrobbler:
     async def update_now_playing(
         self, artist: str, title: str, album: str = ""
     ) -> None:
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(
-            self._executor, self._now_playing, artist, title, album
-        )
+        # Use asyncio.to_thread instead of loop.run_in_executor to avoid qasync cancellation SIGSEGV bugs
+        await asyncio.to_thread(self._now_playing, artist, title, album)
 
     async def scrobble(
         self, artist: str, title: str, album: str = ""
     ) -> None:
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(
-            self._executor, self._scrobble, artist, title, int(__import__("time").time()), album
+        # Use asyncio.to_thread instead of loop.run_in_executor to avoid qasync cancellation SIGSEGV bugs
+        await asyncio.to_thread(
+            self._scrobble, artist, title, int(__import__("time").time()), album
         )

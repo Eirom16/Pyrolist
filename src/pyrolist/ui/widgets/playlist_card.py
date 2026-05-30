@@ -193,6 +193,15 @@ class PlaylistCard(QWidget):
                 self.clicked.emit()
         super().mousePressEvent(event)
 
+    def paintEvent(self, event) -> None:
+        from PySide6.QtWidgets import QStyle, QStyleOption
+        from PySide6.QtGui import QPainter
+        opt = QStyleOption()
+        opt.initFrom(self)
+        painter = QPainter(self)
+        self.style().drawPrimitive(QStyle.PrimitiveElement.PE_Widget, opt, painter, self)
+        super().paintEvent(event)
+
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
         if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):

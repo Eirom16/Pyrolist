@@ -1,5 +1,4 @@
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
 import syncedlyrics
 from loguru import logger
 
@@ -7,7 +6,7 @@ from loguru import logger
 class LyricsClient:
 
     def __init__(self):
-        self._executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="lyrics")
+        pass
 
     def _clean_metadata(self, title: str, artist: str) -> tuple[str, str]:
         import re
@@ -48,13 +47,11 @@ class LyricsClient:
 
     async def get_lyrics(
         self, title: str, artist: str, album: str = ""
-    ) -> syncedlyrics.Lyrics | None:
-        loop = asyncio.get_running_loop()
+    ) -> str | None:
         try:
+            # Use asyncio.to_thread instead of loop.run_in_executor to avoid qasync cancellation SIGSEGV bugs
             return await asyncio.wait_for(
-                loop.run_in_executor(
-                    self._executor, self._sync_search, title, artist, album
-                ),
+                asyncio.to_thread(self._sync_search, title, artist, album),
                 timeout=10.0
             )
         except asyncio.TimeoutError:
@@ -62,12 +59,10 @@ class LyricsClient:
             return None
 
     async def get_plain_lyrics(self, title: str, artist: str) -> str | None:
-        loop = asyncio.get_running_loop()
         try:
+            # Use asyncio.to_thread instead of loop.run_in_executor to avoid qasync cancellation SIGSEGV bugs
             return await asyncio.wait_for(
-                loop.run_in_executor(
-                    self._executor, self._sync_search, title, artist
-                ),
+                asyncio.to_thread(self._sync_search, title, artist),
                 timeout=10.0
             )
         except asyncio.TimeoutError:

@@ -10,25 +10,41 @@ QLabel[textRole="secondary"] { color: #9B9BC0; background: transparent; }
 SongCard QLabel#thumbnail_placeholder { background: #1E1E38; color: #9B9BC0; border-radius: 8px; }
 SongCard QLabel#thumbnail_image { background: transparent; border-radius: 8px; }
 SongCard IconButton#btn_like[liked="false"] {
+    background-color: transparent;
     color: #9B9BC0;
+    border: none;
+    border-radius: 20px;
 }
 SongCard IconButton#btn_like[liked="false"]:hover {
-    background-color: rgba(167,139,250,0.15); /* like_color hover */
+    background-color: rgba(255, 74, 112, 0.15);
+    color: #FF4A70;
+}
+SongCard IconButton#btn_like[liked="true"] {
+    color: #FF4A70;
+    background: transparent;
+    border: none;
+    border-radius: 20px;
+}
+SongCard IconButton#btn_like[liked="true"]:hover {
+    background-color: rgba(255, 74, 112, 0.15);
 }
 SongCard IconButton#btn_play {
+    background-color: transparent;
     color: #F1F0FF;
+    border: none;
+    border-radius: 20px;
 }
 SongCard IconButton#btn_play:hover {
     background-color: rgba(167, 139, 250, 0.15);
     color: #A78BFA;
 }
 SongCard QPushButton#menu_btn {
+    background: transparent;
     color: #9B9BC0;
     border: none;
-    background: transparent;
-    border-radius: 16px;
-    font-size: 22px;
+    border-radius: 20px;
     font-family: 'Material Symbols Rounded';
+    font-size: 26px;
 }
 SongCard QPushButton#menu_btn:hover {
     background-color: rgba(167, 139, 250, 0.15);
@@ -385,6 +401,7 @@ QLabel#libraryEmptyMessage {
 #songCard {
     background-color: transparent;
     border-radius: 12px;
+    padding: 6px;
 }
 
 #songCard:hover {

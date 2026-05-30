@@ -43,6 +43,19 @@
 
 ---
 
+## ⚡ Aceleración nativa (opcional)
+
+Pyrolist incluye módulos C opcionales que aceleran el procesamiento de imágenes y las animaciones del fondo. Para activarlos:
+
+```bash
+cd src/pyrolist/native
+make
+```
+
+La app funciona perfectamente sin compilarlos — simplemente usa Python puro.
+
+---
+
 ## 🎨 Diseñado para la Elegancia
 
 Pyrolist ha sido creado con una estética **Premium**, combinando colores vibrantes con una interfaz minimalista que hace que navegar por tu música sea un placer visual.

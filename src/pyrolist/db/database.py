@@ -62,10 +62,14 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def get_session():
+    import asyncio
     factory = await get_session_factory()
     session = factory()
     try:
         yield session
     finally:
-        await session.close()
+        try:
+            await asyncio.shield(session.close())
+        except Exception:
+            pass
 

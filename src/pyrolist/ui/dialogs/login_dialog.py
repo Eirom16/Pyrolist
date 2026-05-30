@@ -172,9 +172,8 @@ class WebLoginDialog(QDialog):
             "authorization": "SAPISIDHASH 1"  # ytmusicapi 1.12+ needs this to detect AuthType.BROWSER
         }
 
-        auth_file = AppDirs.config / "headers_auth.json"
-        with open(auth_file, "w") as f:
-            json.dump(headers, f, indent=4)
+        from pyrolist.utils.secure_storage import SecureStorage
+        SecureStorage.save_youtube_headers(headers)
 
         # Save user profile
         profile_file = AppDirs.config / "user_profile.json"

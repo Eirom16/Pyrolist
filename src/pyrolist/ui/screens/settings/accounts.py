@@ -119,9 +119,8 @@ class AccountsSettingsScreen(QWidget):
         except Exception:
             pass
 
-        auth_file = AppDirs.config / "headers_auth.json"
-        if auth_file.exists():
-            auth_file.unlink()
+        from pyrolist.utils.secure_storage import SecureStorage
+        SecureStorage.delete_youtube_headers()
             
         profile_file = AppDirs.config / "user_profile.json"
         if profile_file.exists():
@@ -196,6 +195,10 @@ class AccountsSettingsScreen(QWidget):
         self._update_lastfm_rows()
 
     def _on_lastfm_disconnect(self) -> None:
+        from pyrolist.utils.secure_storage import SecureStorage
+        SecureStorage.delete_lastfm_credentials()
+        self.settings.integrations.lastfm_api_key = ""
+        self.settings.integrations.lastfm_api_secret = ""
         self._set_integration("lastfm_session_key", "")
         from pyrolist.ui.widgets.toast import ToastNotification
         ToastNotification.show(self, "Cuenta de Last.fm desconectada con éxito", "success")
@@ -241,6 +244,8 @@ class AccountsSettingsScreen(QWidget):
             session_key = await loop.run_in_executor(None, do_auth)
             
             if session_key:
+                from pyrolist.utils.secure_storage import SecureStorage
+                SecureStorage.save_lastfm_credentials(api_key, api_secret, session_key)
                 self.settings.integrations.lastfm_api_key = api_key
                 self.settings.integrations.lastfm_api_secret = api_secret
                 self.settings.integrations.lastfm_session_key = session_key

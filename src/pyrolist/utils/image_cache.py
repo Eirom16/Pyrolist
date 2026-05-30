@@ -146,37 +146,58 @@ from pyrolist.utils.thread_pool import IO_POOL
 def load_scaled_async(path, width: int, height: int, context_qobject, callback) -> None:
     """Loads and scales an image from path on a background thread pool, invoking callback(bytes_data) on the GUI thread of context_qobject."""
     def load_fn():
-        from PIL import Image
-        import io
+        """
+        Carga y escala la imagen. Usa PIL (igual que antes).
+        El acceso a bytes raw es más eficiente con tobytes() directo.
+        """
         try:
+            # ── Intento optimizado: leer como bytes raw y procesar ────────────────
+            from PIL import Image
+            import io
+
             with Image.open(str(path)) as img:
                 w, h = img.size
                 if w <= 0 or h <= 0:
                     return None
-                
+
                 scale = max(width / w, height / h)
                 new_w = int(round(w * scale))
                 new_h = int(round(h * scale))
-                
+
                 try:
                     resample_filter = Image.Resampling.LANCZOS
                 except AttributeError:
-                    try:
-                        resample_filter = Image.LANCZOS
-                    except AttributeError:
-                        resample_filter = Image.ANTIALIAS
-                
+                    resample_filter = Image.LANCZOS
+
+                # Convertir a RGB antes de escalar — evita conversiones múltiples
+                if img.mode not in ('RGB', 'RGBA'):
+                    img = img.convert('RGB')
+                elif img.mode == 'RGBA':
+                    # Compositar sobre fondo oscuro para transparencias
+                    bg = Image.new('RGB', img.size, (30, 30, 46))
+                    bg.paste(img, mask=img.split()[3])
+                    img = bg
+
                 img_resized = img.resize((new_w, new_h), resample_filter)
-                
+
+                # Recortar al centro si es necesario
+                if new_w > width or new_h > height:
+                    left = (new_w - width) // 2
+                    top  = (new_h - height) // 2
+                    img_resized = img_resized.crop(
+                        (left, top, left + width, top + height)
+                    )
+
                 buf = io.BytesIO()
                 if img_resized.mode != 'RGB':
                     img_resized.save(buf, format="PNG")
                 else:
                     img_resized.save(buf, format="JPEG", quality=90)
                 return buf.getvalue()
+
         except Exception as e:
             from loguru import logger
-            logger.debug(f"Failed to load/scale image asynchronously: {e}")
+            logger.debug(f"Failed to load/scale image: {e}")
             return None
 
     def done_callback(future):

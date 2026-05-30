@@ -15,6 +15,7 @@ from pyrolist.ui.widgets.album_card import AlbumCard
 from pyrolist.ui.widgets.artist_card import ArtistCard
 from pyrolist.ui.widgets.playlist_card import PlaylistCard
 from pyrolist.ui.widgets.skeleton_loader import SkeletonListLoader
+from pyrolist.db.repository import DownloadRepository, SongRepository
 
 
 class LibraryScreen(QWidget):
@@ -32,6 +33,7 @@ class LibraryScreen(QWidget):
         self.on_navigate = on_navigate
         self._current_tab = "songs"
         self._current_tab_task = None
+        self._currently_rendered_tab = None
         self._library_cache = {}
         self._library_cache_time = {}
         self._build_ui()
@@ -156,6 +158,18 @@ class LibraryScreen(QWidget):
         self._current_tab_task = asyncio.create_task(self._load_tab(key))
 
     async def load(self):
+        import time
+        cache_age = time.time() - self._library_cache_time.get(self._current_tab, 0)
+        
+        # ── OBTENCIÓN INSTANTÁNEA SI YA ESTÁ PINTADO Y ES RECIENTE ────────────────
+        if (
+            getattr(self, "_currently_rendered_tab", None) == self._current_tab
+            and self._current_tab in self._library_cache
+            and cache_age < 300
+        ):
+            logger.debug(f"El tab '{self._current_tab}' ya está pintado y es reciente (< 300s). Evitando recarga.")
+            return
+
         if self._current_tab_task and not self._current_tab_task.done():
             self._current_tab_task.cancel()
         self._current_tab_task = asyncio.create_task(self._load_tab(self._current_tab))
@@ -167,12 +181,23 @@ class LibraryScreen(QWidget):
             raise
 
     async def _load_tab(self, tab):
+        import time
+        cache_age = time.time() - self._library_cache_time.get(tab, 0)
+
+        # ── OBTENCIÓN INSTANTÁNEA SI YA ESTÁ PINTADO Y ES RECIENTE ────────────────
+        if (
+            getattr(self, "_currently_rendered_tab", None) == tab
+            and tab in self._library_cache
+            and cache_age < 300
+        ):
+            logger.debug(f"El tab '{tab}' ya está renderizado y fresco. Evitando recarga.")
+            return
+
         # 1. Clear content and show the skeleton loader
         self._clear_content()
         self.content_layout.addWidget(SkeletonListLoader(row_count=7))
 
         try:
-            from pyrolist.db.repository import DownloadRepository
             dl_repo = DownloadRepository()
             downloads = await dl_repo.get_downloads()
             self.downloaded_playlist_ids = {d.parent_playlist_id for d in downloads if d.parent_playlist_id}
@@ -188,25 +213,23 @@ class LibraryScreen(QWidget):
             msg.setObjectName("libraryEmptyMessage")
             self.content_layout.addWidget(msg)
             self.content_layout.addStretch()
+            self._currently_rendered_tab = tab
             return
 
         try:
             from pyrolist.ui.design import tokens
-            import time
-            cache_age = time.time() - self._library_cache_time.get(tab, 0)
 
             # 2. Perform async fetch or load from cache while skeleton is active
             if tab == "songs":
                 liked_songs_data = None
                 if self.yt and self.yt.is_authenticated:
-                    if tab in self._library_cache and cache_age < 30:
+                    if tab in self._library_cache and cache_age < 300:
                         liked_songs_data = self._library_cache[tab]
                     else:
                         liked_songs_data = await self.yt.get_liked_songs(limit=50)
                         self._library_cache[tab] = liked_songs_data
                         self._library_cache_time[tab] = time.time()
                 
-                from pyrolist.db.repository import SongRepository
                 repo = SongRepository()
                 db_songs = await repo.get_liked_songs()
                 
@@ -256,7 +279,9 @@ class LibraryScreen(QWidget):
                     header.setObjectName("libraryHeader")
                     self.content_layout.addWidget(header)
                     
-                    for track in combined_tracks:
+                    # Pintar en chunks para no congelar la UI
+                    chunk_size = 5
+                    for i, track in enumerate(combined_tracks):
                         card = SongCard(
                             title=track['title'],
                             artist=track['artist'],
@@ -268,6 +293,9 @@ class LibraryScreen(QWidget):
                         )
                         self._connect_card_signals(card)
                         self.content_layout.addWidget(card)
+                        
+                        if (i + 1) % chunk_size == 0:
+                            await asyncio.sleep(0) # cede control al event loop de Qt
                 else:
                     msg = QLabel("No tienes canciones guardadas\n\nLas canciones que reproduzcas aparecerán aquí")
                     msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -275,7 +303,7 @@ class LibraryScreen(QWidget):
                     self.content_layout.addWidget(msg)
 
             elif tab == "albums":
-                if tab in self._library_cache and cache_age < 30:
+                if tab in self._library_cache and cache_age < 300:
                     albums = self._library_cache[tab]
                 else:
                     albums = await self.yt.get_library_albums()
@@ -299,6 +327,7 @@ class LibraryScreen(QWidget):
                     for col in range(4):
                         grid.setColumnMinimumWidth(col, 178)
                     
+                    chunk_size = 4
                     for i, album in enumerate(albums):
                         title = album.get("title", "Unknown")
                         artists = album.get("artists", [])
@@ -312,14 +341,16 @@ class LibraryScreen(QWidget):
                         if browse_id and self.on_navigate:
                             card.clicked.connect(partial(self.on_navigate, f"album?id={browse_id}"))
                         
-                        # Added alignment to prevent card expansion and overlaps
                         grid.addWidget(card, i // 4, i % 4, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
                         grid.setRowMinimumHeight(i // 4, 228)
+
+                        if (i + 1) % chunk_size == 0:
+                            await asyncio.sleep(0)
 
                     self.content_layout.addLayout(grid)
 
             elif tab == "artists":
-                if tab in self._library_cache and cache_age < 30:
+                if tab in self._library_cache and cache_age < 300:
                     artists = self._library_cache[tab]
                 else:
                     artists = await self.yt.get_library_artists()
@@ -343,6 +374,7 @@ class LibraryScreen(QWidget):
                     for col in range(4):
                         grid.setColumnMinimumWidth(col, 178)
 
+                    chunk_size = 4
                     for i, artist in enumerate(artists):
                         name = artist.get("artist", "Unknown")
                         thumbnails = artist.get('thumbnails', [])
@@ -356,10 +388,13 @@ class LibraryScreen(QWidget):
                         grid.addWidget(card, i // 4, i % 4, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
                         grid.setRowMinimumHeight(i // 4, 220)
 
+                        if (i + 1) % chunk_size == 0:
+                            await asyncio.sleep(0)
+
                     self.content_layout.addLayout(grid)
 
             elif tab == "playlists":
-                if tab in self._library_cache and cache_age < 30:
+                if tab in self._library_cache and cache_age < 300:
                     playlists = self._library_cache[tab]
                 else:
                     playlists = await self.yt.get_library_playlists()
@@ -383,6 +418,7 @@ class LibraryScreen(QWidget):
                     for col in range(4):
                         grid.setColumnMinimumWidth(col, 178)
 
+                    chunk_size = 4
                     for i, playlist in enumerate(playlists):
                         title = playlist.get("title", "Unknown")
                         count = playlist.get("count", "")
@@ -403,6 +439,9 @@ class LibraryScreen(QWidget):
                         grid.addWidget(card, i // 4, i % 4, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
                         grid.setRowMinimumHeight(i // 4, 228)
 
+                        if (i + 1) % chunk_size == 0:
+                            await asyncio.sleep(0)
+
                     self.content_layout.addLayout(grid)
 
         except Exception as e:
@@ -410,6 +449,7 @@ class LibraryScreen(QWidget):
             self._clear_content()
             self._show_no_auth_message()
 
+        self._currently_rendered_tab = tab
         self.content_layout.addStretch()
         self._fade_in_content()
 
@@ -602,6 +642,8 @@ class LibraryScreen(QWidget):
         if hasattr(self, "_library_cache"):
             self._library_cache.pop("songs", None)
             self._library_cache_time.pop("songs", None)
+        if getattr(self, "_currently_rendered_tab", None) == "songs":
+            self._currently_rendered_tab = None
 
 
     def _apply_theme_styles(self) -> None:

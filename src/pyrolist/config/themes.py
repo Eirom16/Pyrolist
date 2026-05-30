@@ -23,30 +23,58 @@ EQ_BAND_LABELS = [
 
 
 async def extract_dominant_color(image_url: str) -> str | None:
+    """
+    Extrae el color dominante de un artwork para usarlo como acento de tema.
+    Usa módulos nativos C si están disponibles; fallback a Python si no.
+    """
     try:
+        import httpx
         async with httpx.AsyncClient(timeout=5.0) as client:
             r = await client.get(image_url)
-            img = Image.open(io.BytesIO(r.content)).convert("RGB")
+        image_bytes = r.content
 
+        # ── Intento con módulos nativos C ─────────────────────────────────────
+        try:
+            from pyrolist.native.bindings import (
+                average_center_zone_native,
+                adjust_hsv_native,
+                _NATIVE_AVAILABLE,
+            )
+            if _NATIVE_AVAILABLE:
+                rgb = average_center_zone_native(image_bytes, resize_to=50)
+                if rgb:
+                    adjusted = adjust_hsv_native(rgb[0], rgb[1], rgb[2],
+                                                 min_saturation=0.5,
+                                                 min_value=0.6)
+                    if adjusted:
+                        return f"#{adjusted[0]:02x}{adjusted[1]:02x}{adjusted[2]:02x}"
+        except ImportError:
+            pass  # módulo nativo no disponible, continuar con Python
+
+        # ── Fallback Python original (código sin cambios) ─────────────────────
+        from PIL import Image
+        import io
+        import colorsys
+
+        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         img = img.resize((50, 50), Image.LANCZOS)
         pixels = list(img.getdata())
         w, h = img.size
 
         center_pixels = [
             pixels[y * w + x]
-            for y in range(int(h*0.25), int(h*0.75))
-            for x in range(int(w*0.25), int(w*0.75))
+            for y in range(int(h * 0.25), int(h * 0.75))
+            for x in range(int(w * 0.25), int(w * 0.75))
         ]
 
         if not center_pixels:
             return None
 
-        r = sum(p[0] for p in center_pixels) // len(center_pixels)
-        g = sum(p[1] for p in center_pixels) // len(center_pixels)
-        b = sum(p[2] for p in center_pixels) // len(center_pixels)
+        r_val = sum(p[0] for p in center_pixels) // len(center_pixels)
+        g_val = sum(p[1] for p in center_pixels) // len(center_pixels)
+        b_val = sum(p[2] for p in center_pixels) // len(center_pixels)
 
-        import colorsys
-        h_val, s_val, v_val = colorsys.rgb_to_hsv(r/255, g/255, b/255)
+        h_val, s_val, v_val = colorsys.rgb_to_hsv(r_val/255, g_val/255, b_val/255)
         s_val = max(s_val, 0.5)
         v_val = max(v_val, 0.6)
         r2, g2, b2 = colorsys.hsv_to_rgb(h_val, s_val, v_val)

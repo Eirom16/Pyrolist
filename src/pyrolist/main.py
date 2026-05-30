@@ -1,14 +1,34 @@
 import sys
 import os
 
-# Forzar renderizado por software en Linux para evitar fallos de GLX/EGL/Wayland
-# tanto en entornos sin pantalla física/Wayland como en el sandbox del AppImage.
+# Desactivar GPU en QtWebEngine/Chromium en Linux de forma universal para evitar caídas catastróficas
+# del controlador gráfico en diálogos embebidos de login (especialmente en Wayland/Xwayland).
+# Forzar renderizado por software completo solo en entornos congelados (AppImage) o sin pantalla (headless).
 if sys.platform.startswith('linux'):
-    os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
-    os.environ.setdefault("QT_QUICK_BACKEND", "software")
-    os.environ.setdefault("QT_RHI_BACKEND", "software")
-    os.environ.setdefault("QT_XCB_GL_INTEGRATION", "none")
-    os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", "--disable-gpu")
+    # Asegurar locale UTF-8 para evitar fallos de codificación/conversión interna de strings de Chromium/Qt
+    for env_var in ["LC_ALL", "LC_CTYPE", "LANG"]:
+        val = os.environ.get(env_var, "")
+        if not val or val == "C" or "ANSI" in val or val.lower() == "posix":
+            os.environ[env_var] = "C.UTF-8"
+
+    # Desactivar GPU y Sandbox de Chromium para evitar fallos del controlador en Wayland
+    os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = (
+        "--disable-gpu "
+        "--disable-gpu-compositing "
+        "--disable-gpu-rasterization "
+        "--disable-gpu-sandbox "
+        "--no-sandbox "
+        "--disable-dev-shm-usage"
+    )
+    os.environ["QTWEBENGINE_DISABLE_SANDBOX"] = "1"
+    
+    is_headless = not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY")
+    is_frozen = getattr(sys, 'frozen', False)
+    if is_frozen or is_headless:
+        os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
+        os.environ.setdefault("QT_QUICK_BACKEND", "software")
+        os.environ.setdefault("QT_RHI_BACKEND", "software")
+        os.environ.setdefault("QT_XCB_GL_INTEGRATION", "none")
 
 # Monkey-patch gettext to prevent FileNotFoundError when translation files (e.g. ytmusicapi) are missing
 import gettext
@@ -135,6 +155,21 @@ def main() -> None:
         os.environ.setdefault("QT_QUICK_BACKEND", "software")
         # Deshabilitar GPU en QtWebEngine/Chromium embebido
         os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", "--disable-gpu")
+
+    if sys.platform.startswith('linux'):
+        # Añadir argumentos directamente a sys.argv antes de inicializar QApplication
+        # Esto asegura que Chromium herede los flags correctos bajo cualquier circunstancia
+        chromium_args = [
+            "--disable-gpu",
+            "--disable-gpu-compositing",
+            "--disable-gpu-rasterization",
+            "--disable-gpu-sandbox",
+            "--no-sandbox",
+            "--disable-dev-shm-usage"
+        ]
+        for arg in chromium_args:
+            if arg not in sys.argv:
+                sys.argv.append(arg)
             
     app = QApplication(sys.argv)
     app.setApplicationName("Pyrolist")
@@ -160,6 +195,8 @@ def main() -> None:
     app.setFont(AppFont.body())
 
     settings = AppSettings.load(AppDirs.settings_file)
+    from pyrolist.utils.i18n import set_language
+    set_language(settings.language)
     setup_logging()
 
     # Styles are applied immediately within MainWindow during initialization

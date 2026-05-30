@@ -146,90 +146,16 @@ class SongCard(QWidget):
         self._update_card_styles()
 
     def _update_card_styles(self) -> None:
-        from pyrolist.ui.design import tokens
-        from PySide6.QtGui import QColor
-        accent = tokens.CURRENT.accent
-        text_primary = tokens.CURRENT.text_primary
-        text_secondary = tokens.CURRENT.text_secondary
-        bg_high = tokens.CURRENT.bg_high
-        
-        c = QColor(accent)
-        r, g, b = c.red(), c.green(), c.blue()
-        
-        self.setStyleSheet(f"""
-            #songCard {{
-                background-color: transparent;
-                border-radius: 12px;
-                padding: 6px;
-            }}
-        """)
-        
         if not self.thumbnail.pixmap():
             self.thumbnail.setObjectName("thumbnail_placeholder")
         else:
             self.thumbnail.setObjectName("thumbnail_image")
             
-        self.title_label.setStyleSheet(f"color: {text_primary}; background: transparent;")
-        self.artist_label.setStyleSheet(f"color: {text_secondary}; background: transparent;")
-        self.duration_label.setStyleSheet(f"color: {text_secondary}; background: transparent;")
+        self.title_label.setProperty("textRole", "primary")
+        self.artist_label.setProperty("textRole", "secondary")
+        self.duration_label.setProperty("textRole", "secondary")
         
-        from PySide6.QtGui import QColor
-        like_c = QColor(tokens.CURRENT.like_color)
-        lr, lg, lb = like_c.red(), like_c.green(), like_c.blue()
-        
-        if self._is_liked:
-            self.btn_like.setStyleSheet(f"""
-                QPushButton {{
-                    color: {tokens.CURRENT.like_color};
-                    background: transparent;
-                    border: none;
-                    border-radius: 20px;
-                }}
-                QPushButton:hover {{
-                    background-color: rgba({lr},{lg},{lb},0.15);
-                }}
-            """)
-        else:
-            self.btn_like.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: transparent;
-                    color: {text_secondary};
-                    border: none;
-                    border-radius: 20px;
-                }}
-                QPushButton:hover {{
-                    background-color: rgba({lr},{lg},{lb},0.15);
-                    color: {tokens.CURRENT.like_color};
-                }}
-            """)
-            
-        self.btn_play.setStyleSheet(f"""
-            QPushButton {{
-                background-color: transparent;
-                color: {text_primary};
-                border: none;
-                border-radius: 20px;
-            }}
-            QPushButton:hover {{
-                background-color: rgba({r}, {g}, {b}, 0.15);
-                color: {accent};
-            }}
-        """)
-        
-        self.menu_btn.setStyleSheet(f"""
-            QPushButton#menu_btn {{
-                background: transparent;
-                color: {text_secondary};
-                border: none;
-                border-radius: 20px;
-                font-family: 'Material Symbols Rounded';
-                font-size: 26px;
-            }}
-            QPushButton#menu_btn:hover {{
-                background-color: rgba({r}, {g}, {b}, 0.15);
-                color: {accent};
-            }}
-        """)
+        self.btn_like.setProperty("liked", "true" if self._is_liked else "false")
         
     def _handle_click(self, e):
         if e.button() == Qt.MouseButton.LeftButton:

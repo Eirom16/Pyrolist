@@ -1,10 +1,10 @@
 from PySide6.QtWidgets import QLabel
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QMouseEvent, QFont
 
 
 class ClickableLabel(QLabel):
-    clicked = Qt.UserType
+    clicked = Signal()
 
     def __init__(self, text="", parent=None):
         super().__init__(text, parent)
