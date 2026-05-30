@@ -1,29 +1,28 @@
 from __future__ import annotations
 
-CURRENT_CHANGELOG_VERSION = "1.3.0"
+CURRENT_CHANGELOG_VERSION = "2.0.0"
 CURRENT_CHANGELOG_SUMMARY = (
-    "Esta versión se enfoca en el rendimiento y optimización extrema: introduce pools de hilos centralizados, "
-    "un sistema de caché inteligente de 5 minutos, repintado controlado a 20 FPS y persistencia de sesión HTTP."
+    "¡Pyrolist v2.0.0 ha llegado! Una actualización masiva y trascendental que introduce soporte multiidioma (i18n), "
+    "aceleración gráfica con código nativo C para desenfoques ultrarrápidos, almacenamiento seguro de credenciales con llavero "
+    "del sistema (keyring) y copias de seguridad de la biblioteca."
 )
 
 CURRENT_CHANGELOG: tuple[tuple[str, tuple[str, ...]], ...] = (
     (
         "Novedades",
         (
-            "Nuevo pool de hilos centralizado (IO_POOL y CPU_POOL) para optimizar el uso de recursos multinúcleo.",
-            "Sistema de caché en memoria de 5 minutos para playlists, álbumes y artistas, logrando una navegación instantánea.",
-            "Optimización del fondo fluido (AmbientBackground) limitando su refresco a 20 FPS para reducir el uso de CPU.",
-            "Reutilización de sesión HTTP en el gestor de portadas, acelerando drásticamente las descargas sucesivas.",
-            "Optimización de carga asíncrona en las pantallas de álbum y playlist mediante cesión de control al event loop (evita congelar la interfaz).",
-            "Caché estática de hojas de estilo (stylesheets) en tarjetas rápidas y banners para acelerar la aplicación de temas.",
+            "Soporte Multiidioma Completo (i18n): Localización nativa completa de la interfaz en español e inglés.",
+            "Aceleración Nativa en C (fast_image.c): Procesamiento y difuminado de portadas ultrarrápido compilado al vuelo para un rendimiento gráfico excepcional.",
+            "Almacenamiento Seguro (Llavero del Sistema): Integración de 'keyring' para resguardar credenciales de YouTube Music y Last.fm de forma cifrada.",
+            "Copias de Seguridad (Backup & Restore): Función completa para respaldar y restaurar la biblioteca local de canciones, descargas y configuraciones.",
+            "Arquitectura de Testing: Configuración base con conftest y mock de VLC para realizar pruebas en sistemas headless o sin VLC nativo.",
         ),
     ),
     (
         "Correcciones",
         (
-            "Solucionado el reinicio del ecualizador de VLC, aplicando ahora una limpieza nativa completa.",
-            "Soporte y corrección automática de identificadores de playlist con prefijo 'VL' provenientes de YouTube Music.",
-            "Se corrigieron las descripciones y nombres de autores en las tarjetas de playlists de la pantalla de inicio.",
+            "Migración automática y eliminación segura de archivos locales de credenciales expuestos al configurar el almacenamiento cifrado.",
+            "Permisos restrictivos temporales ultra-seguros al procesar tokens de inicio de sesión de YouTube.",
         ),
     ),
 )
