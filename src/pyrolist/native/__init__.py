@@ -1,17 +1,5 @@
 # src/pyrolist/native/__init__.py
-"""
-Módulos nativos C de Pyrolist.
-Se cargan automáticamente al importar cualquier función de bindings.py.
-Si fast_image.so no está compilado, todas las funciones devuelven None
-y el código Python original actúa como fallback transparente.
-
-Para compilar el módulo nativo:
-    cd src/pyrolist/native
-    make
-
-Para verificar que está activo:
-    python -c "from pyrolist.native.bindings import _NATIVE_AVAILABLE; print(_NATIVE_AVAILABLE)"
-"""
-from pyrolist.native.bindings import _NATIVE_AVAILABLE
-
-__all__ = ["_NATIVE_AVAILABLE"]
+# DEPRECATED — The C native module has been replaced by Rust (native_rs/).
+# This package exists as a stub only. The Rust module at pyrolist.native_rs
+# provides average_center_zone, adjust_hsv, extract_n_colors, update_blobs,
+# process_qss_template, and compute_color_variants via PyO3 bindings.

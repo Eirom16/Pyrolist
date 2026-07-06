@@ -1,0 +1,1 @@
+/home/eirom/Projects/Pyrolist/src/pyrolist/native_rs/target/release/libpyrolist_native_rs.so: /home/eirom/Projects/Pyrolist/src/pyrolist/native_rs/src/color.rs /home/eirom/Projects/Pyrolist/src/pyrolist/native_rs/src/image.rs /home/eirom/Projects/Pyrolist/src/pyrolist/native_rs/src/lib.rs /home/eirom/Projects/Pyrolist/src/pyrolist/native_rs/src/qss.rs

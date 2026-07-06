@@ -22,6 +22,7 @@ from pyrolist.ui.widgets.fade_stack import FadeStackedWidget
 from pyrolist.ui.widgets.toast import ToastNotification
 from pyrolist.audio.sleep_timer import SleepTimer
 from pyrolist.audio.crossfade import CrossfadeManager
+from pyrolist.ui.theme_manager import ThemeManager
 
 
 class MainWindow(QMainWindow):
@@ -47,21 +48,7 @@ class MainWindow(QMainWindow):
         self._current_nav_task: asyncio.Task | None = None
         self._current_play_id = 0
         self._nav_history: list[int] = []  # stack of previous screen indices for back navigation
-        self._theme_base_qss = ""
-        self._theme_refresh_pending = False
-        
-        # Debounce timer for theme changes
-        self._theme_apply_timer = QTimer(self)
-        self._theme_apply_timer.setSingleShot(True)
-        self._theme_apply_timer.timeout.connect(self._apply_theme_and_accent_debounced)
-        self._pending_theme_mode = "dark"
-        self._pending_accent = "#A78BFA"
-        self._cached_base_qss = {}  # In-memory QSS cache for light and dark modes
-        
-        # Setup the dynamic transition overlay
-        from pyrolist.ui.widgets.theme_transition import ThemeTransitionOverlay
-        self.theme_overlay = ThemeTransitionOverlay(self)
-        self.theme_overlay.hide()
+        self.theme_manager = ThemeManager(self)
 
         
         self.yt = YouTubeMusicClient(settings)
@@ -95,7 +82,7 @@ class MainWindow(QMainWindow):
         # Apply initial theme properly (immediately on startup to prevent flash)
         theme_mode = getattr(settings.appearance, 'theme_mode', 'dark')
         accent = getattr(settings.appearance, 'accent_color', '#A78BFA')
-        self._apply_theme_and_accent(theme_mode, accent, immediate=True)
+        self.theme_manager.apply(theme_mode, accent, immediate=True)
 
     def _setup_shortcuts(self) -> None:
         from PySide6.QtGui import QShortcut, QKeySequence
@@ -369,8 +356,8 @@ class MainWindow(QMainWindow):
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self._position_mini_player()
-        if hasattr(self, 'theme_overlay'):
-            self.theme_overlay.setGeometry(self.rect())
+        if hasattr(self, 'theme_manager'):
+            self.theme_manager.on_main_window_resized()
 
     def _connect_player_callbacks(self) -> None:
         self.player.on("track_ended", self._on_track_ended_callback)
@@ -758,60 +745,230 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("No tienes playlists creadas", 3000)
             return
 
-        from PySide6.QtWidgets import QDialog, QVBoxLayout, QPushButton, QLabel, QScrollArea, QWidget
+        from PySide6.QtWidgets import (
+            QDialog, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea,
+            QWidget, QLineEdit, QPushButton, QGraphicsDropShadowEffect
+        )
+        from PySide6.QtCore import Qt, QTimer
+        from PySide6.QtGui import QColor, QPixmap
         from pyrolist.ui.design.fonts import AppFont
-        
+        from pyrolist.ui.design.icons import Icon
         from pyrolist.ui.design import tokens
+        from pyrolist.ui.design.animations import fade_in
+
         dialog = QDialog(self)
         dialog.setWindowTitle("Añadir a Playlist")
-        dialog.setFixedWidth(400)
-        dialog.setStyleSheet(f"background-color: {tokens.CURRENT.bg_surface}; ")
-        
-        layout = QVBoxLayout(dialog)
-        layout.setContentsMargins(16, 16, 16, 16)
-        
-        header = QLabel(f"Añadir '{title}' a...")
-        header.setFont(AppFont.heading(16))
-        layout.addWidget(header)
-        
+        dialog.setFixedSize(440, 480)
+        dialog.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        dialog.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+
+        shadow = QGraphicsDropShadowEffect(dialog)
+        shadow.setBlurRadius(48)
+        shadow.setOffset(0, 12)
+        shadow.setColor(QColor(0, 0, 0, 140))
+        dialog.setGraphicsEffect(shadow)
+
+        root = QWidget(dialog)
+        root.setFixedSize(440, 480)
+        root.setObjectName("addToPlaylistRoot")
+        root.setStyleSheet(f"""
+            QWidget#addToPlaylistRoot {{
+                background: {tokens.CURRENT.bg_surface};
+                border-radius: 16px;
+            }}
+        """)
+
+        root_layout = QVBoxLayout(root)
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.setSpacing(0)
+
+        header = QWidget()
+        header.setFixedHeight(80)
+        header.setStyleSheet(f"""
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                stop:0 {tokens.CURRENT.accent},
+                stop:1 {tokens.CURRENT.accent_bright});
+            border-radius: 16px 16px 0 0;
+        """)
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(20, 0, 20, 0)
+
+        icon_lbl = QLabel(Icon.get("playlist_add"))
+        icon_lbl.setFont(Icon.font(28, filled=True))
+        icon_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_on_accent}; background: transparent;")
+        header_layout.addWidget(icon_lbl)
+
+        header_text = QLabel(f"Añadir a playlist")
+        header_text.setFont(AppFont.heading(17))
+        header_text.setStyleSheet(f"color: {tokens.CURRENT.text_on_accent}; background: transparent;")
+        header_layout.addWidget(header_text)
+        header_layout.addStretch()
+
+        close_btn = QPushButton(Icon.get("close"))
+        close_btn.setFixedSize(32, 32)
+        close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        close_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: rgba(255,255,255,0.15);
+                color: {tokens.CURRENT.text_on_accent};
+                border: none;
+                border-radius: 16px;
+                font-family: 'Material Symbols Rounded';
+                font-size: 20px;
+            }}
+            QPushButton:hover {{ background: rgba(255,255,255,0.25); }}
+        """)
+        close_btn.clicked.connect(dialog.reject)
+        header_layout.addWidget(close_btn)
+
+        root_layout.addWidget(header)
+
+        body = QWidget()
+        body_layout = QVBoxLayout(body)
+        body_layout.setContentsMargins(16, 12, 16, 16)
+        body_layout.setSpacing(8)
+
+        search_input = QLineEdit()
+        search_input.setPlaceholderText("Buscar playlist...")
+        search_input.setStyleSheet(f"""
+            QLineEdit {{
+                background: {tokens.CURRENT.bg_elevated};
+                color: {tokens.CURRENT.text_primary};
+                border: 1px solid {tokens.CURRENT.border};
+                border-radius: 10px;
+                padding: 10px 14px;
+                font-size: 13px;
+            }}
+            QLineEdit:focus {{
+                border: 2px solid {tokens.CURRENT.accent};
+                padding: 9px 13px;
+            }}
+        """)
+        body_layout.addWidget(search_input)
+
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setStyleSheet("background: transparent; border: none;")
-        
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
         content = QWidget()
         content_layout = QVBoxLayout(content)
-        content_layout.setSpacing(8)
-        
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(6)
+
         for pl in playlists:
             pid = pl.get('playlistId')
             p_title = pl.get('title', 'Unknown')
-            if not pid:
-                continue
-                
-            btn = QPushButton(p_title)
-            btn.setStyleSheet(f"""
+            p_count = pl.get('count', '')
+            p_thumbnails = pl.get('thumbnails', [])
+            p_thumbnail_url = p_thumbnails[-1].get('url', '') if p_thumbnails else ''
+            subtitle = f"{p_count} canciones" if p_count else ""
+
+            row = QPushButton()
+            row.setFixedHeight(60)
+            row.setCursor(Qt.CursorShape.PointingHandCursor)
+            row.setStyleSheet(f"""
                 QPushButton {{
-                    background: {tokens.CURRENT.bg_high};  border: none; border-radius: 8px; padding: 12px; text-align: left;
+                    background: transparent;
+                    border: none;
+                    border-radius: 8px;
+                    text-align: left;
+                    padding: 0;
                 }}
-                QPushButton:hover {{ background: {tokens.CURRENT.accent_dim}; }}
+                QPushButton:hover {{
+                    background: {tokens.CURRENT.accent_dim};
+                }}
             """)
-            btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            
-            # Using lambda properly capturing loop variables and ignoring the checked boolean from clicked signal
-            btn.clicked.connect(lambda _, pid=pid, p_title=p_title: (
+
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(10, 8, 10, 8)
+            row_layout.setSpacing(12)
+
+            thumb = QLabel()
+            thumb.setFixedSize(44, 44)
+            if p_thumbnail_url:
+                thumb.setStyleSheet("background: transparent; border-radius: 8px;")
+                asyncio.ensure_future(self._load_playlist_thumb(thumb, p_thumbnail_url))
+            else:
+                thumb.setFont(Icon.font(22))
+                thumb.setText(Icon.get("playlist_play"))
+                thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                thumb.setStyleSheet(f"""
+                    background: {tokens.CURRENT.bg_high};
+                    color: {tokens.CURRENT.text_disabled};
+                    border-radius: 8px;
+                """)
+            row_layout.addWidget(thumb)
+
+            text_col = QVBoxLayout()
+            text_col.setSpacing(2)
+            name_lbl = QLabel(p_title)
+            name_lbl.setFont(AppFont.title(13))
+            name_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_primary}; background: transparent;")
+            text_col.addWidget(name_lbl)
+
+            if subtitle:
+                sub_lbl = QLabel(subtitle)
+                sub_lbl.setFont(AppFont.caption(11))
+                sub_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent;")
+                text_col.addWidget(sub_lbl)
+
+            row_layout.addLayout(text_col)
+            row_layout.addStretch()
+
+            add_icon = QLabel(Icon.get("add"))
+            add_icon.setFont(Icon.font(18))
+            add_icon.setStyleSheet(f"color: {tokens.CURRENT.text_disabled}; background: transparent;")
+            add_icon.setFixedSize(28, 28)
+            add_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            row_layout.addWidget(add_icon)
+
+            row.clicked.connect(lambda _, pid=pid, p_title=p_title: (
                 dialog.accept(),
                 self._run_async(self._add_to_yt_playlist(pid, video_id, p_title))
             ))
-            content_layout.addWidget(btn)
-            
+            content_layout.addWidget(row)
+
         content_layout.addStretch()
         scroll.setWidget(content)
-        layout.addWidget(scroll)
-        
-        # Determine suitable height
-        dialog.setFixedHeight(min(600, 100 + len(playlists) * 50))
+        body_layout.addWidget(scroll)
+
+        root_layout.addWidget(body)
+
+        def filter_playlists(text: str):
+            for i in range(content_layout.count()):
+                item = content_layout.itemAt(i)
+                if item and item.widget():
+                    widget = item.widget()
+                    lbl = widget.findChildren(QLabel)
+                    match = False
+                    for l in lbl:
+                        if text.lower() in l.text().lower():
+                            match = True
+                            break
+                    widget.setVisible(match)
+
+        search_input.textChanged.connect(filter_playlists)
+
+        fade_in(root, 200)
         self._playlist_dialog = dialog
         dialog.open()
+
+    async def _load_playlist_thumb(self, thumb_label, url):
+        from PySide6.QtGui import QPixmap
+        from pyrolist.utils.image_cache import ImageCache
+        _image_cache = ImageCache()
+        path = await _image_cache.download(url)
+        import shiboken6
+        if not shiboken6.isValid(thumb_label):
+            return
+        if path:
+            pixmap = QPixmap(str(path))
+            if not pixmap.isNull():
+                pixmap = pixmap.scaled(44, 44, Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                                       Qt.TransformationMode.SmoothTransformation)
+                thumb_label.setPixmap(pixmap)
+                thumb_label.setStyleSheet("background: transparent; border-radius: 8px;")
 
     async def _add_to_yt_playlist(self, playlist_id: str, video_id: str, playlist_name: str):
         try:
@@ -1760,7 +1917,7 @@ class MainWindow(QMainWindow):
             # Theme mode and accent color change — regenerate stylesheet dynamically
             accent = getattr(settings.appearance, 'accent_color', '#A78BFA')
             theme_mode = getattr(settings.appearance, 'theme_mode', 'dark')
-            self._apply_theme_and_accent(theme_mode, accent)
+            self.theme_manager.apply(theme_mode, accent)
 
     def _on_sleep_timer_expired(self) -> None:
         logger.info("Sleep timer expired! Pausing music player...")
@@ -1779,276 +1936,6 @@ class MainWindow(QMainWindow):
                 player_settings_page.update_fields()
         except Exception as e:
             logger.debug(f"Failed to refresh settings page fields: {e}")
-
-    def _apply_accent_color(self, accent: str) -> None:
-        """Helper for legacy calls or quick updates."""
-        theme_mode = getattr(self.settings.appearance, 'theme_mode', 'dark')
-        self._apply_theme_and_accent(theme_mode, accent)
-
-    def _apply_theme_and_accent(self, theme_mode: str, accent: str, immediate: bool = False) -> None:
-        self._pending_theme_mode = theme_mode
-        self._pending_accent = accent
-        if immediate:
-            self._apply_theme_and_accent_actual()
-        else:
-            self._theme_apply_timer.stop()
-            self._theme_apply_timer.start(150) # 150ms debounce
-
-    def _apply_theme_and_accent_debounced(self) -> None:
-        """Wrapper to display a beautiful dynamic loading overlay before applying styles."""
-        theme_mode = self._pending_theme_mode
-        accent = self._pending_accent
-        
-        theme_key = (theme_mode, accent)
-        if hasattr(self, '_last_theme_key') and self._last_theme_key == theme_key:
-            return
-            
-        # Bypass overlay transition on startup (when main window is not visible yet)
-        if not self.isVisible():
-            self._apply_theme_and_accent_actual()
-            return
-            
-        # Trigger the premium pop/fade transition overlay!
-        self.theme_overlay.setGeometry(self.rect())
-        self.theme_overlay.start_transition(
-            target_theme_mode=theme_mode,
-            target_accent=accent,
-            on_midpoint_callback=self._apply_theme_and_accent_actual
-        )
-
-    def _apply_theme_and_accent_actual(self) -> None:
-        """Regenerate QSS with custom theme colors and dynamic accent (debounced and optimized)."""
-        theme_mode = self._pending_theme_mode
-        accent = self._pending_accent
-
-        theme_key = (theme_mode, accent)
-        if hasattr(self, '_last_theme_key') and self._last_theme_key == theme_key:
-            return
-        
-        self._last_theme_key = theme_key
-        self._last_accent = accent
-
-        from pyrolist.ui.design import tokens
-        
-        # Resolve active theme mode base colors
-        active_mode = theme_mode
-        if active_mode == "system":
-            import subprocess
-            try:
-                res = subprocess.run(
-                    ["gsettings", "get", "org.gnome.desktop.interface", "color-scheme"],
-                    capture_output=True, text=True, timeout=0.5
-                )
-                if "prefer-light" in res.stdout:
-                    active_mode = "light"
-                else:
-                    active_mode = "dark"
-            except Exception:
-                active_mode = "dark"
-
-        base_scheme = tokens.LIGHT if active_mode == "light" else tokens.DARK
-
-        from pyrolist.ui.stylesheet import PYROLIST_QSS
-        new_qss = PYROLIST_QSS
-
-        # Compute dynamic accent color variants
-        bright_hex = "#BBA4FC"
-        dark_hex = "#8B5CF6"
-        r, g, b = 167, 139, 250
-        dark_r, dark_g, dark_b = 139, 92, 246
-        
-        try:
-            from PySide6.QtGui import QColor
-            c = QColor(accent)
-            if c.isValid():
-                bright = c.lighter(125)
-                bright_hex = bright.name()
-                dark = c.darker(120)
-                dark_hex = dark.name()
-                r, g, b, _ = c.getRgb()
-                dark_r, dark_g, dark_b, _ = dark.getRgb()
-        except Exception as e:
-            logger.error(f"Error calculating accent color variants: {e}")
-
-        # Update dynamic design tokens globally in memory
-        tokens.CURRENT = tokens.ColorScheme(
-            bg_base=base_scheme.bg_base,
-            bg_surface=base_scheme.bg_surface,
-            bg_elevated=base_scheme.bg_elevated,
-            bg_high=base_scheme.bg_high,
-            bg_overlay=base_scheme.bg_overlay,
-            accent=accent,
-            accent_bright=bright_hex,
-            accent_dim=f"rgba({r},{g},{b},0.15)",
-            secondary=base_scheme.secondary,
-            secondary_dim=base_scheme.secondary_dim,
-            text_primary=base_scheme.text_primary,
-            text_secondary=base_scheme.text_secondary,
-            text_disabled=base_scheme.text_disabled,
-            text_on_accent="#FFFFFF" if active_mode == "light" else "#0A0A14",
-            border=f"rgba({r},{g},{b},0.12)",
-            border_focus=f"rgba({r},{g},{b},0.50)",
-            success=base_scheme.success,
-            warning=base_scheme.warning,
-            error=base_scheme.error,
-            info=base_scheme.info,
-            like_color=base_scheme.like_color,
-        )
-
-        # Replace accent colors in stylesheet
-        new_qss = new_qss.replace('#A78BFA', accent)
-        new_qss = new_qss.replace('#a78bfa', accent.lower())
-        new_qss = new_qss.replace('#BBA4FC', bright_hex)
-        new_qss = new_qss.replace('#bba4fc', bright_hex.lower())
-        new_qss = new_qss.replace('#8B5CF6', dark_hex)
-        new_qss = new_qss.replace('#8b5cf6', dark_hex.lower())
-        new_qss = new_qss.replace('167,139,250', f"{r},{g},{b}")
-        new_qss = new_qss.replace('167, 139, 250', f"{r}, {g}, {b}")
-        new_qss = new_qss.replace('139,92,246', f"{dark_r},{dark_g},{dark_b}")
-        new_qss = new_qss.replace('139, 92, 246', f"{dark_r}, {dark_g}, {dark_b}")
-
-        # Replace like color dynamically
-        new_qss = new_qss.replace('#FF4A70', tokens.CURRENT.like_color)
-        new_qss = new_qss.replace('#ff4a70', tokens.CURRENT.like_color.lower())
-        try:
-            lc = QColor(tokens.CURRENT.like_color)
-            if lc.isValid():
-                new_qss = new_qss.replace('255, 74, 112', f"{lc.red()}, {lc.green()}, {lc.blue()}")
-                new_qss = new_qss.replace('255,74,112', f"{lc.red()},{lc.green()},{lc.blue()}")
-        except Exception:
-            pass
-
-        # Replace base dark background & text colors with dynamic values
-        new_qss = new_qss.replace('#0A0A14', tokens.CURRENT.bg_base)
-        new_qss = new_qss.replace('#0a0a14', tokens.CURRENT.bg_base.lower())
-        new_qss = new_qss.replace('#10101E', tokens.CURRENT.bg_surface)
-        new_qss = new_qss.replace('#10101e', tokens.CURRENT.bg_surface.lower())
-        new_qss = new_qss.replace('#16162A', tokens.CURRENT.bg_elevated)
-        new_qss = new_qss.replace('#16162a', tokens.CURRENT.bg_elevated.lower())
-        new_qss = new_qss.replace('#1E1E38', tokens.CURRENT.bg_high)
-        new_qss = new_qss.replace('#1e1e38', tokens.CURRENT.bg_high.lower())
-        new_qss = new_qss.replace('#F1F0FF', tokens.CURRENT.text_primary)
-        new_qss = new_qss.replace('#f1f0ff', tokens.CURRENT.text_primary.lower())
-        new_qss = new_qss.replace('#9B9BC0', tokens.CURRENT.text_secondary)
-        new_qss = new_qss.replace('#9b9bc0', tokens.CURRENT.text_secondary.lower())
-        new_qss = new_qss.replace('#6B6B9B', tokens.CURRENT.text_secondary)
-        new_qss = new_qss.replace('#6b6b9b', tokens.CURRENT.text_secondary.lower())
-        new_qss = new_qss.replace('#4A4A6A', tokens.CURRENT.text_disabled)
-        new_qss = new_qss.replace('#4a4a6a', tokens.CURRENT.text_disabled.lower())
-        
-        # Apply the app stylesheet once. QApplication.setStyleSheet already sends
-        # StyleChange events, so avoid manually walking every widget afterward.
-        from PySide6.QtWidgets import QApplication
-        app = QApplication.instance()
-        
-        if app:
-            if active_mode not in self._cached_base_qss:
-                from qt_material import build_stylesheet
-                theme_xml = "light_purple.xml" if active_mode == "light" else "dark_purple.xml"
-                try:
-                    base_qss = build_stylesheet(
-                        theme=theme_xml,
-                        extra={
-                            "primaryColor": "#A78BFA",  # Static placeholder accent for cache
-                            "primaryLightColor": "#A78BFA",
-                            "secondaryColor": "#FFFFFF" if active_mode == "light" else "#1E1E2E",
-                            "secondaryLightColor": "#DFDFE8" if active_mode == "light" else "#2A2A3E",
-                            "secondaryDarkColor": "#F3F3F9" if active_mode == "light" else "#13131F",
-                            "primaryTextColor": "#121224" if active_mode == "light" else "#FFFFFF",
-                            "secondaryTextColor": "#5C5C8A" if active_mode == "light" else "#B0B0C0",
-                            "density_scale": "-1",
-                            "pyside6": True,
-                            "linux": True,
-                        },
-                    )
-                    base_qss = base_qss.replace('font-family: Roboto;', '')
-                    base_qss = base_qss.replace('font-size: 13px;', '')
-                    base_qss = base_qss.replace('line-height: 13px;', '')
-                    self._cached_base_qss[active_mode] = base_qss
-                except Exception as e:
-                    logger.error(f"Error building qt_material stylesheet: {e}")
-                    self._cached_base_qss[active_mode] = ""
-            
-            # Fetch base QSS from cache
-            base_qss_template = self._cached_base_qss.get(active_mode, "")
-            
-            # Swap static placeholder color with user selected accent in <0.1ms
-            self._theme_base_qss = base_qss_template.replace("#A78BFA", accent).replace("#a78bfa", accent.lower())
-            
-        groove_color = "#D0D0DF" if active_mode == "light" else "#2A2A4A"
-        new_qss = new_qss.replace('#2A2A4A', groove_color)
-        new_qss = new_qss.replace('#2a2a4a', groove_color.lower())
-        
-        if app:
-            tokens.THEME_APPLYING = True
-            try:
-                app.setStyleSheet(self._theme_base_qss + new_qss)
-            finally:
-                tokens.THEME_APPLYING = False
-
-        self._schedule_theme_dependent_refresh()
-
-    def _schedule_theme_dependent_refresh(self) -> None:
-        if self._theme_refresh_pending:
-            return
-        self._theme_refresh_pending = True
-        QTimer.singleShot(0, self._refresh_theme_dependents)
-
-    def _refresh_theme_dependents(self) -> None:
-        self._theme_refresh_pending = False
-        for attr, method_name in (
-            ("sidebar", "_update_sidebar_styles"),
-            ("search_bar", "_update_search_bar_styles"),
-            ("offline_banner", "_apply_style"),
-            ("mini_player", "_update_mini_player_styles"),
-            ("now_playing_screen", "_update_styles"),
-            ("settings_screen", "_apply_sidebar_styles"),
-            ("stats_screen", "_apply_theme_style"),
-        ):
-            widget = getattr(self, attr, None)
-            method = getattr(widget, method_name, None)
-            if callable(method):
-                try:
-                    method()
-                except Exception as e:
-                    logger.debug(f"Theme refresh skipped for {attr}: {e}")
-
-        current = getattr(self, "stack", None).currentWidget() if hasattr(self, "stack") else None
-        for method_name in ("_apply_theme_styles", "_update_theme_styles", "_refresh_theme", "_update_header_styles"):
-            method = getattr(current, method_name, None)
-            if callable(method):
-                try:
-                    method()
-                except Exception as e:
-                    logger.debug(f"Current screen theme refresh skipped: {e}")
-
-        self._refresh_card_styles_in_batches(current)
-
-    def _refresh_card_styles_in_batches(self, root: QWidget | None) -> None:
-        if root is None:
-            return
-        try:
-            from pyrolist.ui.widgets.song_card import SongCard
-            from pyrolist.ui.widgets.artist_card import ArtistCard
-            from pyrolist.ui.widgets.album_card import AlbumCard
-            from pyrolist.ui.widgets.playlist_card import PlaylistCard
-            
-            cards = []
-            for card_cls in (SongCard, ArtistCard, AlbumCard, PlaylistCard):
-                cards.extend([card for card in root.findChildren(card_cls) if card.isVisible()])
-        except Exception:
-            return
-
-        def refresh_batch(index: int = 0) -> None:
-            for card in cards[index:index + 24]:
-                try:
-                    card._update_card_styles()
-                except Exception as e:
-                    logger.debug(f"Card theme refresh skipped: {e}")
-            if index + 24 < len(cards):
-                QTimer.singleShot(0, lambda: refresh_batch(index + 24))
-
-        refresh_batch()
 
     def _show_and_activate(self) -> None:
         self.show()

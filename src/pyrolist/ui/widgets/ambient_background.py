@@ -6,30 +6,38 @@ from PySide6.QtGui import QPainter, QRadialGradient, QColor, QPainterPath
 
 from pyrolist.utils.thread_pool import CPU_POOL
 
+# Try Rust native module first (fastest), fall back to C, then Python.
 try:
-    from pyrolist.native.bindings import (
-        extract_n_colors_native as _extract_native,
-        update_blobs_native as _blobs_native,
-        _NATIVE_AVAILABLE,
-    )
+    from pyrolist.native_rs import extract_n_colors as _extract_rust, update_blobs as _blobs_rust
+    _HAS_RUST = True
 except ImportError:
-    _extract_native = None
-    _blobs_native = None
-    _NATIVE_AVAILABLE = False
+    _HAS_RUST = False
+
+try:
+    from pyrolist.native_rs import extract_n_colors as _extract_rust, update_blobs as _blobs_rust
+    _HAS_RUST = True
+except ImportError:
+    _HAS_RUST = False
 
 def extract_colors_from_image(image_data: bytes) -> list[QColor]:
-    """Extrae 3 colores dominantes. Usa C si está disponible, Python como fallback."""
+    """Extrae 3 colores dominantes. Usa Rust si está disponible, Python como fallback."""
 
-    # ── Intento con módulo nativo C ───────────────────────────────────────────
-    if _NATIVE_AVAILABLE and _extract_native is not None:
+    # ── Intento con módulo nativo Rust ────────────────────────────────────────
+    if _HAS_RUST:
         try:
-            rgb_list = _extract_native(image_data, n_colors=3, resize_to=30)
+            from PIL import Image
+            import io
+            img = Image.open(io.BytesIO(image_data))
+            img = img.convert("RGB").resize((30, 30), Image.LANCZOS)
+            raw = list(img.tobytes())
+            w, h = img.size
+            rgb_list = _extract_rust(raw, w, h, 3)
             if rgb_list and len(rgb_list) == 3:
                 return [QColor(r, g, b) for r, g, b in rgb_list]
         except Exception:
-            pass  # caer al fallback Python
+            pass
 
-    # ── Fallback Python original (código sin cambios) ─────────────────────────
+    # ── Fallback Python original ──────────────────────────────────────────────
     try:
         from PIL import Image
         import io
@@ -108,28 +116,26 @@ class AmbientBackgroundWidget(QWidget):
             return
         self._last_paint_time = now
 
-        # ── Intento con módulo nativo C ───────────────────────────────────────────
-        if _NATIVE_AVAILABLE and _blobs_native is not None:
+        # ── Intento con módulo nativo Rust ────────────────────────────────────────
+        if _HAS_RUST:
             try:
                 xs  = [b.x_ratio for b in self._blobs]
                 ys  = [b.y_ratio for b in self._blobs]
                 txs = [b.target_x_ratio for b in self._blobs]
                 tys = [b.target_y_ratio for b in self._blobs]
 
-                result = _blobs_native(xs, ys, txs, tys, dt=0.005, threshold_sq=0.0025)
-                if result is not None:
-                    new_xs, new_ys, reached = result
-                    for i, blob in enumerate(self._blobs):
-                        blob.x_ratio = new_xs[i]
-                        blob.y_ratio = new_ys[i]
-                    if reached == len(self._blobs):
-                        self._generate_new_targets()
-                    self.update()
-                    return
+                new_xs, new_ys, reached = _blobs_rust(xs, ys, txs, tys, 0.005, 0.0025)
+                for i, blob in enumerate(self._blobs):
+                    blob.x_ratio = new_xs[i]
+                    blob.y_ratio = new_ys[i]
+                if reached == len(self._blobs):
+                    self._generate_new_targets()
+                self.update()
+                return
             except Exception:
-                pass  # caer al fallback Python
+                pass
 
-        # ── Fallback Python original (código sin cambios) ─────────────────────────
+        # ── Fallback Python original ──────────────────────────────────────────────
         dt = 0.005
         reached_targets = 0
         for blob in self._blobs:

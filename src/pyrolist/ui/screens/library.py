@@ -547,54 +547,159 @@ class LibraryScreen(QWidget):
         return f"{mins}:{secs:02d}"
 
     def _on_create_playlist_clicked(self):
-        from PySide6.QtWidgets import QDialog, QLineEdit, QDialogButtonBox, QVBoxLayout
+        from PySide6.QtWidgets import QDialog, QLineEdit, QVBoxLayout, QHBoxLayout
+        from PySide6.QtGui import QColor, QLinearGradient, QPainter, QBrush, QPen, QFont
+        from PySide6.QtCore import Qt, QRect
         from pyrolist.ui.design import tokens
-        
+        from pyrolist.ui.design.icons import Icon
+        from pyrolist.ui.design.fonts import AppFont
+        from pyrolist.ui.design.animations import fade_in
+
         dialog = QDialog(self)
         dialog.setWindowTitle("Crear Nueva Playlist")
-        dialog.setFixedWidth(400)
-        dialog.setStyleSheet(f"background-color: {tokens.CURRENT.bg_surface}; ")
-        
-        layout = QVBoxLayout(dialog)
-        
+        dialog.setFixedSize(420, 340)
+        dialog.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        dialog.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+
+        shadow = QGraphicsDropShadowEffect(dialog)
+        shadow.setBlurRadius(48)
+        shadow.setOffset(0, 12)
+        shadow.setColor(QColor(0, 0, 0, 140))
+        dialog.setGraphicsEffect(shadow)
+
+        root = QWidget(dialog)
+        root.setFixedSize(420, 340)
+        root.setStyleSheet(f"""
+            QWidget#createPlaylistRoot {{
+                background: {tokens.CURRENT.bg_surface};
+                border-radius: 16px;
+            }}
+        """)
+        root.setObjectName("createPlaylistRoot")
+
+        root_layout = QVBoxLayout(root)
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.setSpacing(0)
+
+        header = QWidget()
+        header.setFixedHeight(120)
+        header.setStyleSheet(f"""
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                stop:0 {tokens.CURRENT.accent},
+                stop:1 {tokens.CURRENT.accent_bright});
+            border-radius: 16px 16px 0 0;
+        """)
+        header_layout = QVBoxLayout(header)
+        header_layout.setContentsMargins(24, 20, 24, 16)
+
+        icon_lbl = QLabel(Icon.get("playlist_add"))
+        icon_lbl.setFont(Icon.font(48, filled=True))
+        icon_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_on_accent}; background: transparent;")
+        icon_lbl.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        header_layout.addWidget(icon_lbl)
+
+        title_lbl = QLabel("Crear Nueva Playlist")
+        title_lbl.setFont(AppFont.heading(20))
+        title_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_on_accent}; background: transparent;")
+        header_layout.addWidget(title_lbl)
+
+        root_layout.addWidget(header)
+
+        body = QWidget()
+        body_layout = QVBoxLayout(body)
+        body_layout.setContentsMargins(24, 24, 24, 20)
+        body_layout.setSpacing(16)
+
         title_input = QLineEdit()
         title_input.setPlaceholderText("Nombre de la playlist")
         title_input.setStyleSheet(f"""
             QLineEdit {{
-                background: {tokens.CURRENT.bg_elevated}; border: 1px solid {tokens.CURRENT.border}; border-radius: 8px; padding: 12px;
-                 font-size: 14px;
+                background: {tokens.CURRENT.bg_elevated};
+                color: {tokens.CURRENT.text_primary};
+                border: 1px solid {tokens.CURRENT.border};
+                border-radius: 12px;
+                padding: 14px 16px;
+                font-size: 15px;
+            }}
+            QLineEdit:focus {{
+                border: 2px solid {tokens.CURRENT.accent};
+                padding: 13px 15px;
             }}
         """)
-        layout.addWidget(title_input)
-        
+        body_layout.addWidget(title_input)
+
         desc_input = QLineEdit()
         desc_input.setPlaceholderText("Descripción (opcional)")
         desc_input.setStyleSheet(f"""
             QLineEdit {{
-                background: {tokens.CURRENT.bg_elevated}; border: 1px solid {tokens.CURRENT.border}; border-radius: 8px; padding: 12px;
-                 font-size: 14px;
+                background: {tokens.CURRENT.bg_elevated};
+                color: {tokens.CURRENT.text_primary};
+                border: 1px solid {tokens.CURRENT.border};
+                border-radius: 12px;
+                padding: 14px 16px;
+                font-size: 15px;
+            }}
+            QLineEdit:focus {{
+                border: 2px solid {tokens.CURRENT.accent};
+                padding: 13px 15px;
             }}
         """)
-        layout.addWidget(desc_input)
-        
-        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        button_box.button(QDialogButtonBox.StandardButton.Ok).setText("Crear")
-        button_box.button(QDialogButtonBox.StandardButton.Cancel).setText("Cancelar")
-        from PySide6.QtGui import QColor
-        accent = tokens.CURRENT.accent
-        c = QColor(accent)
-        bright_hex = c.lighter(125).name()
-        button_box.setStyleSheet(f"""
+        body_layout.addWidget(desc_input)
+
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(12)
+
+        cancel_btn = QPushButton("Cancelar")
+        cancel_btn.setFixedHeight(44)
+        cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        cancel_btn.setStyleSheet(f"""
             QPushButton {{
-                background: {accent};  border: none; border-radius: 8px; padding: 8px 16px; font-weight: bold;
+                background: {tokens.CURRENT.bg_high};
+                color: {tokens.CURRENT.text_primary};
+                border: none;
+                border-radius: 12px;
+                font-size: 14px;
+                font-weight: bold;
+                padding: 0 24px;
             }}
-            QPushButton:hover {{ background: {bright_hex}; }}
+            QPushButton:hover {{
+                background: {tokens.CURRENT.bg_elevated};
+            }}
         """)
-        layout.addWidget(button_box)
-        
-        button_box.accepted.connect(dialog.accept)
-        button_box.rejected.connect(dialog.reject)
-        
+        btn_row.addWidget(cancel_btn)
+
+        create_btn = QPushButton("Crear")
+        create_btn.setFixedHeight(44)
+        create_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        create_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 {tokens.CURRENT.accent},
+                    stop:1 {tokens.CURRENT.accent_bright});
+                color: {tokens.CURRENT.text_on_accent};
+                border: none;
+                border-radius: 12px;
+                font-size: 14px;
+                font-weight: bold;
+                padding: 0 32px;
+            }}
+            QPushButton:hover {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 {tokens.CURRENT.accent_bright},
+                    stop:1 {tokens.CURRENT.accent});
+            }}
+        """)
+        btn_row.addWidget(create_btn)
+        body_layout.addLayout(btn_row)
+
+        root_layout.addWidget(body)
+
+        cancel_btn.clicked.connect(dialog.reject)
+        create_btn.clicked.connect(dialog.accept)
+        title_input.returnPressed.connect(dialog.accept)
+
+        fade_in(root, 200)
+
         if dialog.exec() == QDialog.DialogCode.Accepted:
             title = title_input.text().strip()
             desc = desc_input.text().strip()

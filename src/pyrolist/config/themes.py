@@ -25,7 +25,7 @@ EQ_BAND_LABELS = [
 async def extract_dominant_color(image_url: str) -> str | None:
     """
     Extrae el color dominante de un artwork para usarlo como acento de tema.
-    Usa módulos nativos C si están disponibles; fallback a Python si no.
+    Usa módulos nativos Rust si están disponibles; fallback a Python.
     """
     try:
         import httpx
@@ -33,25 +33,25 @@ async def extract_dominant_color(image_url: str) -> str | None:
             r = await client.get(image_url)
         image_bytes = r.content
 
-        # ── Intento con módulos nativos C ─────────────────────────────────────
+        # ── Intento con módulos nativos Rust ──────────────────────────────────
         try:
-            from pyrolist.native.bindings import (
-                average_center_zone_native,
-                adjust_hsv_native,
-                _NATIVE_AVAILABLE,
-            )
-            if _NATIVE_AVAILABLE:
-                rgb = average_center_zone_native(image_bytes, resize_to=50)
-                if rgb:
-                    adjusted = adjust_hsv_native(rgb[0], rgb[1], rgb[2],
-                                                 min_saturation=0.5,
-                                                 min_value=0.6)
-                    if adjusted:
-                        return f"#{adjusted[0]:02x}{adjusted[1]:02x}{adjusted[2]:02x}"
-        except ImportError:
-            pass  # módulo nativo no disponible, continuar con Python
+            from pyrolist.native_rs import average_center_zone, adjust_hsv
+            from PIL import Image
+            import io
 
-        # ── Fallback Python original (código sin cambios) ─────────────────────
+            img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+            img = img.resize((50, 50), Image.LANCZOS)
+            raw = img.tobytes()
+            w, h = img.size
+            rgb = average_center_zone(list(raw), w, h)
+            if rgb:
+                adjusted = adjust_hsv(rgb[0], rgb[1], rgb[2],
+                                      min_saturation=0.5, min_value=0.6)
+                return f"#{adjusted[0]:02x}{adjusted[1]:02x}{adjusted[2]:02x}"
+        except ImportError:
+            pass
+
+        # ── Fallback Python original ──────────────────────────────────────────
         from PIL import Image
         import io
         import colorsys

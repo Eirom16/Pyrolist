@@ -2,32 +2,24 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from loguru import logger
+from PySide6.QtCore import QObject, Signal
 
-class TranslationManager:
-    _instance = None
-    
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance.initialized = False
-        return cls._instance
+class TranslationManager(QObject):
+    language_changed = Signal(str)
 
-    def __init__(self):
-        if self.initialized:
-            return
+    def __init__(self, parent=None):
+        super().__init__(parent)
         self.current_language = "es"
-        self.translations = {}
-        self.initialized = True
+        self.translations: dict[str, str] = {}
         self.load_translations(self.current_language)
 
     def load_translations(self, lang_code: str) -> None:
         self.current_language = lang_code
         self.translations.clear()
-        
-        # Locate translation files in source directory
+
         base_dir = Path(__file__).parent.parent
         locale_path = base_dir / "locales" / f"{lang_code}.json"
-        
+
         if locale_path.exists():
             try:
                 with open(locale_path, "r", encoding="utf-8") as f:
@@ -38,18 +30,22 @@ class TranslationManager:
         else:
             logger.warning(f"No se encontró archivo de traducción para '{lang_code}' en: {locale_path}")
 
+        self.language_changed.emit(lang_code)
+
     def translate(self, text: str) -> str:
         if not text:
             return ""
         return self.translations.get(text, text)
 
-# Global instances and shortcuts
+
 _manager = TranslationManager()
+
 
 def _(text: str) -> str:
     """Translate the given text dynamically."""
     return _manager.translate(text)
 
+
 def set_language(lang_code: str) -> None:
-    """Switch active translation dictionary."""
+    """Switch active translation dictionary and emit signal."""
     _manager.load_translations(lang_code)

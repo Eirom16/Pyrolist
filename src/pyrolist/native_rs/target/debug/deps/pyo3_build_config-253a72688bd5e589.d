@@ -1,0 +1,14 @@
+/home/eirom/Projects/Pyrolist/src/pyrolist/native_rs/target/debug/deps/pyo3_build_config-253a72688bd5e589.d: /home/eirom/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-build-config-0.23.5/src/lib.rs /home/eirom/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-build-config-0.23.5/src/errors.rs /home/eirom/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-build-config-0.23.5/src/impl_.rs /home/eirom/Projects/Pyrolist/src/pyrolist/native_rs/target/debug/build/pyo3-build-config-682e70a97fa89807/out/pyo3-build-config-file.txt /home/eirom/Projects/Pyrolist/src/pyrolist/native_rs/target/debug/build/pyo3-build-config-682e70a97fa89807/out/pyo3-build-config.txt
+
+/home/eirom/Projects/Pyrolist/src/pyrolist/native_rs/target/debug/deps/libpyo3_build_config-253a72688bd5e589.rlib: /home/eirom/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-build-config-0.23.5/src/lib.rs /home/eirom/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-build-config-0.23.5/src/errors.rs /home/eirom/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-build-config-0.23.5/src/impl_.rs /home/eirom/Projects/Pyrolist/src/pyrolist/native_rs/target/debug/build/pyo3-build-config-682e70a97fa89807/out/pyo3-build-config-file.txt /home/eirom/Projects/Pyrolist/src/pyrolist/native_rs/target/debug/build/pyo3-build-config-682e70a97fa89807/out/pyo3-build-config.txt
+
+/home/eirom/Projects/Pyrolist/src/pyrolist/native_rs/target/debug/deps/libpyo3_build_config-253a72688bd5e589.rmeta: /home/eirom/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-build-config-0.23.5/src/lib.rs /home/eirom/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-build-config-0.23.5/src/errors.rs /home/eirom/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-build-config-0.23.5/src/impl_.rs /home/eirom/Projects/Pyrolist/src/pyrolist/native_rs/target/debug/build/pyo3-build-config-682e70a97fa89807/out/pyo3-build-config-file.txt /home/eirom/Projects/Pyrolist/src/pyrolist/native_rs/target/debug/build/pyo3-build-config-682e70a97fa89807/out/pyo3-build-config.txt
+
+/home/eirom/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-build-config-0.23.5/src/lib.rs:
+/home/eirom/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-build-config-0.23.5/src/errors.rs:
+/home/eirom/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-build-config-0.23.5/src/impl_.rs:
+/home/eirom/Projects/Pyrolist/src/pyrolist/native_rs/target/debug/build/pyo3-build-config-682e70a97fa89807/out/pyo3-build-config-file.txt:
+/home/eirom/Projects/Pyrolist/src/pyrolist/native_rs/target/debug/build/pyo3-build-config-682e70a97fa89807/out/pyo3-build-config.txt:
+
+# env-dep:CARGO_PKG_VERSION=0.23.5
+# env-dep:OUT_DIR=/home/eirom/Projects/Pyrolist/src/pyrolist/native_rs/target/debug/build/pyo3-build-config-682e70a97fa89807/out
