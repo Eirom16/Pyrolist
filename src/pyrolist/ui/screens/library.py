@@ -141,6 +141,9 @@ class LibraryScreen(QWidget):
             self.fab.move(self.width() - self.fab.width() - 24, self.height() - self.fab.height() - 112)
 
     def _switch_tab(self, key):
+        if key == self._current_tab and getattr(self, "_currently_rendered_tab", None) == key:
+            return
+
         self._current_tab = key
 
         # Update button styles
@@ -153,9 +156,47 @@ class LibraryScreen(QWidget):
         else:
             self.fab.hide()
 
-        if self._current_tab_task and not self._current_tab_task.done():
-            self._current_tab_task.cancel()
-        self._current_tab_task = asyncio.create_task(self._load_tab(key))
+        # Stop any running tab transitions
+        if hasattr(self, "_tab_fade_anim") and self._tab_fade_anim:
+            self._tab_fade_anim.stop()
+        if hasattr(self, "_tab_fade_in_anim") and self._tab_fade_in_anim:
+            self._tab_fade_in_anim.stop()
+
+        # Start fade out of the content area
+        from PySide6.QtWidgets import QGraphicsOpacityEffect
+        from PySide6.QtCore import QPropertyAnimation, QEasingCurve
+        
+        effect = self.content.graphicsEffect()
+        if not effect or not isinstance(effect, QGraphicsOpacityEffect):
+            effect = QGraphicsOpacityEffect(self.content)
+            self.content.setGraphicsEffect(effect)
+
+        self._tab_fade_anim = QPropertyAnimation(effect, b"opacity", self)
+        self._tab_fade_anim.setDuration(120)
+        self._tab_fade_anim.setStartValue(effect.opacity())
+        self._tab_fade_anim.setEndValue(0.0)
+        self._tab_fade_anim.setEasingCurve(QEasingCurve.Type.InCubic)
+
+        def on_fade_out_finished():
+            if self._current_tab_task and not self._current_tab_task.done():
+                self._current_tab_task.cancel()
+            self._current_tab_task = asyncio.create_task(self._load_tab(key))
+
+            # Start fade in
+            self._tab_fade_in_anim = QPropertyAnimation(effect, b"opacity", self)
+            self._tab_fade_in_anim.setDuration(180)
+            self._tab_fade_in_anim.setStartValue(0.0)
+            self._tab_fade_in_anim.setEndValue(1.0)
+            self._tab_fade_in_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+            def on_fade_in_finished():
+                self.content.setGraphicsEffect(None)
+
+            self._tab_fade_in_anim.finished.connect(on_fade_in_finished)
+            self._tab_fade_in_anim.start()
+
+        self._tab_fade_anim.finished.connect(on_fade_out_finished)
+        self._tab_fade_anim.start()
 
     async def load(self):
         import time

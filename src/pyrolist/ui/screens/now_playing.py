@@ -718,7 +718,7 @@ class NowPlayingScreen(QWidget):
             logger.debug(f"NowPlaying: QPixmap null={pixmap.isNull()}, size={pixmap.width()}x{pixmap.height()}")
             if not pixmap.isNull():
                 size = 280
-                radius = 20
+                radius = 24
                 pixmap = pixmap.scaled(size, size, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
                 # Center crop
                 x = (pixmap.width() - size) // 2
@@ -736,10 +736,48 @@ class NowPlayingScreen(QWidget):
                 painter.setClipPath(clip_path)
                 painter.drawPixmap(0, 0, pixmap)
                 painter.end()
-                self.artwork.setPixmap(rounded)
-                self.artwork.setText("")
-                self.artwork.setStyleSheet("background: transparent;")
-                logger.debug(f"NowPlaying: artwork pixmap SET successfully")
+                
+                # Stop any existing artwork fade animations
+                if hasattr(self, "_artwork_fade") and self._artwork_fade:
+                    self._artwork_fade.stop()
+                if hasattr(self, "_artwork_fade_in") and self._artwork_fade_in:
+                    self._artwork_fade_in.stop()
+                    
+                # Animate transition
+                from PySide6.QtWidgets import QGraphicsOpacityEffect
+                from PySide6.QtCore import QPropertyAnimation, QEasingCurve
+                
+                effect = self.artwork.graphicsEffect()
+                if not effect or not isinstance(effect, QGraphicsOpacityEffect):
+                    effect = QGraphicsOpacityEffect(self.artwork)
+                    self.artwork.setGraphicsEffect(effect)
+                    
+                self._artwork_fade = QPropertyAnimation(effect, b"opacity", self)
+                self._artwork_fade.setDuration(120)
+                self._artwork_fade.setStartValue(effect.opacity())
+                self._artwork_fade.setEndValue(0.0)
+                self._artwork_fade.setEasingCurve(QEasingCurve.Type.InCubic)
+                
+                def on_fade_out_done():
+                    self.artwork.setPixmap(rounded)
+                    self.artwork.setText("")
+                    self.artwork.setStyleSheet("background: transparent;")
+                    
+                    self._artwork_fade_in = QPropertyAnimation(effect, b"opacity", self)
+                    self._artwork_fade_in.setDuration(180)
+                    self._artwork_fade_in.setStartValue(0.0)
+                    self._artwork_fade_in.setEndValue(1.0)
+                    self._artwork_fade_in.setEasingCurve(QEasingCurve.Type.OutCubic)
+                    
+                    def on_fade_in_done():
+                        self.artwork.setGraphicsEffect(None)
+                        
+                    self._artwork_fade_in.finished.connect(on_fade_in_done)
+                    self._artwork_fade_in.start()
+                    
+                self._artwork_fade.finished.connect(on_fade_out_done)
+                self._artwork_fade.start()
+                logger.debug(f"NowPlaying: artwork pixmap SET animation started")
         else:
             logger.warning(f"NowPlaying: image download failed for url={url[:80]}")
             self.ambient_bg.set_image(None)

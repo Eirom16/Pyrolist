@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Property, QEasingCurve, QSize, Qt, QPropertyAnimation
+from PySide6.QtCore import Property, QEasingCurve, QSize, Qt, QPropertyAnimation, QSequentialAnimationGroup
 from PySide6.QtGui import QBrush, QColor, QEnterEvent, QIcon, QPainter, QPaintEvent
 from PySide6.QtWidgets import QPushButton
 
@@ -72,8 +72,55 @@ class IconButton(QPushButton):
         super().setStyleSheet(stylesheet)
 
     def set_active(self, active: bool) -> None:
+        was_active = self._is_active
         self._is_active = active
         self.update()
+        if active and not was_active and self.isVisible():
+            self.pulse()
+
+    def pulse(self) -> None:
+        if hasattr(self, "_scale_anim"):
+            self._scale_anim.stop()
+        if hasattr(self, "_pulse_anim"):
+            self._pulse_anim.stop()
+            
+        group = QSequentialAnimationGroup(self)
+        
+        # First heartbeat peak
+        a1 = QPropertyAnimation(self, b"icon_scale", self)
+        a1.setDuration(120)
+        a1.setStartValue(1.0)
+        a1.setEndValue(1.3)
+        a1.setEasingCurve(QEasingCurve.Type.OutQuad)
+        
+        # Intermediate release
+        a2 = QPropertyAnimation(self, b"icon_scale", self)
+        a2.setDuration(90)
+        a2.setStartValue(1.3)
+        a2.setEndValue(1.05)
+        a2.setEasingCurve(QEasingCurve.Type.InQuad)
+        
+        # Second heartbeat peak
+        a3 = QPropertyAnimation(self, b"icon_scale", self)
+        a3.setDuration(90)
+        a3.setStartValue(1.05)
+        a3.setEndValue(1.18)
+        a3.setEasingCurve(QEasingCurve.Type.OutQuad)
+        
+        # Return to baseline
+        a4 = QPropertyAnimation(self, b"icon_scale", self)
+        a4.setDuration(140)
+        a4.setStartValue(1.18)
+        a4.setEndValue(1.0)
+        a4.setEasingCurve(QEasingCurve.Type.InOutQuad)
+        
+        group.addAnimation(a1)
+        group.addAnimation(a2)
+        group.addAnimation(a3)
+        group.addAnimation(a4)
+        
+        self._pulse_anim = group
+        group.start()
 
     def _get_bg(self) -> float:
         return self._bg_opacity

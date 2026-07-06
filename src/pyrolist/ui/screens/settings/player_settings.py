@@ -72,6 +72,7 @@ class PlayerSettingsScreen(QWidget):
         audio.add_row(self._toggle_row("Reproduccion sin gaps", "Evita pausas entre canciones compatibles", "gapless_playback"))
         audio.add_row(self._toggle_row("Reanudar al iniciar", "Continua la ultima sesion al abrir la app", "resume_on_startup"))
         audio.add_row(self._toggle_row("Parar al cerrar", "Detiene la reproduccion al cerrar Pyrolist", "stop_on_close"))
+        audio.add_row(self._toggle_row("Minimizar al cerrar", "Minimiza Pyrolist al area de notificaciones al cerrar", "minimize_to_tray"))
 
         # Sleep Timer combobox using GlassComboBox
         from pyrolist.ui.widgets.glass_combobox import GlassComboBox

@@ -31,16 +31,18 @@ class DiscordRPC:
         artist: str,
         album: str = "",
         is_playing: bool = False,
+        thumbnail_url: str = "",
     ) -> None:
         if not self._rpc:
             return
         try:
             state = f"by {artist}" if artist else "YouTube Music"
             details = f"{title}"
+            large_img = thumbnail_url if (thumbnail_url and thumbnail_url.startswith("http")) else "music"
             await self._rpc.update(
                 state=state,
                 details=details,
-                large_image="music",
+                large_image=large_img,
                 large_text=album if album else "Pyrolist",
                 small_image="play" if is_playing else "pause",
                 small_text="Playing" if is_playing else "Paused",

@@ -23,6 +23,7 @@ class PlayerSettings(BaseModel):
     gapless_playback: bool = True
     stop_on_close: bool = False
     sleep_timer_minutes: int = 0
+    minimize_to_tray: bool = True
 
 class EqualizerSettings(BaseModel):
     enabled: bool = False

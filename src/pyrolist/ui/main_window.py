@@ -79,6 +79,7 @@ class MainWindow(QMainWindow):
         self.mpris = MprisPlayer(self.player, self.queue)
         self.scrobbler: LastFmScrobbler | None = None
         self.discord: DiscordRPC | None = None
+        self._force_close = False
         self.sleep_timer = SleepTimer()
         self.crossfade_manager = CrossfadeManager(
             enabled=settings.player.crossfade_enabled,
@@ -343,10 +344,10 @@ class MainWindow(QMainWindow):
 
         self.tray = SystemTray(
             parent=self,
-            on_show=self.show,
+            on_show=self._show_and_activate,
             on_play_pause=self._on_play_pause,
             on_next=self._on_next,
-            on_quit=self.close,
+            on_quit=self._on_tray_quit,
         )
 
     def _position_mini_player(self) -> None:
@@ -382,10 +383,20 @@ class MainWindow(QMainWindow):
     def _on_state_changed_callback(self, status) -> None:
         self.mini_player.update_state(status)
         self.now_playing_screen.update_state(status)
+        from pyrolist.audio.player import PlayerState
+        is_playing = status.state == PlayerState.PLAYING
+        
         if self.mpris:
-            from pyrolist.audio.player import PlayerState
-            is_playing = status.state == PlayerState.PLAYING
             self.mpris.update_playback_status(is_playing)
+            
+        if hasattr(self, "tray") and self.tray:
+            self.tray.update_play_state(is_playing)
+            
+        if self.discord and self.queue.current:
+            item = self.queue.current
+            self._run_async(self.discord.update(
+                item.title, item.artist, item.album, is_playing, item.thumbnail_url
+            ))
 
     def _on_position_changed_callback(self, status) -> None:
         self.mini_player.update_position(
@@ -1315,7 +1326,7 @@ class MainWindow(QMainWindow):
                 )
             if self.discord:
                 await self.discord.update(
-                    item.title, item.artist, item.album, True
+                    item.title, item.artist, item.album, True, item.thumbnail_url
                 )
             if self.mpris:
                 self.mpris.update_metadata(
@@ -1382,7 +1393,7 @@ class MainWindow(QMainWindow):
                 )
             if self.discord:
                 await self.discord.update(
-                    item.title, item.artist, item.album, True
+                    item.title, item.artist, item.album, True, item.thumbnail_url
                 )
             if self.mpris:
                 self.mpris.update_metadata(
@@ -2039,11 +2050,25 @@ class MainWindow(QMainWindow):
 
         refresh_batch()
 
+    def _show_and_activate(self) -> None:
+        self.show()
+        self.raise_()
+        self.activateWindow()
+
+    def _on_tray_quit(self) -> None:
+        self._force_close = True
+        self.close()
+
     def closeEvent(self, event) -> None:
-        if self.settings.player.stop_on_close:
-            self._run_async(self.player.stop())
-        self.player.release()
-        if self.discord:
-            self._run_async(self.discord.disconnect())
-        self.tray.hide()
-        event.accept()
+        if getattr(self.settings.player, "minimize_to_tray", True) and not getattr(self, "_force_close", False) and hasattr(self, "tray") and self.tray.isVisible():
+            self.hide()
+            event.ignore()
+        else:
+            if self.settings.player.stop_on_close:
+                self._run_async(self.player.stop())
+            self.player.release()
+            if self.discord:
+                self._run_async(self.discord.disconnect())
+            if hasattr(self, "tray") and self.tray:
+                self.tray.hide()
+            event.accept()

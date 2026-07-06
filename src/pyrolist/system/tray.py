@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import QSystemTrayIcon, QMenu
 from PySide6.QtGui import QIcon, QAction
-from PySide6.QtCore import QObject, Slot
+from PySide6.QtCore import Slot
 
 
 class SystemTray(QSystemTrayIcon):
@@ -12,10 +12,17 @@ class SystemTray(QSystemTrayIcon):
         self.on_next = on_next
         self.on_quit = on_quit
         
-        self.setIcon(QIcon.fromTheme("media-playback-start"))
+        # Load own application icon from assets if available
+        from pyrolist.config.paths import AppDirs
+        icon_path = AppDirs.root / "assets" / "icon.png"
+        if icon_path.exists():
+            self.setIcon(QIcon(str(icon_path)))
+        else:
+            self.setIcon(QIcon.fromTheme("media-playback-start"))
+            
         self.setToolTip("Pyrolist")
-        
         self._build_menu()
+        self.activated.connect(self._on_activated)
 
     def _build_menu(self):
         menu = QMenu()
@@ -42,7 +49,17 @@ class SystemTray(QSystemTrayIcon):
         
         self.setContextMenu(menu)
 
+    def _on_activated(self, reason):
+        if reason == QSystemTrayIcon.ActivationReason.Trigger:
+            parent = self.parent()
+            if parent:
+                if parent.isVisible() and not parent.isMinimized():
+                    parent.hide()
+                else:
+                    self.on_show()
+
     @Slot()
     def update_play_state(self, is_playing: bool):
-        icon_name = "media-playback-pause" if is_playing else "media-playback-start"
-        self.setIcon(QIcon.fromTheme(icon_name))
+        # Update tooltip to reflect active state
+        state_text = "Reproduciendo" if is_playing else "Pausado"
+        self.setToolTip(f"Pyrolist - {state_text}")
