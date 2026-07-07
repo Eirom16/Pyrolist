@@ -9,6 +9,8 @@ from pyrolist.audio.queue import QueueItem
 from pyrolist.ui.widgets.song_card import SongCard
 from pyrolist.ui.widgets.icon_button import IconButton
 from pyrolist.ui.design.icons import Icon
+from pyrolist.ui.widgets.album_card import AlbumCard
+from pyrolist.ui.widgets.load_more import PaginatorFooter
 from pyrolist.utils.image_cache import ImageCache
 
 _image_cache = ImageCache()
@@ -171,9 +173,9 @@ class PlaylistScreen(QWidget):
         except asyncio.CancelledError:
             raise
         except Exception as e:
-            logger.error(f"Error loading playlist: {e}")
+            logger.exception(f"Error loading playlist: {e}")
             self._clear_content()
-            self.content_layout.addWidget(QLabel("Error cargando playlist"))
+            self.content_layout.addWidget(QLabel(f"Error cargando playlist:\n{e}"))
 
     async def _load_local_playlist(self, playlist_id: str):
         actual_pid = playlist_id.replace("local_", "")
@@ -415,14 +417,32 @@ class PlaylistScreen(QWidget):
         self.content_layout.addLayout(self.tracks_layout)
         self.content_layout.addStretch()
         
-        # Tracks
-        for i, track in enumerate(tracks):
+           # Tracks chunking
+        self._playlist_tracks = tracks
+        self._playlist_render_idx = 0
+        self._playlist_paginator = PaginatorFooter()
+        self._playlist_paginator.load_requested.connect(self._on_playlist_load_more)
+        
+        self._render_playlist_chunk(20)
+
+    def _render_playlist_chunk(self, chunk_size=20):
+        if not hasattr(self, "_playlist_tracks") or not self._playlist_tracks:
+            return
+            
+        if hasattr(self, "_playlist_paginator"):
+            self.content_layout.removeWidget(self._playlist_paginator)
+            self._playlist_paginator.setParent(None)
+            
+        tracks = self._playlist_tracks
+        start = self._playlist_render_idx
+        end = min(start + chunk_size, len(tracks))
+        
+        for i in range(start, end):
+            track = tracks[i]
             title = track.get('title', 'Unknown')
             video_id = track.get('videoId', '')
-            
             artists = track.get('artists', [])
             artist_names = self._artist_names(artists)
-            
             duration = track.get('duration', '')
             
             track_thumbnails = track.get('thumbnails', [])
@@ -446,10 +466,19 @@ class PlaylistScreen(QWidget):
                 card.like_requested.connect(self.like_requested.emit)
                 card.delete_download_requested.connect(self.delete_download_requested.emit)
                 self.tracks_layout.addWidget(card)
+                
+        self._playlist_render_idx = end
+        
+        if self._playlist_render_idx < len(tracks):
+            self.content_layout.addWidget(self._playlist_paginator)
+            self._playlist_paginator.set_state("button")
+            
+        if start == 0:
+            pass
 
-            # Ceder control al event loop cada 5 canciones para no congelar la UI
-            if i > 0 and i % 5 == 0:
-                await asyncio.sleep(0)
+    def _on_playlist_load_more(self):
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(100, lambda: self._render_playlist_chunk(20))
 
     async def _load_cover(self, url: str):
         path = await _image_cache.download(url)

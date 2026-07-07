@@ -17,7 +17,6 @@ from pyrolist.ui.widgets.animated_mixins import HoverColorAnimationMixin
 NAV_ITEMS = [
     ("home", "home", "Inicio"),
     ("library", "library_music", "Biblioteca"),
-    ("favorites", "favorite", "Favoritos"),
     ("history", "history", "Historial"),
     ("stats", "bar_chart", "Estadísticas"),
     ("downloads", "download", "Descargas"),

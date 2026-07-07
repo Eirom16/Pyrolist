@@ -5,6 +5,7 @@ from PySide6.QtGui import QFont
 from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, Signal
 from loguru import logger
 from pyrolist.ui.widgets.song_card import SongCard
+from pyrolist.ui.widgets.load_more import PaginatorFooter
 
 
 class HistoryScreen(QWidget):
@@ -159,24 +160,57 @@ class HistoryScreen(QWidget):
 
         # Render combined history
         if combined_history:
-            for entry in combined_history:
-                card = SongCard(
-                    title=entry['title'],
-                    artist=entry['artist'],
-                    duration=entry['duration'],
-                    thumbnail_url=entry['thumbnail_url'],
-                    on_play=partial(self._handle_play, entry['videoId'], entry['title'], entry['artist'], entry['thumbnail_url']),
-                    video_id=entry['videoId'],
-                    is_liked=entry['videoId'] in liked_ids,
-                )
-                self._connect_card_signals(card)
-                self.content_layout.addWidget(card)
+            self._history_items = combined_history
+            self._history_render_idx = 0
+            self._liked_ids = liked_ids
+            self._history_paginator = PaginatorFooter()
+            self._history_paginator.load_requested.connect(self._on_history_load_more)
+            self._render_history_chunk(20)
         else:
             msg = QLabel("Tu historial está vacío\n\nLas canciones que reproduzcas aparecerán aquí")
             msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
             msg.setObjectName("libraryEmptyMessage")
             self.content_layout.addWidget(msg)
+            self.content_layout.addStretch()
+            self._fade_in_content()
 
-        self.content_layout.addStretch()
-        self._fade_in_content()
+    def _render_history_chunk(self, chunk_size=20):
+        if not hasattr(self, "_history_items") or not self._history_items:
+            return
+            
+        if hasattr(self, "_history_paginator"):
+            self.content_layout.removeWidget(self._history_paginator)
+            self._history_paginator.setParent(None)
+            
+        items = self._history_items
+        start = self._history_render_idx
+        end = min(start + chunk_size, len(items))
+        
+        for i in range(start, end):
+            entry = items[i]
+            card = SongCard(
+                title=entry['title'],
+                artist=entry['artist'],
+                duration=entry['duration'],
+                thumbnail_url=entry['thumbnail_url'],
+                on_play=partial(self._handle_play, entry['videoId'], entry['title'], entry['artist'], entry['thumbnail_url']),
+                video_id=entry['videoId'],
+                is_liked=entry['videoId'] in self._liked_ids,
+            )
+            self._connect_card_signals(card)
+            self.content_layout.addWidget(card)
+            
+        self._history_render_idx = end
+        
+        if self._history_render_idx < len(items):
+            self.content_layout.addWidget(self._history_paginator)
+            self._history_paginator.set_state("button")
+        else:
+            self.content_layout.addStretch()
+            
+        if start == 0:
+            self._fade_in_content()
 
+    def _on_history_load_more(self):
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(100, lambda: self._render_history_chunk(20))

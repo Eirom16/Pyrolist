@@ -674,9 +674,13 @@ class HomeScreen(QWidget):
                 title_lbl.setFont(AppFont.heading(20))
                 title_lbl.setStyleSheet("background: transparent; padding-top: 10px;")
                 self.content_layout.addWidget(title_lbl)
+                
+                self._fade_in_content()
+
+                # Yield immediately before heavy rendering
+                await asyncio.sleep(0)
 
                 await self._display_home_content(contents, liked_ids)
-                self._fade_in_content()
             else:
                 # Fallback to charts
                 charts_data = await self.yt.get_charts()
@@ -697,8 +701,10 @@ class HomeScreen(QWidget):
                     title.setStyleSheet("background: transparent;")
                     self.content_layout.addWidget(title)
                     
-                    await self._display_charts(charts_data)
                     self._fade_in_content()
+                    await asyncio.sleep(0)
+                    
+                    await self._display_charts(charts_data)
                 else:
                     self._clear_content()
                     await self._load_genres_view()
@@ -912,8 +918,8 @@ class HomeScreen(QWidget):
             else:
                 section_widget.deleteLater()
 
-            # Ceder al event loop para que Qt procese eventos de UI entre secciones
-            await asyncio.sleep(0)
+            # Sleep longer to allow UI updates and image loading between chunks
+            await asyncio.sleep(0.01)
         
         self.content_layout.addStretch()
 

@@ -15,6 +15,7 @@ from pyrolist.ui.widgets.album_card import AlbumCard
 from pyrolist.ui.widgets.artist_card import ArtistCard
 from pyrolist.ui.widgets.playlist_card import PlaylistCard
 from pyrolist.ui.widgets.skeleton_loader import SkeletonListLoader
+from pyrolist.ui.widgets.load_more import PaginatorFooter
 from pyrolist.db.repository import DownloadRepository, SongRepository
 
 
@@ -320,29 +321,19 @@ class LibraryScreen(QWidget):
                     header.setObjectName("libraryHeader")
                     self.content_layout.addWidget(header)
                     
-                    # Pintar en chunks para no congelar la UI
-                    chunk_size = 5
-                    for i, track in enumerate(combined_tracks):
-                        card = SongCard(
-                            title=track['title'],
-                            artist=track['artist'],
-                            duration=track['duration'],
-                            thumbnail_url=track['thumbnail_url'],
-                            on_play=partial(self._handle_play, track['videoId'], track['title'], track['artist'], track['thumbnail_url']),
-                            video_id=track['videoId'],
-                            is_liked=track['is_liked'],
-                        )
-                        self._connect_card_signals(card)
-                        self.content_layout.addWidget(card)
-                        
-                        if (i + 1) % chunk_size == 0:
-                            await asyncio.sleep(0) # cede control al event loop de Qt
+                    self._library_current_tracks = combined_tracks
+                    self._library_render_idx = 0
+                    
+                    from pyrolist.ui.widgets.load_more import PaginatorFooter
+                    self._songs_paginator = PaginatorFooter()
+                    self._songs_paginator.load_requested.connect(self._on_songs_load_more)
+                    
+                    self._render_songs_chunk(20)
                 else:
                     msg = QLabel("No tienes canciones guardadas\n\nLas canciones que reproduzcas aparecerán aquí")
                     msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
                     msg.setObjectName("libraryEmptyMessage")
                     self.content_layout.addWidget(msg)
-
             elif tab == "albums":
                 if tab in self._library_cache and cache_age < 300:
                     albums = self._library_cache[tab]
@@ -497,6 +488,45 @@ class LibraryScreen(QWidget):
         # Bring FAB to top after updating layout to prevent overlap issues
         if hasattr(self, "fab") and self.fab.isVisible():
             self.fab.raise_()
+
+    def _render_songs_chunk(self, chunk_size=20):
+        if not hasattr(self, "_library_current_tracks") or not self._library_current_tracks:
+            return
+            
+        if hasattr(self, "_songs_paginator"):
+            self.content_layout.removeWidget(self._songs_paginator)
+            self._songs_paginator.setParent(None)
+            
+        tracks = self._library_current_tracks
+        start = self._library_render_idx
+        end = min(start + chunk_size, len(tracks))
+        
+        for i in range(start, end):
+            track = tracks[i]
+            card = SongCard(
+                title=track['title'],
+                artist=track['artist'],
+                duration=track['duration'],
+                thumbnail_url=track['thumbnail_url'],
+                on_play=partial(self._handle_play, track['videoId'], track['title'], track['artist'], track['thumbnail_url']),
+                video_id=track['videoId'],
+                is_liked=track['is_liked'],
+            )
+            self._connect_card_signals(card)
+            self.content_layout.addWidget(card)
+            
+        self._library_render_idx = end
+        
+        if self._library_render_idx < len(tracks):
+            self.content_layout.addWidget(self._songs_paginator)
+            self._songs_paginator.set_state("button")
+        
+        if start == 0:
+            self._fade_in_content()
+
+    def _on_songs_load_more(self):
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(100, lambda: self._render_songs_chunk(20))
 
     def _clear_content(self):
         while self.content_layout.count():
