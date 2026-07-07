@@ -19,8 +19,8 @@ class PlaylistCard(QWidget, HoverColorAnimationMixin):
     clicked = Signal()
 
     def __init__(self, title: str, description: str = "", thumbnail_url: str = "", is_downloaded: bool = False):
-        QWidget.__init__(self)
-        HoverColorAnimationMixin.__init__(self, normal_color="#10101E", hover_color="#16162A")
+        super().__init__()
+        self.init_hover_animation(normal_color="#10101E", hover_color="#16162A")
         self._title = title
         self._description = description
         self._thumbnail_url = thumbnail_url

@@ -6,7 +6,7 @@ class HoverColorAnimationMixin:
     Mixin to add smooth hover color animations to QWidget subclasses.
     Target must implement setStyleSheet or handle color updates.
     """
-    def __init__(self, normal_color: str, hover_color: str, duration: int = 150):
+    def init_hover_animation(self, normal_color: str, hover_color: str, duration: int = 150):
         self._normal_color = QColor(normal_color)
         self._hover_color = QColor(hover_color)
         

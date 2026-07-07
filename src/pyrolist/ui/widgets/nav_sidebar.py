@@ -27,8 +27,8 @@ NAV_ITEMS = [
 
 class NavButton(QPushButton, HoverColorAnimationMixin):
     def __init__(self, route: str, icon_name: str, label: str, parent=None):
-        QPushButton.__init__(self, parent)
-        HoverColorAnimationMixin.__init__(self, normal_color="transparent", hover_color="#1E1E38")
+        super().__init__(parent)
+        self.init_hover_animation(normal_color="transparent", hover_color="#1E1E38")
         self.route = route
         self.icon_name = icon_name
         self.label = label
