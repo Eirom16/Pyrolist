@@ -532,7 +532,11 @@ class MainWindow(QMainWindow):
         
         if self.download_manager.add_download(video_id, title, artist, thumb_url):
             self.statusBar().showMessage(f"Descargando: {title}", 3000)
-            self.show_notification(f"Descargando: {title}", "info")
+            
+            def navigate_to_downloads():
+                self._navigate_to("downloads")
+                
+            self.show_notification(f"Descargando: {title}", "info", action_text="VER", action_callback=navigate_to_downloads)
         else:
             self.statusBar().showMessage(f"Ya en cola: {title}", 3000)
 
@@ -544,7 +548,11 @@ class MainWindow(QMainWindow):
 
     async def _download_playlist_async(self, playlist_id, title, thumbnail_url):
         self.statusBar().showMessage(f"Iniciando descarga de playlist: {title}", 3000)
-        self.show_notification(f"Iniciando descarga de playlist: {title}", "info")
+        
+        def navigate_to_downloads():
+            self._navigate_to("downloads")
+            
+        self.show_notification(f"Descargando playlist: {title}", "info", action_text="VER", action_callback=navigate_to_downloads)
         
         try:
             data = await self.yt.get_playlist(playlist_id)
@@ -592,7 +600,9 @@ class MainWindow(QMainWindow):
 
     async def _download_album_async(self, browse_id, title, thumbnail_url):
         self.statusBar().showMessage(f"Iniciando descarga de álbum: {title}", 3000)
-        self.show_notification(f"Iniciando descarga de álbum: {title}", "info")
+        def navigate_to_downloads():
+            self._navigate_to("downloads")
+        self.show_notification(f"Iniciando descarga de álbum: {title}", "info", action_text="VER", action_callback=navigate_to_downloads)
 
         try:
             data = await self.yt.get_album(browse_id)
@@ -708,11 +718,11 @@ class MainWindow(QMainWindow):
         self.show_notification(f"Playlist local eliminada: {playlist_title or playlist_id}", "info")
         await self._navigate("downloads")
 
-    def show_notification(self, message: str, kind: str = "info"):
+    def show_notification(self, message: str, kind: str = "info", action_text: str = None, action_callback = None):
         if hasattr(self, "search_bar"):
             self.search_bar.notif_dropdown.add_custom_notification(message, kind)
-        else:
-            ToastNotification.show(self, message, kind)
+        from pyrolist.ui.widgets.toast import ToastNotification
+        ToastNotification.show(self, message, kind, action_text, action_callback)
 
     def _on_play_next_requested(self, video_id, title, artist, thumb_url):
         item = QueueItem(

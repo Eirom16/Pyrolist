@@ -294,7 +294,14 @@ class GlobalSearchBar(QWidget):
         bar_layout.setContentsMargins(16, 10, 24, 10)
         bar_layout.setSpacing(12)
         
+        # Spacer to push search bar to the center
+        bar_layout.addStretch()
+        
         self.search_container = QFrame()
+        self.search_container.setMinimumWidth(300)
+        self.search_container.setMaximumWidth(600)
+        self.search_container.setFixedHeight(48)
+        self.search_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.search_container.setObjectName("searchContainer")
         self.search_container.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         search_layout = QHBoxLayout(self.search_container)
@@ -329,6 +336,9 @@ class GlobalSearchBar(QWidget):
         search_layout.addWidget(self._clear_btn)
         
         bar_layout.addWidget(self.search_container)
+        
+        # Spacer to push search bar to the center (balancing the left spacer)
+        bar_layout.addStretch()
         
         self._update_search_bar_styles()
 
@@ -389,13 +399,13 @@ class GlobalSearchBar(QWidget):
 
         dd = self._ensure_dropdown()
 
-        # Position below the search bar, aligned to the input, relative to the main window
+        # Position below the search bar, aligned to the container, relative to the main window
         parent_win = self.window()
         if parent_win:
-            rel_pos = self.input.mapTo(parent_win, QPoint(0, self.input.height()))
+            rel_pos = self.search_container.mapTo(parent_win, QPoint(0, self.search_container.height() + 4))
         else:
-            rel_pos = self.input.mapToGlobal(QPoint(0, self.input.height()))
-        dd_width = min(self.input.width(), 600)
+            rel_pos = self.search_container.mapToGlobal(QPoint(0, self.search_container.height() + 4))
+        dd_width = self.search_container.width()
         dd.setFixedWidth(dd_width)
         dd.move(rel_pos)
         
@@ -636,7 +646,7 @@ class GlobalSearchBar(QWidget):
             
         if hasattr(self, 'search_container') and self.search_container:
             self.search_container.setStyleSheet(f"""
-                #searchContainer {{
+                QFrame#searchContainer {{
                     background-color: {tokens.CURRENT.bg_surface};
                     border: 1px solid {tokens.CURRENT.border};
                     border-radius: 24px;

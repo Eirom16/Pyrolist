@@ -39,7 +39,7 @@ class ToastNotification(QWidget):
         if action_text and action_callback:
             from PySide6.QtWidgets import QPushButton
             btn = QPushButton(action_text)
-            btn.setFont(AppFont.body(13, bold=True))
+            btn.setFont(AppFont.title(13))
             btn.setStyleSheet(f"color: {accent_hex}; background: transparent; border: none; font-weight: bold;")
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             

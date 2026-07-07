@@ -317,6 +317,12 @@ class NowPlayingScreen(QWidget):
         # Tab: Queue (A CONTINUACIÓN)
         from pyrolist.ui.widgets.queue_panel import QueuePanel
         self.queue_tab = QueuePanel(self.play_queue_item_cb)
+        self.queue_tab.like_requested.connect(lambda *a: self.like_requested.emit(*a))
+        self.queue_tab.download_requested.connect(lambda *a: self.download_requested.emit(*a))
+        self.queue_tab.play_next_requested.connect(lambda *a: self.play_next_requested.emit(*a))
+        self.queue_tab.add_to_queue_requested.connect(lambda *a: self.add_to_queue_requested.emit(*a))
+        self.queue_tab.add_to_playlist_requested.connect(lambda *a: self.add_to_playlist_requested.emit(*a))
+        self.queue_tab.delete_download_requested.connect(lambda *a: self.delete_download_requested.emit(*a))
         self.tabs.addTab(self.queue_tab, "A CONTINUACIÓN")
 
         self.lyrics_scroll = QScrollArea()
