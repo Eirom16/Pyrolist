@@ -17,13 +17,17 @@ class DownloadTask:
         self.parent_playlist_id = parent_playlist_id
         self.parent_playlist_title = parent_playlist_title
         self.parent_playlist_thumbnail_url = parent_playlist_thumbnail_url
-        self.status = "queued" # queued, downloading, completed, error
+        self.status = "queued" # queued, downloading, completed, error, paused
         self.progress = 0.0
         self.speed = ""
         self._cancel_flag = False
+        self._pause_flag = False
 
     def cancel(self):
         self._cancel_flag = True
+
+    def pause(self):
+        self._pause_flag = True
 
 class DownloadManager(QObject):
     download_queued = Signal(object) # DownloadTask
@@ -76,6 +80,23 @@ class DownloadManager(QObject):
         if video_id in self._tasks:
             self._tasks[video_id].cancel()
 
+    def pause_download(self, video_id: str):
+        if video_id in self._tasks:
+            self._tasks[video_id].pause()
+
+    def resume_download(self, video_id: str):
+        if video_id in self._tasks:
+            task = self._tasks[video_id]
+            if task.status in ["paused", "error"]:
+                task.status = "queued"
+                task._pause_flag = False
+                task._cancel_flag = False
+                self.download_queued.emit(task)
+                self._queue.put_nowait(task)
+
+    def retry_download(self, video_id: str):
+        self.resume_download(video_id)
+
     async def _worker(self):
         while self._running:
             try:
@@ -100,6 +121,9 @@ class DownloadManager(QObject):
         def progress_hook(d):
             if task._cancel_flag:
                 raise Exception("CANCELLED")
+            if task._pause_flag:
+                task.status = "paused"
+                raise Exception("PAUSED")
                 
             if d['status'] == 'downloading':
                 try:
@@ -200,12 +224,22 @@ class DownloadManager(QObject):
             self.download_completed.emit(task.video_id, filepath)
             
         except Exception as e:
-            if str(e) == "CANCELLED":
+            if str(e) == "PAUSED":
+                task.status = "paused"
+                logger.info(f"Download paused: {task.title}")
+                # Do NOT delete from self._tasks so it can be resumed
+                return
+            elif str(e) == "CANCELLED":
                 logger.info(f"Download cancelled: {task.title}")
             else:
                 logger.error(f"Download failed for {task.video_id}: {e}")
                 task.status = "error"
+                # Do NOT delete from self._tasks so it can be retried
                 self.download_error.emit(task.video_id, str(e))
+                return
         finally:
-            if task.video_id in self._tasks:
+            # We want to keep paused and error tasks in _tasks so they can be resumed/retried.
+            if task.video_id in self._tasks and task.status in ["completed", "queued"]:
+                del self._tasks[task.video_id]
+            elif task.video_id in self._tasks and task._cancel_flag:
                 del self._tasks[task.video_id]

@@ -178,12 +178,16 @@ class SongCard(QWidget):
             self.play_next_requested.emit(
                 self._video_id, self._title, self._artist, self._thumbnail_url
             )
+            from pyrolist.ui.widgets.toast import ToastNotification
+            ToastNotification.show(self.window(), f"Reproduciendo a continuación: {self._title}", "info")
 
     def _on_add_to_queue_clicked(self):
         if self._video_id:
             self.add_to_queue_requested.emit(
                 self._video_id, self._title, self._artist, self._thumbnail_url
             )
+            from pyrolist.ui.widgets.toast import ToastNotification
+            ToastNotification.show(self.window(), f"Añadido a la cola: {self._title}", "info")
 
     def _on_add_to_playlist_clicked(self):
         if self._video_id:
@@ -192,6 +196,8 @@ class SongCard(QWidget):
     def _on_delete_download_clicked(self):
         if self._video_id:
             self.delete_download_requested.emit(self._video_id)
+            from pyrolist.ui.widgets.toast import ToastNotification
+            ToastNotification.show(self.window(), f"Descarga borrada: {self._title}", "success")
 
     def _show_context_menu(self):
         asyncio.create_task(self._show_context_menu_async())

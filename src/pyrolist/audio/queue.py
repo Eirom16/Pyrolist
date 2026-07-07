@@ -148,3 +148,18 @@ class PlayQueue:
         self._queue.clear()
         self._original.clear()
         self._index = -1
+
+    @property
+    def items(self) -> list[QueueItem]:
+        return self._queue.copy()
+
+    async def save_queue_as_playlist(self, api_client, title: str, description: str = "") -> str:
+        """Saves current queue as a playlist via the API and returns playlist_id."""
+        video_ids = [item.video_id for item in self._queue]
+        if not video_ids:
+            return ""
+        
+        playlist_id = await api_client.create_playlist(title, description)
+        if playlist_id:
+            await api_client.add_playlist_items(playlist_id, video_ids)
+        return playlist_id

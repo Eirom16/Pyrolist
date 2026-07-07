@@ -15,7 +15,7 @@ class ToastNotification(QWidget):
         "warning": "warning",
     }
 
-    def __init__(self, parent: QWidget, message: str, kind: str = "info"):
+    def __init__(self, parent: QWidget, message: str, kind: str = "info", action_text: str = None, action_callback = None):
         super().__init__(parent, Qt.WindowType.SubWindow)
         from pyrolist.ui.design import tokens
         from PySide6.QtGui import QColor
@@ -35,6 +35,21 @@ class ToastNotification(QWidget):
         msg.setMaximumWidth(280)
         msg.setStyleSheet(f" background: transparent;")
         layout.addWidget(msg)
+        
+        if action_text and action_callback:
+            from PySide6.QtWidgets import QPushButton
+            btn = QPushButton(action_text)
+            btn.setFont(AppFont.body(13, bold=True))
+            btn.setStyleSheet(f"color: {accent_hex}; background: transparent; border: none; font-weight: bold;")
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            
+            def on_action():
+                action_callback()
+                self._dismiss()
+                
+            btn.clicked.connect(on_action)
+            layout.addWidget(btn)
+            
         self.setStyleSheet(f"ToastNotification {{ background-color: {tokens.CURRENT.bg_surface}; border: 1px solid rgba({r},{g},{b},0.40); border-radius: 14px; }}")
         self.adjustSize()
         parent_rect = parent.rect()
@@ -65,7 +80,7 @@ class ToastNotification(QWidget):
         self._out_anim.start()
 
     @staticmethod
-    def show(parent: QWidget, message: str, kind: str = "info") -> "ToastNotification":
-        return ToastNotification(parent, message, kind)
+    def show(parent: QWidget, message: str, kind: str = "info", action_text: str = None, action_callback = None) -> "ToastNotification":
+        return ToastNotification(parent, message, kind, action_text, action_callback)
 
 

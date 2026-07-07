@@ -13,11 +13,14 @@ from pyrolist.utils.image_cache import ImageCache
 _image_cache = ImageCache()
 
 
-class PlaylistCard(QWidget):
+from pyrolist.ui.widgets.animated_mixins import HoverColorAnimationMixin
+
+class PlaylistCard(QWidget, HoverColorAnimationMixin):
     clicked = Signal()
 
     def __init__(self, title: str, description: str = "", thumbnail_url: str = "", is_downloaded: bool = False):
-        super().__init__()
+        QWidget.__init__(self)
+        HoverColorAnimationMixin.__init__(self, normal_color="#10101E", hover_color="#16162A")
         self._title = title
         self._description = description
         self._thumbnail_url = thumbnail_url
@@ -184,6 +187,20 @@ class PlaylistCard(QWidget):
         else:
             self.checkbox.hide()
             self.checkbox.setChecked(False)
+
+    def enterEvent(self, event):
+        self.checkbox.show()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        if not self.checkbox.isChecked():
+            self.checkbox.hide()
+        super().leaveEvent(event)
+
+    def _update_hover_stylesheet(self):
+        from PySide6.QtGui import QColor
+        bg = self._current_hover_color.name(QColor.HexArgb)
+        self.setStyleSheet(f"#playlistCard {{ background-color: {bg}; border-radius: 12px; border: 1px solid rgba(167,139,250,0.12); }}")
 
     def mousePressEvent(self, event) -> None:
         if getattr(self, "selection_mode", False):

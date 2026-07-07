@@ -415,11 +415,11 @@ QFrame {
 
 /* Exclude separators (HLine/VLine) from the global radius rule */
 QFrame[frameShape="4"], QFrame[frameShape="5"] {
-    border-radius: 0;
+    border-radius: 1px;
 }
 
 QFrame#queueSeparator {
-    border-radius: 0;
+    border-radius: 1px;
     background: rgba(167,139,250,0.08);
     max-width: 1px;
 }

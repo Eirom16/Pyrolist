@@ -49,6 +49,14 @@ def _save_history(history: list[str]):
         pass
 
 
+def _clear_history():
+    try:
+        if _HISTORY_FILE.exists():
+            _HISTORY_FILE.unlink()
+    except Exception:
+        pass
+
+
 # ---------------------------------------------------------------------------
 # Suggestion‑row helper widget
 # ---------------------------------------------------------------------------

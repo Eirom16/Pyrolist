@@ -530,6 +530,67 @@ class YouTubeMusicClient:
         except Exception:
             return {}
 
+    async def remove_playlist_items(self, playlist_id: str, videos: list) -> dict:
+        """Remove songs from a playlist - requires auth.
+        'videos' must be a list of dicts with 'videoId' and 'setVideoId'
+        """
+        if not self._is_authenticated or not self._ytmusicapi:
+            return {}
+
+        self.invalidate_playlist_cache(playlist_id)
+
+        def _remove_items():
+            try:
+                return self._ytmusicapi.remove_playlist_items(playlist_id, videos)
+            except Exception as e:
+                logger.error(f"remove_playlist_items error: {e}")
+                return {}
+
+        try:
+            return await self._run(_remove_items)
+        except Exception:
+            return {}
+
+    async def delete_playlist(self, playlist_id: str) -> bool:
+        """Delete a playlist - requires auth."""
+        if not self._is_authenticated or not self._ytmusicapi:
+            return False
+
+        self.invalidate_playlist_cache()
+
+        def _delete():
+            try:
+                self._ytmusicapi.delete_playlist(playlist_id)
+                return True
+            except Exception as e:
+                logger.error(f"delete_playlist error: {e}")
+                return False
+
+        return await self._run(_delete)
+
+    async def rename_playlist(self, playlist_id: str, new_title: str, new_description: str = None) -> bool:
+        """Rename a playlist - requires auth."""
+        if not self._is_authenticated or not self._ytmusicapi:
+            return False
+
+        self.invalidate_playlist_cache(playlist_id)
+
+        def _rename():
+            try:
+                kwargs = {"title": new_title}
+                if new_description is not None:
+                    kwargs["description"] = new_description
+                return self._ytmusicapi.edit_playlist(playlist_id, **kwargs)
+            except Exception as e:
+                logger.error(f"rename_playlist error: {e}")
+                return False
+
+        try:
+            res = await self._run(_rename)
+            return bool(res)
+        except Exception:
+            return False
+
     async def rate_song(self, video_id: str, rating: str = "LIKE") -> bool:
         """Rate a song (LIKE, DISLIKE, INDIFFERENT) - requires auth."""
         if not self._is_authenticated or not self._ytmusicapi:

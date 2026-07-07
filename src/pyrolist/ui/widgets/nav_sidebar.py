@@ -12,10 +12,12 @@ from pyrolist.utils.image_cache import ImageCache
 
 _image_cache = ImageCache()
 
+from pyrolist.ui.widgets.animated_mixins import HoverColorAnimationMixin
 
 NAV_ITEMS = [
     ("home", "home", "Inicio"),
     ("library", "library_music", "Biblioteca"),
+    ("favorites", "favorite", "Favoritos"),
     ("history", "history", "Historial"),
     ("stats", "bar_chart", "Estadísticas"),
     ("downloads", "download", "Descargas"),
@@ -23,9 +25,10 @@ NAV_ITEMS = [
 ]
 
 
-class NavButton(QPushButton):
+class NavButton(QPushButton, HoverColorAnimationMixin):
     def __init__(self, route: str, icon_name: str, label: str, parent=None):
-        super().__init__(parent)
+        QPushButton.__init__(self, parent)
+        HoverColorAnimationMixin.__init__(self, normal_color="transparent", hover_color="#1E1E38")
         self.route = route
         self.icon_name = icon_name
         self.label = label
@@ -69,6 +72,20 @@ class NavButton(QPushButton):
             self._row.setSpacing(12)
             self.icon_label.setFixedWidth(22)
 
+    def _update_hover_stylesheet(self):
+        if not self.isChecked():
+            from PySide6.QtGui import QColor
+            bg = self._current_hover_color.name(QColor.HexArgb)
+            self.setStyleSheet(f"""
+                QPushButton {{
+                    background: {bg};
+                    border: none;
+                    border-radius: 12px;
+                    text-align: left;
+                    padding: 0;
+                }}
+            """)
+
     def _apply_style(self, active: bool) -> None:
         from pyrolist.ui.design import tokens
         from PySide6.QtGui import QColor
@@ -81,20 +98,19 @@ class NavButton(QPushButton):
         self.icon_label.setStyleSheet(f"color: {color}; background: transparent; font-family: 'Material Symbols Rounded'; font-size: 24px;")
         self.text_label.setStyleSheet(f"color: {color}; background: transparent; font-weight: {weight};")
         
-        bg = f"rgba({r},{g},{b},0.14)" if active else "transparent"
-        hover_bg = f"rgba({r},{g},{b},0.09)"
-        self.setStyleSheet(f"""
-            QPushButton {{
-                background: {bg};
-                border: none;
-                border-radius: 12px;
-                text-align: left;
-                padding: 0;
-            }}
-            QPushButton:hover {{
-                background: {hover_bg};
-            }}
-        """)
+        if active:
+            bg = f"rgba({r},{g},{b},0.14)"
+            self.setStyleSheet(f"""
+                QPushButton {{
+                    background: {bg};
+                    border: none;
+                    border-radius: 12px;
+                    text-align: left;
+                    padding: 0;
+                }}
+            """)
+        else:
+            self._update_hover_stylesheet()
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
