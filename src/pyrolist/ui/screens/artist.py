@@ -359,7 +359,7 @@ class ArtistScreen(QWidget):
             row_layout.setSpacing(12)
 
             for artist in related:
-                a_name = artist.get('name', 'Unknown')
+                a_name = artist.get('title', 'Unknown')
                 a_id = artist.get('browseId', '')
                 a_thumbnails = artist.get('thumbnails', [])
                 a_thumbnail_url = a_thumbnails[-1].get('url', '') if a_thumbnails else ''

@@ -7,7 +7,6 @@ from PySide6.QtGui import QFont, QColor
 
 from pyrolist.ui.design import tokens
 from pyrolist.ui.design.icons import Icon
-from pyrolist.ui.widgets.glass_panel import GlassPanel
 from pyrolist.services.download_manager import DownloadManager
 
 
@@ -116,6 +115,154 @@ class DownloadProgressRow(QWidget):
                     self._in_style_change = False
         super().changeEvent(event)
 
+class ReleaseNotificationRow(QWidget):
+    artist_clicked = Signal(str, str) # artist_name, artist_id
+    song_clicked = Signal(str, str, str, str)
+
+    def __init__(self, video_id: str, title: str, artist: str, artist_id: str, thumb_url: str, created_at, parent=None):
+        super().__init__(parent)
+        self.video_id = video_id
+        self.title = title
+        self.artist = artist
+        self.artist_id = artist_id
+        self.thumb_url = thumb_url
+        self.created_at = created_at
+        
+        self.setCursor(Qt.CursorShape.ArrowCursor)
+        self._build_ui()
+
+    def _build_ui(self):
+        from pyrolist.ui.widgets.clickable_label import ClickableLabel
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setSpacing(12)
+
+        # Left Avatar (Circular)
+        self.avatar_img = ClickableLabel()
+        self.avatar_img.set_clicked_callback(lambda: self.artist_clicked.emit(self.artist, self.artist_id or ""))
+        self.avatar_img.setFixedSize(44, 44)
+        self.avatar_img.setStyleSheet(f"background: {tokens.CURRENT.bg_high}; border-radius: 22px;")
+        layout.addWidget(self.avatar_img)
+
+        # Middle Content
+        mid_layout = QVBoxLayout()
+        mid_layout.setContentsMargins(0, 0, 0, 0)
+        mid_layout.setSpacing(4)
+        
+        self.msg_lbl = ClickableLabel(f"<b>{self.artist}</b> subió: {self.title}")
+        self.msg_lbl.set_clicked_callback(lambda: self.song_clicked.emit(self.video_id, self.title, self.artist, self.thumb_url))
+        self.msg_lbl.setFont(QFont("Inter", 11))
+        self.msg_lbl.setWordWrap(True)
+        mid_layout.addWidget(self.msg_lbl)
+        
+        # Time ago string
+        time_ago = self._get_time_ago(self.created_at)
+        self.time_lbl = QLabel(time_ago)
+        self.time_lbl.setFont(QFont("Inter", 10))
+        self.time_lbl.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        mid_layout.addWidget(self.time_lbl)
+        
+        layout.addLayout(mid_layout, stretch=1)
+        
+        # Right Video Thumbnail (Rectangular)
+        self.video_img = ClickableLabel()
+        self.video_img.set_clicked_callback(lambda: self.song_clicked.emit(self.video_id, self.title, self.artist, self.thumb_url))
+        self.video_img.setFixedSize(72, 40)
+        self.video_img.setStyleSheet(f"background: {tokens.CURRENT.bg_high}; border-radius: 6px;")
+        layout.addWidget(self.video_img)
+        
+        self._update_styles()
+        
+        if self.thumb_url:
+            import asyncio
+            asyncio.ensure_future(self._load_images())
+
+    async def _load_images(self):
+        from pyrolist.utils.image_cache import ImageCache
+        cache = ImageCache()
+        path = await cache.download(self.thumb_url)
+        
+        import shiboken6
+        if not shiboken6.isValid(self):
+            return
+            
+        if path:
+            from PySide6.QtGui import QPixmap, QPainter, QPainterPath
+            from PySide6.QtCore import Qt, QRectF
+            
+            pixmap = QPixmap()
+            if pixmap.load(str(path)):
+                # Rectangular for video
+                video_pix = pixmap.scaled(72, 40, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
+                self.video_img.setPixmap(video_pix)
+                self.video_img.setStyleSheet("background: transparent; border-radius: 6px;")
+                
+                # Circular for avatar
+                scaled = pixmap.scaled(44, 44, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
+                out_pix = QPixmap(44, 44)
+                out_pix.fill(Qt.GlobalColor.transparent)
+                
+                painter = QPainter(out_pix)
+                painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+                path_obj = QPainterPath()
+                path_obj.addEllipse(QRectF(0, 0, 44, 44))
+                painter.setClipPath(path_obj)
+                painter.drawPixmap(0, 0, scaled)
+                painter.end()
+                
+                self.avatar_img.setPixmap(out_pix)
+                self.avatar_img.setStyleSheet("background: transparent;")
+
+    def _get_time_ago(self, created_at) -> str:
+        if not created_at:
+            return ""
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        
+        # Make created_at timezone-aware if it's naive
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+            
+        diff = now - created_at
+        hours = int(diff.total_seconds() / 3600)
+        if hours < 1:
+            mins = int(diff.total_seconds() / 60)
+            return f"hace {mins} minutos"
+        elif hours < 24:
+            return f"hace {hours} horas"
+        else:
+            days = hours // 24
+            return f"hace {days} días"
+
+    def _update_styles(self):
+        text_primary = tokens.CURRENT.text_primary
+        text_secondary = tokens.CURRENT.text_secondary
+        c = QColor(text_primary)
+        
+        self.msg_lbl.setStyleSheet(f"color: {text_primary}; background: transparent;")
+        self.time_lbl.setStyleSheet(f"color: {text_secondary}; background: transparent;")
+        
+        self.setStyleSheet(f"""
+            ReleaseNotificationRow {{
+                background: transparent;
+                border-radius: 12px;
+            }}
+            ReleaseNotificationRow:hover {{
+                background: rgba({c.red()}, {c.green()}, {c.blue()}, 0.08);
+            }}
+        """)
+
+    def changeEvent(self, event):
+        from PySide6.QtCore import QEvent
+        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
+            if not getattr(self, '_in_style_change', False):
+                self._in_style_change = True
+                try:
+                    self._update_styles()
+                finally:
+                    self._in_style_change = False
+        super().changeEvent(event)
+
 
 class NotificationHistoryRow(QWidget):
     def __init__(self, message: str, kind: str = "success", parent=None):
@@ -176,38 +323,51 @@ class NotificationHistoryRow(QWidget):
         super().changeEvent(event)
 
 
-class NotificationDropdown(GlassPanel):
+class NotificationPanel(QWidget):
     unread_changed = Signal(bool) # Emits has_unread status
+    panel_toggled = Signal(bool) # Emits whether panel is open or closed
+    artist_clicked = Signal(str, str) # artist_name, artist_id
+    song_clicked = Signal(str, str, str, str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setObjectName("notificationDropdown")
-        self.setFixedWidth(320)
-        self.setMinimumHeight(200)
-        self.setMaximumHeight(400)
+        self.setObjectName("notificationPanel")
+        self.setMinimumWidth(0)
         
         self._tasks_metadata = {} # video_id -> {"title": str, "artist": str}
         self._active_widgets = {} # video_id -> DownloadProgressRow
         self._history_items = []  # List of {"message": str, "kind": str}
         self.has_unread = False
 
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+
         self._build_ui()
         self._connect_download_manager()
 
     def _build_ui(self):
         root_layout = self.layout()
+        if not root_layout:
+            root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
+        
+        self.container = QWidget()
+        self.container.setFixedWidth(360)
+        container_layout = QVBoxLayout(self.container)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.setSpacing(0)
+        root_layout.addWidget(self.container, alignment=Qt.AlignmentFlag.AlignRight)
 
-        # Header Row
+        # Header
         header_widget = QWidget()
+        header_widget.setFixedHeight(64)
         header_layout = QHBoxLayout(header_widget)
         header_layout.setContentsMargins(16, 12, 16, 8)
         header_layout.setSpacing(8)
 
         self.title_lbl = QLabel("Notificaciones")
         self.title_lbl.setFont(QFont("Inter", 13, QFont.Weight.Bold))
-        self.title_lbl.setStyleSheet(f"")
+        self.title_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_primary};")
         header_layout.addWidget(self.title_lbl, stretch=1)
 
         self.clear_btn = QPushButton("Limpiar")
@@ -216,14 +376,14 @@ class NotificationDropdown(GlassPanel):
         self.clear_btn.clicked.connect(self.clear_history)
         header_layout.addWidget(self.clear_btn)
 
-        root_layout.addWidget(header_widget)
+        container_layout.addWidget(header_widget)
 
         # Horizontal Separator
         self.sep = QFrame()
         self.sep.setFrameShape(QFrame.Shape.HLine)
         self.sep.setFrameShadow(QFrame.Shadow.Plain)
         self.sep.setFixedHeight(1)
-        root_layout.addWidget(self.sep)
+        container_layout.addWidget(self.sep)
 
         # Scroll Area
         self._scroll = QScrollArea()
@@ -235,8 +395,14 @@ class NotificationDropdown(GlassPanel):
         self._inner = QWidget()
         self._inner.setObjectName("notificationScrollInner")
         self._inner_layout = QVBoxLayout(self._inner)
-        self._inner_layout.setContentsMargins(0, 8, 0, 8)
+        self._inner_layout.setContentsMargins(0, 0, 0, 8)
         self._inner_layout.setSpacing(6)
+        
+        # Divider
+        divider = QWidget()
+        divider.setFixedHeight(1)
+        divider.setStyleSheet(f"background: {tokens.CURRENT.border};")
+        self._inner_layout.addWidget(divider)
 
         # Sections inside inner layout
         # A. Empty State
@@ -247,12 +413,10 @@ class NotificationDropdown(GlassPanel):
         self.empty_icon = QLabel(Icon.get("notifications"))
         self.empty_icon.setFont(Icon.font(36))
         self.empty_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.empty_icon.setStyleSheet(f"")
         empty_layout.addWidget(self.empty_icon)
         self.empty_lbl = QLabel("No tienes notificaciones")
         self.empty_lbl.setFont(QFont("Inter", 11))
         self.empty_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.empty_lbl.setStyleSheet(f"")
         empty_layout.addWidget(self.empty_lbl)
         self._inner_layout.addWidget(self.empty_widget)
 
@@ -264,7 +428,6 @@ class NotificationDropdown(GlassPanel):
         
         self.active_hdr = QLabel("  Descargas en curso")
         self.active_hdr.setFont(QFont("Inter", 10, QFont.Weight.Bold))
-        self.active_hdr.setStyleSheet(f"")
         self.active_layout.addWidget(self.active_hdr)
         self._inner_layout.addWidget(self.active_container)
         self.active_container.hide()
@@ -277,14 +440,27 @@ class NotificationDropdown(GlassPanel):
 
         self.history_hdr = QLabel("  Historial")
         self.history_hdr.setFont(QFont("Inter", 10, QFont.Weight.Bold))
-        self.history_hdr.setStyleSheet(f"")
         self.history_layout.addWidget(self.history_hdr)
         self._inner_layout.addWidget(self.history_container)
         self.history_container.hide()
 
-        self._inner_layout.addStretch()
+        # D. Releases group (New Database Notifications)
+        self.releases_container = QWidget()
+        self.releases_layout = QVBoxLayout(self.releases_container)
+        self.releases_layout.setContentsMargins(0, 0, 0, 0)
+        self.releases_layout.setSpacing(0)
+        
+        self.releases_hdr = QLabel("  Nuevos lanzamientos")
+        self.releases_hdr.setFont(QFont("Inter", 10, QFont.Weight.Bold))
+        self.releases_layout.addWidget(self.releases_hdr)
+        self._inner_layout.addWidget(self.releases_container)
+        self.releases_container.hide()
+
+        # D. Spacer to push everything up
+        self._inner_layout.addStretch(1)
+
         self._scroll.setWidget(self._inner)
-        root_layout.addWidget(self._scroll)
+        container_layout.addWidget(self._scroll)
 
         self._update_styles()
 
@@ -299,10 +475,11 @@ class NotificationDropdown(GlassPanel):
         c = QColor(text_primary)
 
         self.setStyleSheet(f"""
-            #notificationDropdown {{
+            #notificationPanel {{
                 background-color: {tokens.CURRENT.bg_surface};
-                border: 1px solid {border_color};
-                border-radius: 16px;
+                border-left: 1px solid {border_color};
+                border-top-right-radius: 12px;
+                border-bottom-right-radius: 12px;
             }}
             #notificationScrollInner {{
                 background: transparent;
@@ -353,13 +530,6 @@ class NotificationDropdown(GlassPanel):
         mgr.download_completed.connect(self._on_download_completed)
         mgr.download_error.connect(self._on_download_error)
 
-    # --- Notification Handlers ---
-    def popup_at(self, pos):
-        # Clear unread status when opening the center
-        self.has_unread = False
-        self.unread_changed.emit(False)
-        super().popup_at(pos)
-
     def add_custom_notification(self, message: str, kind: str = "info"):
         """Interface for other systems (like playlist download starts) to send notifications."""
         self._history_items.append({"message": message, "kind": kind})
@@ -386,23 +556,97 @@ class NotificationDropdown(GlassPanel):
     def _update_visibility(self):
         has_active = len(self._active_widgets) > 0
         has_history = len(self._history_items) > 0
+        has_releases = self.releases_layout.count() > 1
 
         self.active_container.setVisible(has_active)
         self.history_container.setVisible(has_history)
-        self.empty_widget.setVisible(not has_active and not has_history)
+        self.releases_container.setVisible(has_releases)
+        self.empty_widget.setVisible(not has_active and not has_history and not has_releases)
         self.clear_btn.setVisible(has_history)
 
-        # Recalcular altura según contenido
-        if not has_active and not has_history:
-            self.setFixedHeight(200)
+        # Recalcular altura no es necesario ya que usará todo el alto
+        pass
+
+    # --- Loading from DB ---
+    from qasync import asyncSlot
+    
+    @asyncSlot()
+    async def load_db_notifications(self):
+        from pyrolist.db.database import get_session
+        from pyrolist.db.models import Notification
+        from sqlalchemy import select
+        
+        try:
+            async with get_session() as session:
+                stmt = select(Notification).order_by(Notification.created_at.desc()).limit(20)
+                result = await session.execute(stmt)
+                releases = result.scalars().all()
+                
+                # Clear old release rows
+                while self.releases_layout.count() > 1:
+                    item = self.releases_layout.takeAt(1)
+                    if item.widget():
+                        item.widget().deleteLater()
+                        
+                # Releases
+                for notif in releases:
+                    row = ReleaseNotificationRow(notif.video_id, notif.title, notif.artist, notif.artist_id, notif.thumbnail_url, notif.created_at)
+                    row.artist_clicked.connect(self.artist_clicked.emit)
+                    row.song_clicked.connect(self.song_clicked.emit)
+                    self.releases_layout.addWidget(row)
+                    
+                self.releases_container.show()
+                
+                self._update_visibility()
+                
+                # Mark all as read
+                for release in releases:
+                    if not release.is_read:
+                        release.is_read = True
+                await session.commit()
+        except Exception as e:
+            from loguru import logger
+            logger.error(f"Error loading notifications for dropdown: {e}")
+
+    def toggle_panel(self):
+        if self.isVisible():
+            self._close_anim()
         else:
-            # Calcular altura ideal basada en items
-            ideal = 60  # header + separator + margins
-            if has_active:
-                ideal += 30 + len(self._active_widgets) * 70
-            if has_history:
-                ideal += 30 + len(self._history_items) * 40
-            self.setFixedHeight(min(max(ideal, 200), 400))
+            self.has_unread = False
+            self.unread_changed.emit(False)
+            self.load_db_notifications()
+            self._open_anim()
+
+    def _open_anim(self):
+        self.show()
+        from PySide6.QtCore import QPropertyAnimation, QEasingCurve
+        self.anim = QPropertyAnimation(self, b"maximumWidth")
+        self.anim.setDuration(250)
+        self.anim.setStartValue(0)
+        self.anim.setEndValue(360)
+        self.anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self.anim.valueChanged.connect(self._on_anim_step)
+        self.anim.finished.connect(lambda: self.panel_toggled.emit(True))
+        self.anim.start()
+
+    def _close_anim(self):
+        from PySide6.QtCore import QPropertyAnimation, QEasingCurve
+        self.anim = QPropertyAnimation(self, b"maximumWidth")
+        self.anim.setDuration(250)
+        self.anim.setStartValue(self.width())
+        self.anim.setEndValue(0)
+        self.anim.setEasingCurve(QEasingCurve.Type.InCubic)
+        self.anim.valueChanged.connect(self._on_anim_step)
+        def _on_close_finished():
+            self.hide()
+            self.panel_toggled.emit(False)
+        self.anim.finished.connect(_on_close_finished)
+        self.anim.start()
+
+    def _on_anim_step(self, value):
+        win = self.window()
+        if hasattr(win, "_position_mini_player"):
+            win._position_mini_player()
 
     # --- Slot Listeners ---
     @Slot(object)

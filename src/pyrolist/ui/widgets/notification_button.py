@@ -7,8 +7,6 @@ from pyrolist.ui.design.icons import Icon
 
 
 class NotificationButton(QPushButton):
-    clicked = Signal()
-
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedSize(36, 36)
@@ -20,6 +18,12 @@ class NotificationButton(QPushButton):
         if self.has_unread != has_unread:
             self.has_unread = has_unread
             self.update() # Trigger repaint to draw/remove dot
+
+    def set_panel_open(self, is_open: bool):
+        if is_open:
+            self.setText(Icon.get("close"))
+        else:
+            self.setText(Icon.get("notifications"))
 
     def _update_styles(self):
         from PySide6.QtGui import QColor

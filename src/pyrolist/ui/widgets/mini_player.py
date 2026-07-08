@@ -68,6 +68,7 @@ class MiniPlayerWidget(QWidget):
     on_play_pause = Signal()
     on_next = Signal()
     on_seek = Signal(int)
+    artist_clicked = Signal(str)
 
     def __init__(self, player, queue, on_expand, on_prev, on_play_pause, on_next, on_seek, parent=None):
         super().__init__(parent)
@@ -166,9 +167,10 @@ class MiniPlayerWidget(QWidget):
         self.title.setFixedWidth(220)
         info_layout.addWidget(self.title)
 
-        self.artist = QLabel("")
+        from pyrolist.ui.widgets.clickable_label import ClickableLabel
+        self.artist = ClickableLabel("")
+        self.artist.set_clicked_callback(self._on_artist_clicked)
         self.artist.setFont(AppFont.label(10))
-        self.artist.setStyleSheet(f"")
         self.artist.setMaximumWidth(220)
         info_layout.addWidget(self.artist)
 
@@ -236,6 +238,11 @@ class MiniPlayerWidget(QWidget):
 
         outer.addWidget(self.card)
         self._update_mini_player_styles()
+
+    def _on_artist_clicked(self):
+        text = self.artist.text()
+        if text:
+            self.artist_clicked.emit(text)
 
     @staticmethod
     def _make_control_btn(icon_name, size=24, color="#FFFFFF", btn_size=40, primary=False):
@@ -394,7 +401,9 @@ class MiniPlayerWidget(QWidget):
 
         # 3. Label text styling
         self.title.setColor(tokens.CURRENT.text_primary)
-        self.artist.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent;")
+        from pyrolist.ui.widgets.clickable_label import ClickableLabel
+        if hasattr(self, "artist") and isinstance(self.artist, ClickableLabel):
+            self.artist.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent;")
         self.time_current.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent;")
         self.time_total.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent;")
 

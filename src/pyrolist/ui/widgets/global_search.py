@@ -266,6 +266,7 @@ class GlobalSearchBar(QWidget):
     a suggestion.  No search‑per‑keystroke.
     """
     search_submitted = Signal(str)
+    notifications_requested = Signal()
 
     def __init__(self, yt_client, on_play_song):
         super().__init__()
@@ -342,46 +343,16 @@ class GlobalSearchBar(QWidget):
         
         self._update_search_bar_styles()
 
-        # Notification Button & Dropdown
+        # Notification Button
         from pyrolist.ui.widgets.notification_button import NotificationButton
 
         self.notif_btn = NotificationButton(self)
-        self._notif_dropdown = None
-        self.notif_btn.clicked.connect(self._toggle_notifications)
+        self.notif_btn.clicked.connect(self.notifications_requested.emit)
         bar_layout.addWidget(self.notif_btn)
 
         layout.addWidget(self.bar_widget)
 
-    @property
-    def notif_dropdown(self):
-        return self._ensure_notif_dropdown()
-
-    def _ensure_notif_dropdown(self):
-        if not hasattr(self, "_notif_dropdown") or self._notif_dropdown is None:
-            from pyrolist.ui.widgets.notification_dropdown import NotificationDropdown
-            parent_win = self.window() or self
-            self._notif_dropdown = NotificationDropdown(parent_win)
-            self._notif_dropdown._trigger_widget = self.notif_btn
-            self._notif_dropdown.unread_changed.connect(self.notif_btn.set_unread)
-        return self._notif_dropdown
-
-    def _toggle_notifications(self):
-        nd = self.notif_dropdown
-        if nd.isVisible():
-            nd.dismiss()
-        else:
-            parent_win = self.window()
-            if parent_win:
-                btn_bottom_right = self.notif_btn.mapTo(parent_win, QPoint(self.notif_btn.width(), self.notif_btn.height()))
-            else:
-                btn_bottom_right = self.notif_btn.mapToGlobal(QPoint(self.notif_btn.width(), self.notif_btn.height()))
-            dropdown_width = nd.width()
-            popup_pos = QPoint(btn_bottom_right.x() - dropdown_width, btn_bottom_right.y() + 6)
-            
-            # Dismiss search dropdown if visible
-            self._hide_dropdown()
-            
-            nd.popup_at(popup_pos)
+    # Note: _toggle_notifications and dropdown logic moved to MainWindow
 
     # ---- Dropdown lifecycle ----
     def _ensure_dropdown(self):
@@ -393,10 +364,6 @@ class GlobalSearchBar(QWidget):
         return self._dropdown
 
     def _show_dropdown(self):
-        # Dismiss notification dropdown if visible when search dropdown opens
-        if hasattr(self, "_notif_dropdown") and self._notif_dropdown and self._notif_dropdown.isVisible():
-            self._notif_dropdown.dismiss()
-
         dd = self._ensure_dropdown()
 
         # Position below the search bar, aligned to the container, relative to the main window
@@ -688,8 +655,6 @@ class GlobalSearchBar(QWidget):
 
         if hasattr(self, 'notif_btn') and self.notif_btn:
             self.notif_btn._update_styles()
-        if hasattr(self, '_notif_dropdown') and self._notif_dropdown:
-            self._notif_dropdown._update_styles()
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent

@@ -99,6 +99,7 @@ class NowPlayingScreen(QWidget):
     download_requested = Signal(str, str, str, str)
     play_next_requested = Signal(str, str, str, str)
     add_to_queue_requested = Signal(str, str, str, str)
+    artist_clicked = Signal(str)
     like_requested = Signal(str, object)
     add_to_playlist_requested = Signal(str, str)
     delete_download_requested = Signal(str)
@@ -217,9 +218,11 @@ class NowPlayingScreen(QWidget):
         self.title.setWordWrap(True)
         text_info.addWidget(self.title)
 
-        self.artist = QLabel("")
+        from pyrolist.ui.widgets.clickable_label import ClickableLabel
+        self.artist = ClickableLabel("")
         self.artist.setFont(QFont("Inter", 14))
         self.artist.setObjectName("nowPlayingArtist")
+        self.artist.set_clicked_callback(self._on_artist_clicked)
         text_info.addWidget(self.artist)
         
         info_layout.addLayout(text_info)
@@ -323,6 +326,7 @@ class NowPlayingScreen(QWidget):
         self.queue_tab.add_to_queue_requested.connect(lambda *a: self.add_to_queue_requested.emit(*a))
         self.queue_tab.add_to_playlist_requested.connect(lambda *a: self.add_to_playlist_requested.emit(*a))
         self.queue_tab.delete_download_requested.connect(lambda *a: self.delete_download_requested.emit(*a))
+        self.queue_tab.artist_clicked.connect(lambda *a: self.artist_clicked.emit(*a))
         self.tabs.addTab(self.queue_tab, "A CONTINUACIÓN")
 
         self.lyrics_scroll = QScrollArea()
@@ -373,6 +377,11 @@ class NowPlayingScreen(QWidget):
         outer_layout.addLayout(layout)
         self._ui_ready = True
         self._update_styles()
+
+    def _on_artist_clicked(self):
+        text = self.artist.text()
+        if text and text != "Unknown Artist":
+            self.artist_clicked.emit(text)
 
     def _on_like_clicked(self):
         """Toggle like for the currently playing song."""
@@ -845,6 +854,7 @@ class NowPlayingScreen(QWidget):
                 card.like_requested.connect(lambda *a: self.like_requested.emit(*a))
                 card.add_to_playlist_requested.connect(lambda *a: self.add_to_playlist_requested.emit(*a))
                 card.delete_download_requested.connect(lambda *a: self.delete_download_requested.emit(*a))
+                card.artist_clicked.connect(lambda *a: self.artist_clicked.emit(*a))
                 self.related_layout.addWidget(card)
 
         self.related_layout.addStretch()

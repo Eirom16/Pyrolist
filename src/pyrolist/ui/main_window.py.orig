@@ -183,12 +183,7 @@ class MainWindow(QMainWindow):
         self.sidebar.on_login_click.connect(self._show_login)
         self.sidebar.auth_changed.connect(self._on_auth_changed)
         
-        # Initialize Notification Service
-        from pyrolist.services.notification_service import NotificationService
-        self.notification_service = NotificationService(self.yt)
-        
         if self.yt.is_authenticated:
-            self.notification_service.start()
             from pyrolist.config.paths import AppDirs
             import json
             name = "YouTube Music"
@@ -229,10 +224,6 @@ class MainWindow(QMainWindow):
         from pyrolist.ui.widgets.global_search import GlobalSearchBar
         self.search_bar = GlobalSearchBar(self.yt, self._play_song_sync)
         self.search_bar.search_submitted.connect(self._on_search_submitted)
-        
-        self.notification_service.unread_changed.connect(self.search_bar.notif_btn.set_unread)
-        self._run_async(self.notification_service.check_unread())
-        
         right_layout.addWidget(self.search_bar)
 
         # Add glassmorphic offline warning banner
@@ -240,26 +231,8 @@ class MainWindow(QMainWindow):
         self.offline_banner = OfflineBannerWidget(self)
         right_layout.addWidget(self.offline_banner)
 
-        # Container for stack and notification panel
-        self.main_content_hbox = QHBoxLayout()
-        self.main_content_hbox.setContentsMargins(0, 0, 0, 0)
-        self.main_content_hbox.setSpacing(0)
-
         self.stack = FadeStackedWidget()
         self.stack.setObjectName("screenStack")
-        self.main_content_hbox.addWidget(self.stack)
-
-        from pyrolist.ui.widgets.notification_panel import NotificationPanel
-        self.notification_panel = NotificationPanel(self)
-        self.notification_panel.hide()
-        self.main_content_hbox.addWidget(self.notification_panel)
-
-        self.search_bar.notifications_requested.connect(self.notification_panel.toggle_panel)
-        self.notification_panel.panel_toggled.connect(self.search_bar.notif_btn.set_panel_open)
-        self.notification_panel.artist_clicked.connect(lambda a, a_id: self._navigate_to(f"artist?id={a_id}") if a_id else self.resolve_and_navigate_artist(a))
-        self.notification_panel.song_clicked.connect(lambda v, t, a, u: self._play_song_sync(v, t, a, "", 0, u))
-
-
 
         from pyrolist.ui.screens.welcome import WelcomeScreen
         from pyrolist.ui.screens.home import HomeScreen
@@ -329,16 +302,8 @@ class MainWindow(QMainWindow):
 
         if hasattr(self.now_playing_screen, 'queue_tab'):
             self.now_playing_screen.queue_tab.like_requested.connect(self._on_like_requested)
-            
-        # Connect queue panel artist
-        if hasattr(self, 'queue_panel'):
-            self.queue_panel.artist_clicked.connect(self.resolve_and_navigate_artist)
 
-        # Connect player artists
-        if hasattr(self, 'now_playing_screen'):
-            self.now_playing_screen.artist_clicked.connect(self.resolve_and_navigate_artist)
-
-        right_layout.addLayout(self.main_content_hbox)
+        right_layout.addWidget(self.stack)
 
         h_layout.addWidget(right_panel)
         
@@ -358,9 +323,6 @@ class MainWindow(QMainWindow):
         self.sidebar._width_anim.valueChanged.connect(lambda _value: self._position_mini_player())
         self.sidebar._max_anim.valueChanged.connect(lambda _value: self._position_mini_player())
         self._position_mini_player()
-
-        if hasattr(self, 'mini_player'):
-            self.mini_player.artist_clicked.connect(self.resolve_and_navigate_artist)
 
         self.statusBar().setObjectName("appStatusBar")
         self.statusBar().setStyleSheet("color: #888899; font-family: Inter; font-size: 11px;")
@@ -385,13 +347,8 @@ class MainWindow(QMainWindow):
         margin = 12
         player_height = self.mini_player.height()
         sidebar_width = self.sidebar.width() if hasattr(self, "sidebar") and self.sidebar.isVisible() else 0
-        
-        right_panel_width = 0
-        if hasattr(self, "notification_panel") and self.notification_panel.isVisible():
-            right_panel_width = self.notification_panel.maximumWidth()
-            
         x = sidebar_width + margin
-        width = max(0, central.width() - x - margin - right_panel_width)
+        width = max(0, central.width() - x - margin)
         y = central.height() - player_height - margin if player_height > 0 else central.height()
         self.mini_player.setGeometry(x, max(0, y), width, max(0, player_height))
         self.mini_player.raise_()
@@ -1142,7 +1099,6 @@ class MainWindow(QMainWindow):
                 task.cancel()
         if self._init_task and not self._init_task.done():
             self._init_task.cancel()
-        self.notification_service.stop()
         if self.mpris:
             self.mpris.stop()
         if hasattr(self, 'network_monitor') and self.network_monitor:
@@ -1181,29 +1137,6 @@ class MainWindow(QMainWindow):
         import asyncio
         await asyncio.sleep(0.3)
         await self._load_screen_with_query(route, query)
-
-    def resolve_and_navigate_artist(self, artist_name: str) -> None:
-        """Dynamically searches for the artist by name and navigates to their profile."""
-        if not artist_name:
-            return
-
-        async def _resolve_task():
-            try:
-                results = await self.yt.search(artist_name, filter="artists")
-                if results and len(results) > 0:
-                    artist_id = results[0].get("browseId")
-                    if artist_id:
-                        self._navigate_to(f"artist?id={artist_id}")
-                        return
-                # Fallback to search screen if no ID found
-                self._navigate_to(f"search?query={artist_name}")
-            except Exception as e:
-                from loguru import logger
-                logger.error(f"Failed to resolve artist '{artist_name}': {e}")
-                self._navigate_to(f"search?query={artist_name}")
-
-        import asyncio
-        asyncio.create_task(_resolve_task())
 
     def _navigate_to(self, path: str) -> None:
         if hasattr(self, '_current_nav_task') and self._current_nav_task and not self._current_nav_task.done():
@@ -1244,7 +1177,6 @@ class MainWindow(QMainWindow):
 
     def _on_auth_changed(self, is_authenticated: bool, avatar_url: str = "") -> None:
         if is_authenticated:
-            self.notification_service.start()
             self.yt = YouTubeMusicClient(self.settings)
             self._update_screens_yt_client()
             
@@ -1286,7 +1218,6 @@ class MainWindow(QMainWindow):
             self.home_screen.force_reload()
             self._run_async(self.library_screen.load())
         else:
-            self.notification_service.stop()
             # Delete user profile file on logout so it's clean
             from pyrolist.config.paths import AppDirs
             profile_file = AppDirs.config / "user_profile.json"

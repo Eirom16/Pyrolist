@@ -41,8 +41,14 @@ async def init_db():
             if "parent_playlist_thumbnail_url" not in columns:
                 await conn.execute(text("ALTER TABLE downloads ADD COLUMN parent_playlist_thumbnail_url TEXT"))
                 logger.info("Added parent_playlist_thumbnail_url column to downloads table")
+            
+            result = await conn.execute(text("PRAGMA table_info(notifications)"))
+            columns = [row[1] for row in result.fetchall()]
+            if "artist_id" not in columns:
+                await conn.execute(text("ALTER TABLE notifications ADD COLUMN artist_id TEXT"))
+                logger.info("Added artist_id column to notifications table")
     except Exception as e:
-        logger.warning(f"Could not check/alter downloads table: {e}")
+        logger.warning(f"Could not check/alter tables: {e}")
         
     # Safely ensure indexes are created on existing databases
     try:

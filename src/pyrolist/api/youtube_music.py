@@ -258,14 +258,19 @@ class YouTubeMusicClient:
         except Exception:
             return []
 
-    async def get_library_artists(self) -> list:
+    async def get_library_artists(self, limit: int = 20) -> list:
         """Get user's subscribed artists - requires auth."""
         if not self._is_authenticated or not self._ytmusicapi:
             return []
 
         def _get_artists():
             try:
-                return self._ytmusicapi.get_library_artists()
+                # Use get_library_artists instead of subscriptions, because subscriptions can hang
+                # for users with thousands of Youtube channels, and get_library_artists is faster.
+                try:
+                    return self._ytmusicapi.get_library_artists(limit=limit)
+                except Exception:
+                    return self._ytmusicapi.get_library_subscriptions(limit=limit)
             except Exception as e:
                 logger.error(f"get_library_artists error: {e}")
                 return []

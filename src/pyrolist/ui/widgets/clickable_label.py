@@ -18,3 +18,17 @@ class ClickableLabel(QLabel):
         if event.button() == Qt.MouseButton.LeftButton and self._callback:
             self._callback()
         super().mousePressEvent(event)
+
+    def enterEvent(self, event):
+        if self._callback:
+            font = self.font()
+            font.setUnderline(True)
+            self.setFont(font)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        if self._callback:
+            font = self.font()
+            font.setUnderline(False)
+            self.setFont(font)
+        super().leaveEvent(event)

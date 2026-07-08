@@ -59,3 +59,20 @@ class CachedArtwork(Base):
     url = Column(String, unique=True, nullable=False)
     local_path = Column(String, nullable=False)
     cached_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    video_id = Column(String, unique=True, nullable=False)
+    title = Column(String, nullable=False)
+    artist = Column(String, nullable=False)
+    artist_id = Column(String, nullable=True)
+    thumbnail_url = Column(String, default="")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    is_read = Column(Boolean, default=False)
+    
+    def __repr__(self):
+        return f"<Notification {self.title} by {self.artist}>"
+

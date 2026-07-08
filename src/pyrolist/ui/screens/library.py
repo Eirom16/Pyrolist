@@ -68,6 +68,7 @@ class LibraryScreen(QWidget):
 
         # Tab container
         self.tabs = QWidget()
+        self.tabs.setStyleSheet("background: transparent; border: none;")
         tabs_layout = QHBoxLayout(self.tabs)
         tabs_layout.setContentsMargins(0, 8, 0, 8)
         tabs_layout.setSpacing(12)
@@ -382,10 +383,13 @@ class LibraryScreen(QWidget):
                     self.content_layout.addLayout(grid)
 
             elif tab == "artists":
-                if tab in self._library_cache and cache_age < 300:
-                    artists = self._library_cache[tab]
+                if not hasattr(self, '_artist_limit'):
+                    self._artist_limit = 20
+
+                if tab in self._library_cache and cache_age < 300 and len(self._library_cache[tab]) >= self._artist_limit:
+                    artists = self._library_cache[tab][:self._artist_limit]
                 else:
-                    artists = await self.yt.get_library_artists()
+                    artists = await self.yt.get_library_artists(limit=self._artist_limit)
                     self._library_cache[tab] = artists
                     self._library_cache_time[tab] = time.time()
                 self._clear_content()
@@ -424,6 +428,13 @@ class LibraryScreen(QWidget):
                             await asyncio.sleep(0)
 
                     self.content_layout.addLayout(grid)
+                    
+                    if len(artists) >= self._artist_limit:
+                        from pyrolist.ui.widgets.load_more import PaginatorFooter
+                        self._artist_paginator = PaginatorFooter()
+                        self._artist_paginator.load_requested.connect(self._on_artists_load_more)
+                        self.content_layout.addWidget(self._artist_paginator)
+                        self._artist_paginator.set_state("button")
 
             elif tab == "playlists":
                 if tab in self._library_cache and cache_age < 300:
@@ -489,6 +500,19 @@ class LibraryScreen(QWidget):
         if hasattr(self, "fab") and self.fab.isVisible():
             self.fab.raise_()
 
+    def _on_songs_load_more(self):
+        if hasattr(self, '_library_current_tracks') and hasattr(self, '_library_render_idx'):
+            self._render_songs_chunk(20)
+
+    def _on_artists_load_more(self):
+        if hasattr(self, '_artist_limit'):
+            self._artist_limit += 20
+        if "artists" in self._library_cache:
+            del self._library_cache["artists"]
+        if hasattr(self, "_current_tab_task") and self._current_tab_task and not self._current_tab_task.done():
+            self._current_tab_task.cancel()
+        self._current_tab_task = asyncio.create_task(self._load_tab("artists"))
+            
     def _render_songs_chunk(self, chunk_size=20):
         if not hasattr(self, "_library_current_tracks") or not self._library_current_tracks:
             return

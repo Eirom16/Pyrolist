@@ -6,11 +6,13 @@ from pyrolist.utils.image_cache import ImageCache
 from pyrolist.ui.design.icons import Icon
 from pyrolist.ui.widgets.icon_button import IconButton
 from pyrolist.ui.widgets.song_context_menu import SongContextMenu
+from pyrolist.ui.design import tokens
 
 _image_cache = ImageCache()
 
 class SongCard(QWidget):
     clicked = Signal()
+    artist_clicked = Signal(str)
     download_requested = Signal(str, str, str, str)  # video_id, title, artist, thumbnail_url
     play_next_requested = Signal(str, str, str, str)  # video_id, title, artist, thumbnail_url
     add_to_queue_requested = Signal(str, str, str, str)  # video_id, title, artist, thumbnail_url
@@ -92,8 +94,13 @@ class SongCard(QWidget):
         self.title_label.setText(elided_title)
         info.addWidget(self.title_label)
 
-        self.artist_label = QLabel(self._artist)
+        from pyrolist.ui.widgets.clickable_label import ClickableLabel
+        self.artist_label = ClickableLabel(self._artist)
+        self.artist_label.set_clicked_callback(self._on_artist_clicked)
         self.artist_label.setFont(QFont("Inter", 11))
+        self.artist_label.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent;")
+        
+        # Elide long text (we do this manually since we can't easily elide a clickable label dynamically on resize without custom paint)
         artist_metrics = self.artist_label.fontMetrics()
         elided_artist = artist_metrics.elidedText(self._artist, Qt.TextElideMode.ElideRight, 260)
         self.artist_label.setText(elided_artist)
@@ -109,7 +116,6 @@ class SongCard(QWidget):
         layout.addWidget(self.duration_label)
 
         # Like button
-        from pyrolist.ui.design import tokens
         self.btn_like = IconButton(size=40, active_color=tokens.CURRENT.like_color)
         self.btn_like.setObjectName("btn_like")
         self.btn_like.setText(Icon.get("favorite"))
@@ -153,15 +159,22 @@ class SongCard(QWidget):
             
         self.title_label.setProperty("textRole", "primary")
         self.artist_label.setProperty("textRole", "secondary")
-        self.duration_label.setProperty("textRole", "secondary")
+        
+        if hasattr(self, "duration_label"):
+            self.duration_label.setProperty("textRole", "secondary")
         
         self.btn_like.setProperty("liked", "true" if self._is_liked else "false")
         
-    def _handle_click(self, e):
-        if e.button() == Qt.MouseButton.LeftButton:
+    def _handle_click(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
             if self._on_play:
-                self._on_play()
+                if not isinstance(self.childAt(event.pos()), type(self.artist_label)):
+                    self._on_play()
             self.clicked.emit()
+
+    def _on_artist_clicked(self):
+        # We handle this manually and prevent row selection logic
+        self.artist_clicked.emit(self._artist)
 
     def _on_download_clicked(self):
         if self._video_id:
@@ -172,6 +185,7 @@ class SongCard(QWidget):
     def _on_like_clicked(self):
         if self._video_id:
             self.like_requested.emit(self._video_id, self.btn_like)
+        self._is_liked = not self._is_liked
 
     def _on_play_next_clicked(self):
         if self._video_id:
@@ -232,7 +246,6 @@ class SongCard(QWidget):
     bg_opacity = Property(float, _get_bg_opacity, _set_bg_opacity)
 
     def paintEvent(self, event) -> None:
-        from pyrolist.ui.design import tokens
         from PySide6.QtGui import QPainter, QColor
         from PySide6.QtCore import Qt
         

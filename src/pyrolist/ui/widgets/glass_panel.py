@@ -54,14 +54,13 @@ class GlassPanel(QWidget):
         
         # Prevent cutoff on the right and bottom edges of the parent window or screen
         if self.parentWidget():
-            parent_global_top_left = self.parentWidget().mapToGlobal(QPoint(0, 0))
-            parent_global_right = parent_global_top_left.x() + self.parentWidget().width()
-            parent_global_bottom = parent_global_top_left.y() + self.parentWidget().height()
+            parent_width = self.parentWidget().width()
+            parent_height = self.parentWidget().height()
             
-            if target_x + self.width() > parent_global_right:
-                target_x = parent_global_right - self.width() - 8
+            if target_x + self.width() > parent_width:
+                target_x = parent_width - self.width() - 8
             
-            if target_y + self.height() > parent_global_bottom:
+            if target_y + self.height() > parent_height:
                 target_y = pos.y() - self.height() - 10
         else:
             screen = QApplication.screenAt(pos) or QApplication.primaryScreen()
@@ -91,6 +90,7 @@ class GlassPanel(QWidget):
             return
 
         self.move(target_x, target_y)
+        self.raise_()
         self.show()
         
         self._opacity_anim.stop()
@@ -124,17 +124,34 @@ class GlassPanel(QWidget):
         from PySide6.QtWidgets import QApplication
         QApplication.instance().removeEventFilter(self)
 
+    def mousePressEvent(self, event):
+        # Accept the event so clicks inside the panel don't fall through to the parent window
+        event.accept()
+
     def eventFilter(self, watched, event) -> bool:
+        if not getattr(self, "auto_dismiss", True):
+            return super().eventFilter(watched, event)
+            
         from PySide6.QtCore import QEvent
-        from PySide6.QtWidgets import QWidget, QAbstractButton
+        from PySide6.QtWidgets import QWidget, QAbstractButton, QApplication
+        
+        if event.type() == QEvent.Type.WindowDeactivate:
+            # Only dismiss if the active window is not the GlassPanel or its children
+            active = QApplication.activeWindow()
+            if active is not None and active != self and not self.isAncestorOf(active):
+                self.dismiss()
+            return False
+            
         if event.type() == QEvent.Type.MouseButtonPress:
             if getattr(self, "_just_opened", False):
                 return False
+                
+            if not isinstance(watched, QWidget):
+                return False
             
             is_inside = False
-            if isinstance(watched, QWidget):
-                if watched == self or self.isAncestorOf(watched):
-                    is_inside = True
+            if watched == self or self.isAncestorOf(watched):
+                is_inside = True
             
             if not is_inside:
                 trigger = getattr(self, "_trigger_widget", None)
