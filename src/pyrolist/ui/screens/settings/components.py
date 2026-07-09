@@ -31,6 +31,10 @@ class SettingsRow(QWidget):
 
         layout.addLayout(text_col, stretch=1)
         if control:
+            if not control.accessibleName():
+                control.setAccessibleName(title)
+            if description and not control.accessibleDescription():
+                control.setAccessibleDescription(description)
             layout.addWidget(control, alignment=Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
         self.setObjectName("settingsRow")
@@ -172,4 +176,3 @@ def page_title(text: str) -> QLabel:
     label.setFont(AppFont.display(24))
     label.setObjectName("settingsPageTitle")
     return label
-

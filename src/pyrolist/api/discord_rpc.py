@@ -1,4 +1,5 @@
 import asyncio
+import time
 from pypresence import AioPresence
 from loguru import logger
 
@@ -7,15 +8,27 @@ class DiscordRPC:
 
     def __init__(self):
         self._rpc: AioPresence | None = None
+        self._connecting = False
+        self._next_retry_at = 0.0
+        self._retry_delay = 5.0
 
     async def connect(self) -> None:
+        if self._connecting:
+            return
+        self._connecting = True
         try:
             self._rpc = AioPresence("1395462809164263495")
             await self._rpc.connect()
+            self._retry_delay = 5.0
+            self._next_retry_at = 0.0
             logger.info("Discord RPC connected")
         except Exception as e:
             logger.warning(f"Discord RPC connection failed: {e}")
             self._rpc = None
+            self._next_retry_at = time.time() + self._retry_delay
+            self._retry_delay = min(self._retry_delay * 2, 300.0)
+        finally:
+            self._connecting = False
 
     async def disconnect(self) -> None:
         if self._rpc:
@@ -24,6 +37,16 @@ class DiscordRPC:
                 logger.info("Discord RPC disconnected")
             except Exception as e:
                 logger.debug(f"Discord RPC disconnect error: {e}")
+            finally:
+                self._rpc = None
+
+    async def _ensure_connected(self) -> bool:
+        if self._rpc:
+            return True
+        if time.time() < self._next_retry_at:
+            return False
+        await self.connect()
+        return self._rpc is not None
 
     async def update(
         self,
@@ -33,7 +56,7 @@ class DiscordRPC:
         is_playing: bool = False,
         thumbnail_url: str = "",
     ) -> None:
-        if not self._rpc:
+        if not await self._ensure_connected():
             return
         try:
             state = f"by {artist}" if artist else "YouTube Music"
@@ -49,3 +72,6 @@ class DiscordRPC:
             )
         except Exception as e:
             logger.debug(f"Discord RPC update failed: {e}")
+            self._rpc = None
+            self._next_retry_at = time.time() + self._retry_delay
+            self._retry_delay = min(self._retry_delay * 2, 300.0)

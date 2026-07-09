@@ -1,5 +1,6 @@
 import asyncio
 import json
+import random
 import time
 from concurrent.futures import ThreadPoolExecutor
 import yt_dlp
@@ -92,8 +93,59 @@ class YouTubeMusicClient:
     def get_cached_stream_url(self, video_id: str) -> str:
         return self._stream_cache.get(video_id, "")
 
-    async def _run(self, func):
-        return await asyncio.to_thread(func)
+    def _retryable_status_code(self, exc: Exception) -> int | None:
+        status = getattr(exc, "status_code", None)
+        if status is None:
+            response = getattr(exc, "response", None)
+            status = getattr(response, "status_code", None)
+        if status is None:
+            return None
+        try:
+            return int(status)
+        except (TypeError, ValueError):
+            return None
+
+    def _is_retryable_error(self, exc: Exception) -> bool:
+        status = self._retryable_status_code(exc)
+        if status == 429 or status in {500, 502, 503, 504}:
+            return True
+
+        message = str(exc).lower()
+        retryable_markers = (
+            "429",
+            "too many requests",
+            "rate limit",
+            "ratelimit",
+            "temporarily unavailable",
+            "internal server error",
+            "bad gateway",
+            "service unavailable",
+            "gateway timeout",
+            "http error 500",
+            "http error 502",
+            "http error 503",
+            "http error 504",
+        )
+        return any(marker in message for marker in retryable_markers)
+
+    async def _run(self, func, *, retries: int = 3, base_delay: float = 0.75):
+        last_exc = None
+        for attempt in range(retries):
+            try:
+                return await asyncio.to_thread(func)
+            except Exception as exc:
+                last_exc = exc
+                if attempt >= retries - 1 or not self._is_retryable_error(exc):
+                    raise
+
+                delay = base_delay * (2 ** attempt) + random.uniform(0.0, 0.35)
+                logger.warning(
+                    "YouTube Music transient failure; retrying in "
+                    f"{delay:.2f}s ({attempt + 1}/{retries}): {exc}"
+                )
+                await asyncio.sleep(delay)
+
+        raise last_exc
 
 
 
@@ -112,11 +164,7 @@ class YouTubeMusicClient:
         client = self._ytmusicapi if (self._is_authenticated and self._ytmusicapi) else self._public
         if client:
             def _ytm_search():
-                try:
-                    return client.search(query_lower, filter=filter, limit=limit)
-                except Exception as e:
-                    logger.warning(f"ytmusicapi search failed: {e}")
-                    return None
+                return client.search(query_lower, filter=filter, limit=limit)
 
             try:
                 results = await self._run(_ytm_search)
@@ -128,8 +176,8 @@ class YouTubeMusicClient:
                         if vid:
                             asyncio.create_task(self._prefetch_stream(vid))
                     return results
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"ytmusicapi search failed: {e}")
 
         # Fallback to yt-dlp
         def _ytdlp_search():
@@ -140,31 +188,27 @@ class YouTubeMusicClient:
                 'skip_download': True,
                 'ignoreerrors': True,
             }
-            try:
-                ydl = yt_dlp.YoutubeDL(opts)
-                results = ydl.extract_info(query_lower, download=False)
-                if not results or not results.get('entries'):
-                    return []
-                tracks = []
-                for entry in results['entries']:
-                    if not entry:
-                        continue
-                    video_id = entry.get('id', '')
-                    if video_id and entry.get('title'):
-                        thumbnails = entry.get('thumbnails', [])
-                        thumb_url = thumbnails[-1].get('url', '') if thumbnails else ''
-                        tracks.append({
-                            'videoId': video_id,
-                            'title': entry.get('title', 'Unknown'),
-                            'artists': [{'name': entry.get('uploader', 'Unknown')}],
-                            'thumbnails': [{'url': thumb_url}] if thumb_url else [],
-                            'duration': entry.get('duration', 0),
-                            'resultType': 'song',
-                        })
-                return tracks
-            except Exception as e:
-                logger.error(f"yt-dlp search error: {e}")
+            ydl = yt_dlp.YoutubeDL(opts)
+            results = ydl.extract_info(query_lower, download=False)
+            if not results or not results.get('entries'):
                 return []
+            tracks = []
+            for entry in results['entries']:
+                if not entry:
+                    continue
+                video_id = entry.get('id', '')
+                if video_id and entry.get('title'):
+                    thumbnails = entry.get('thumbnails', [])
+                    thumb_url = thumbnails[-1].get('url', '') if thumbnails else ''
+                    tracks.append({
+                        'videoId': video_id,
+                        'title': entry.get('title', 'Unknown'),
+                        'artists': [{'name': entry.get('uploader', 'Unknown')}],
+                        'thumbnails': [{'url': thumb_url}] if thumb_url else [],
+                        'duration': entry.get('duration', 0),
+                        'resultType': 'song',
+                    })
+            return tracks
 
         try:
             tracks = await self._run(_ytdlp_search)
@@ -188,7 +232,7 @@ class YouTubeMusicClient:
                 self._stream_cache[video_id] = url
                 logger.debug(f"Prefetched stream for {video_id}")
         except Exception as e:
-            pass
+            logger.debug(f"Stream prefetch skipped for {video_id}: {e}")
 
     async def get_stream_url(self, video_id: str) -> str:
         if video_id in self._stream_cache:
@@ -201,7 +245,8 @@ class YouTubeMusicClient:
             if url:
                 self._stream_cache[video_id] = url
             return url
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Could not extract stream URL for {video_id}: {e}")
             return ""
 
     async def get_library_songs(self, limit: int = 25) -> dict:
@@ -210,13 +255,8 @@ class YouTubeMusicClient:
             return {'tracks': []}
 
         def _get_liked():
-            try:
-                result = self._ytmusicapi.get_liked_songs(limit=limit)
-                # ytmusicapi already returns {'tracks': [...], ...}
-                return result
-            except Exception as e:
-                logger.error(f"get_liked_songs error: {e}")
-                return {'tracks': []}
+            # ytmusicapi already returns {'tracks': [...], ...}
+            return self._ytmusicapi.get_liked_songs(limit=limit)
 
         try:
             return await self._run(_get_liked)
@@ -230,15 +270,12 @@ class YouTubeMusicClient:
             return []
 
         def _get_playlists():
-            try:
-                return self._ytmusicapi.get_library_playlists()
-            except Exception as e:
-                logger.error(f"get_playlists error: {e}")
-                return []
+            return self._ytmusicapi.get_library_playlists()
 
         try:
             return await self._run(_get_playlists)
-        except Exception:
+        except Exception as e:
+            logger.error(f"get_playlists error: {e}")
             return []
 
     async def get_library_albums(self) -> list:
@@ -247,15 +284,12 @@ class YouTubeMusicClient:
             return []
 
         def _get_albums():
-            try:
-                return self._ytmusicapi.get_library_albums()
-            except Exception as e:
-                logger.error(f"get_albums error: {e}")
-                return []
+            return self._ytmusicapi.get_library_albums()
 
         try:
             return await self._run(_get_albums)
-        except Exception:
+        except Exception as e:
+            logger.error(f"get_albums error: {e}")
             return []
 
     async def get_library_artists(self, limit: int = 20) -> list:
@@ -264,20 +298,19 @@ class YouTubeMusicClient:
             return []
 
         def _get_artists():
+            # Use get_library_artists instead of subscriptions, because subscriptions can hang
+            # for users with thousands of Youtube channels, and get_library_artists is faster.
             try:
-                # Use get_library_artists instead of subscriptions, because subscriptions can hang
-                # for users with thousands of Youtube channels, and get_library_artists is faster.
-                try:
-                    return self._ytmusicapi.get_library_artists(limit=limit)
-                except Exception:
-                    return self._ytmusicapi.get_library_subscriptions(limit=limit)
+                return self._ytmusicapi.get_library_artists(limit=limit)
             except Exception as e:
-                logger.error(f"get_library_artists error: {e}")
-                return []
+                if self._is_retryable_error(e):
+                    raise
+                return self._ytmusicapi.get_library_subscriptions(limit=limit)
 
         try:
             return await self._run(_get_artists)
-        except Exception:
+        except Exception as e:
+            logger.error(f"get_library_artists error: {e}")
             return []
 
     async def get_liked_songs(self, limit: int = 25) -> dict:
@@ -291,15 +324,12 @@ class YouTubeMusicClient:
             return {'contents': []}
 
         def _get_home():
-            try:
-                return client.get_home(limit=limit)
-            except Exception as e:
-                logger.error(f"get_home error: {e}")
-                return {'contents': []}
+            return client.get_home(limit=limit)
 
         try:
             return await self._run(_get_home)
-        except Exception:
+        except Exception as e:
+            logger.error(f"get_home error: {e}")
             return {'contents': []}
 
     async def get_explore(self) -> dict:
@@ -309,15 +339,12 @@ class YouTubeMusicClient:
             return {'moodCategories': []}
 
         def _get_explore():
-            try:
-                return client.get_explore()
-            except Exception as e:
-                logger.error(f"get_explore error: {e}")
-                return {'moodCategories': []}
+            return client.get_explore()
 
         try:
             return await self._run(_get_explore)
-        except Exception:
+        except Exception as e:
+            logger.error(f"get_explore error: {e}")
             return {'moodCategories': []}
 
     async def get_charts(self, country: str = "ZZ") -> dict:
@@ -327,15 +354,12 @@ class YouTubeMusicClient:
             return {'items': []}
 
         def _get_charts():
-            try:
-                return client.get_charts(country=country)
-            except Exception as e:
-                logger.error(f"get_charts error: {e}")
-                return {'items': []}
+            return client.get_charts(country=country)
 
         try:
             return await self._run(_get_charts)
-        except Exception:
+        except Exception as e:
+            logger.error(f"get_charts error: {e}")
             return {'items': []}
 
     async def get_playlist(self, playlist_id: str) -> dict:
@@ -362,6 +386,8 @@ class YouTubeMusicClient:
             try:
                 return client.get_playlist(playlist_id)
             except Exception as e:
+                if self._is_retryable_error(e):
+                    raise
                 logger.error(f"get_playlist error: {e}")
                 # Fall back to public client if the authenticated one failed
                 if client != self._public and self._public:
@@ -378,7 +404,8 @@ class YouTubeMusicClient:
                 self._playlist_cache[playlist_id] = res
                 self._playlist_time[playlist_id] = time.time()
             return res
-        except Exception:
+        except Exception as e:
+            logger.error(f"get_playlist error: {e}")
             return {}
 
     async def get_album(self, browse_id: str) -> dict:
@@ -397,11 +424,7 @@ class YouTubeMusicClient:
             return {}
 
         def _get_album():
-            try:
-                return client.get_album(browse_id)
-            except Exception as e:
-                logger.error(f"get_album error: {e}")
-                return {}
+            return client.get_album(browse_id)
 
         try:
             res = await self._run(_get_album)
@@ -409,7 +432,8 @@ class YouTubeMusicClient:
                 self._album_cache[browse_id] = res
                 self._album_time[browse_id] = time.time()
             return res
-        except Exception:
+        except Exception as e:
+            logger.error(f"get_album error: {e}")
             return {}
 
     async def get_artist(self, channel_id: str) -> dict:
@@ -428,11 +452,7 @@ class YouTubeMusicClient:
             return {}
 
         def _get_artist():
-            try:
-                return client.get_artist(channel_id)
-            except Exception as e:
-                logger.error(f"get_artist error: {e}")
-                return {}
+            return client.get_artist(channel_id)
 
         try:
             res = await self._run(_get_artist)
@@ -440,7 +460,8 @@ class YouTubeMusicClient:
                 self._artist_cache[channel_id] = res
                 self._artist_time[channel_id] = time.time()
             return res
-        except Exception:
+        except Exception as e:
+            logger.error(f"get_artist error: {e}")
             return {}
 
     async def get_watch_playlist(self, video_id: str = None, limit: int = 25) -> dict:
@@ -450,15 +471,12 @@ class YouTubeMusicClient:
             return {'tracks': []}
 
         def _get_watch():
-            try:
-                return client.get_watch_playlist(videoId=video_id, limit=limit)
-            except Exception as e:
-                logger.error(f"get_watch_playlist error: {e}")
-                return {'tracks': []}
+            return client.get_watch_playlist(videoId=video_id, limit=limit)
 
         try:
             return await self._run(_get_watch)
-        except Exception:
+        except Exception as e:
+            logger.error(f"get_watch_playlist error: {e}")
             return {'tracks': []}
 
     async def get_history(self) -> list:
@@ -467,15 +485,12 @@ class YouTubeMusicClient:
             return []
 
         def _get_history():
-            try:
-                return self._ytmusicapi.get_history()
-            except Exception as e:
-                logger.error(f"get_history error: {e}")
-                return []
+            return self._ytmusicapi.get_history()
 
         try:
             return await self._run(_get_history)
-        except Exception:
+        except Exception as e:
+            logger.error(f"get_history error: {e}")
             return []
 
     async def remove_history_items(self, feedback_tokens: list) -> bool:
@@ -484,17 +499,14 @@ class YouTubeMusicClient:
             return False
 
         def _remove():
-            try:
-                # remove_history_items returns a dict or list usually
-                self._ytmusicapi.remove_history_items(feedback_tokens)
-                return True
-            except Exception as e:
-                logger.error(f"remove_history_items error: {e}")
-                return False
+            # remove_history_items returns a dict or list usually
+            self._ytmusicapi.remove_history_items(feedback_tokens)
+            return True
 
         try:
             return await self._run(_remove)
-        except Exception:
+        except Exception as e:
+            logger.error(f"remove_history_items error: {e}")
             return False
     async def create_playlist(self, title: str, description: str = "") -> str:
         """Create a playlist - requires auth."""
@@ -504,16 +516,13 @@ class YouTubeMusicClient:
         self.invalidate_playlist_cache()
 
         def _create():
-            try:
-                # Returns the playlistId as a string
-                return self._ytmusicapi.create_playlist(title, description)
-            except Exception as e:
-                logger.error(f"create_playlist error: {e}")
-                return ""
+            # Returns the playlistId as a string
+            return self._ytmusicapi.create_playlist(title, description)
 
         try:
             return await self._run(_create)
-        except Exception:
+        except Exception as e:
+            logger.error(f"create_playlist error: {e}")
             return ""
 
     async def add_playlist_items(self, playlist_id: str, video_ids: list) -> dict:
@@ -524,15 +533,12 @@ class YouTubeMusicClient:
         self.invalidate_playlist_cache(playlist_id)
 
         def _add():
-            try:
-                return self._ytmusicapi.add_playlist_items(playlist_id, video_ids)
-            except Exception as e:
-                logger.error(f"add_playlist_items error: {e}")
-                return {}
+            return self._ytmusicapi.add_playlist_items(playlist_id, video_ids)
 
         try:
             return await self._run(_add)
-        except Exception:
+        except Exception as e:
+            logger.error(f"add_playlist_items error: {e}")
             return {}
 
     async def remove_playlist_items(self, playlist_id: str, videos: list) -> dict:
@@ -545,15 +551,12 @@ class YouTubeMusicClient:
         self.invalidate_playlist_cache(playlist_id)
 
         def _remove_items():
-            try:
-                return self._ytmusicapi.remove_playlist_items(playlist_id, videos)
-            except Exception as e:
-                logger.error(f"remove_playlist_items error: {e}")
-                return {}
+            return self._ytmusicapi.remove_playlist_items(playlist_id, videos)
 
         try:
             return await self._run(_remove_items)
-        except Exception:
+        except Exception as e:
+            logger.error(f"remove_playlist_items error: {e}")
             return {}
 
     async def delete_playlist(self, playlist_id: str) -> bool:
@@ -564,14 +567,14 @@ class YouTubeMusicClient:
         self.invalidate_playlist_cache()
 
         def _delete():
-            try:
-                self._ytmusicapi.delete_playlist(playlist_id)
-                return True
-            except Exception as e:
-                logger.error(f"delete_playlist error: {e}")
-                return False
+            self._ytmusicapi.delete_playlist(playlist_id)
+            return True
 
-        return await self._run(_delete)
+        try:
+            return await self._run(_delete)
+        except Exception as e:
+            logger.error(f"delete_playlist error: {e}")
+            return False
 
     async def rename_playlist(self, playlist_id: str, new_title: str, new_description: str = None) -> bool:
         """Rename a playlist - requires auth."""
@@ -581,19 +584,16 @@ class YouTubeMusicClient:
         self.invalidate_playlist_cache(playlist_id)
 
         def _rename():
-            try:
-                kwargs = {"title": new_title}
-                if new_description is not None:
-                    kwargs["description"] = new_description
-                return self._ytmusicapi.edit_playlist(playlist_id, **kwargs)
-            except Exception as e:
-                logger.error(f"rename_playlist error: {e}")
-                return False
+            kwargs = {"title": new_title}
+            if new_description is not None:
+                kwargs["description"] = new_description
+            return self._ytmusicapi.edit_playlist(playlist_id, **kwargs)
 
         try:
             res = await self._run(_rename)
             return bool(res)
-        except Exception:
+        except Exception as e:
+            logger.error(f"rename_playlist error: {e}")
             return False
 
     async def rate_song(self, video_id: str, rating: str = "LIKE") -> bool:
@@ -602,16 +602,13 @@ class YouTubeMusicClient:
             return False
 
         def _rate():
-            try:
-                self._ytmusicapi.rate_song(video_id, rating)
-                return True
-            except Exception as e:
-                logger.error(f"rate_song error: {e}")
-                return False
+            self._ytmusicapi.rate_song(video_id, rating)
+            return True
 
         try:
             return await self._run(_rate)
-        except Exception:
+        except Exception as e:
+            logger.error(f"rate_song error: {e}")
             return False
 
     def logout(self) -> None:
@@ -666,27 +663,26 @@ class YouTubeMusicClient:
             return {}
 
         def _get_rich_suggestions():
+            # Search without filter to get a mix of top results
+            results = self._public.search(query, limit=5)
+            # Group by category
+            grouped = {
+                'songs': [r for r in results if r['resultType'] in ('song', 'video')][:3],
+                'albums': [r for r in results if r['resultType'] == 'album'][:2],
+                'artists': [r for r in results if r['resultType'] == 'artist'][:2],
+                'text': []
+            }
+            # Text suggestions are optional; keep rich result suggestions if this call fails.
             try:
-                # Search without filter to get a mix of top results
-                results = self._public.search(query, limit=5)
-                # Group by category
-                grouped = {
-                    'songs': [r for r in results if r['resultType'] in ('song', 'video')][:3],
-                    'albums': [r for r in results if r['resultType'] == 'album'][:2],
-                    'artists': [r for r in results if r['resultType'] == 'artist'][:2],
-                    'text': []
-                }
-                # Also get standard text suggestions
-                try:
-                    grouped['text'] = self._public.get_search_suggestions(query)[:5]
-                except Exception:
-                    pass
-                return grouped
+                grouped['text'] = self._public.get_search_suggestions(query)[:5]
             except Exception as e:
-                logger.error(f"Rich suggestions error: {e}")
-                return {}
+                if self._is_retryable_error(e):
+                    raise
+                logger.debug(f"Search text suggestions unavailable: {e}")
+            return grouped
 
         try:
             return await self._run(_get_rich_suggestions)
-        except Exception:
+        except Exception as e:
+            logger.error(f"Rich suggestions error: {e}")
             return {}

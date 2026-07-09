@@ -36,6 +36,7 @@ class NavButton(QPushButton, HoverColorAnimationMixin):
         self.setFixedHeight(44)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setToolTip(label)
+        self.setAccessibleName(label)
 
         self._row = QHBoxLayout(self)
         self._row.setContentsMargins(11, 0, 11, 0)
@@ -203,6 +204,7 @@ class NavSidebar(QWidget):
         self._profile_btn.setFixedHeight(42)
         self._profile_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._profile_btn.clicked.connect(self._on_profile_clicked)
+        self._profile_btn.setAccessibleName("Iniciar sesión")
         layout.addWidget(self._profile_btn)
 
         # Collapse/expand toggle
@@ -211,7 +213,16 @@ class NavSidebar(QWidget):
         self._toggle_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._toggle_btn.setFont(Icon.font(20))
         self._toggle_btn.clicked.connect(self.toggle_collapse)
+        self._toggle_btn.setAccessibleName("Contraer barra lateral")
         layout.addWidget(self._toggle_btn)
+
+        previous = None
+        for btn in self._nav_buttons.values():
+            if previous:
+                QWidget.setTabOrder(previous, btn)
+            previous = btn
+        QWidget.setTabOrder(previous, self._profile_btn)
+        QWidget.setTabOrder(self._profile_btn, self._toggle_btn)
 
         self._update_sidebar_styles()
         self._update_toggle_icon()
@@ -242,6 +253,7 @@ class NavSidebar(QWidget):
 
     def _update_toggle_icon(self) -> None:
         self._toggle_btn.setText(Icon.get("chevron_right" if self._collapsed else "chevron_left"))
+        self._toggle_btn.setAccessibleName("Expandir barra lateral" if self._collapsed else "Contraer barra lateral")
 
     def _navigate(self, route: str) -> None:
         self._select(route)
@@ -268,6 +280,7 @@ class NavSidebar(QWidget):
             display_text = "Iniciar sesión"
 
         self._profile_btn.setToolTip(display_text)
+        self._profile_btn.setAccessibleName(display_text)
 
         # Build the button content with icon + text using a layout
         # Clear any existing icon/text first

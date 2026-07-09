@@ -3,9 +3,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timezone, timedelta
 from loguru import logger
 import httpx
-from pyrolist.db.database import get_session
-from pyrolist.db.models import Notification
-from sqlalchemy import select
+from pyrolist.db.repository import NotificationRepository
 from PySide6.QtCore import QObject, Signal
 
 class NotificationService(QObject):
@@ -14,6 +12,7 @@ class NotificationService(QObject):
     def __init__(self, yt_client):
         super().__init__()
         self.yt = yt_client
+        self._repo = NotificationRepository()
         self._is_running = False
         self._task = None
 
@@ -118,30 +117,17 @@ class NotificationService(QObject):
             logger.debug(f"Failed to parse RSS for {channel_id}: {e}")
 
     async def _save_notification_if_new(self, video_id: str, title: str, artist: str, thumbnail_url: str, pub_date: datetime, artist_id: str):
-        async with get_session() as session:
-            stmt = select(Notification).where(Notification.video_id == video_id)
-            result = await session.execute(stmt)
-            existing = result.scalar_one_or_none()
-            
-            if not existing:
-                notif = Notification(
-                    video_id=video_id,
-                    title=title,
-                    artist=artist,
-                    artist_id=artist_id,
-                    thumbnail_url=thumbnail_url,
-                    created_at=pub_date,
-                    is_read=False
-                )
-                session.add(notif)
-                await session.commit()
-                logger.info(f"New notification: {title} by {artist}")
-                self.unread_changed.emit(True)
+        created = await self._repo.add_if_new(
+            video_id=video_id,
+            title=title,
+            artist=artist,
+            thumbnail_url=thumbnail_url,
+            created_at=pub_date,
+            artist_id=artist_id,
+        )
+        if created:
+            logger.info(f"New notification: {title} by {artist}")
+            self.unread_changed.emit(True)
 
     async def check_unread(self):
-        async with get_session() as session:
-            stmt = select(Notification).where(Notification.is_read == False)
-            result = await session.execute(stmt)
-            has_unread = result.scalars().first() is not None
-            self.unread_changed.emit(has_unread)
-
+        self.unread_changed.emit(await self._repo.has_unread())

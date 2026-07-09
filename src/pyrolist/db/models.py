@@ -1,7 +1,11 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, Boolean, DateTime
 from pyrolist.db.database import Base
 from datetime import datetime, timezone
+
+# The local library schema is intentionally denormalized. Tables such as
+# play_history, downloads and notifications keep their own title/artist fields
+# instead of cascading from songs, so user history and offline files survive
+# when a Song row is removed or re-created from remote metadata.
 
 
 class Song(Base):
@@ -28,7 +32,7 @@ class PlayHistory(Base):
     __tablename__ = "play_history"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    video_id = Column(String, nullable=False)
+    video_id = Column(String, nullable=False, index=True)
     title = Column(String, nullable=False)
     artist = Column(String, nullable=False)
     played_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
@@ -71,8 +75,7 @@ class Notification(Base):
     artist_id = Column(String, nullable=True)
     thumbnail_url = Column(String, default="")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
-    is_read = Column(Boolean, default=False)
+    is_read = Column(Boolean, default=False, index=True)
     
     def __repr__(self):
         return f"<Notification {self.title} by {self.artist}>"
-

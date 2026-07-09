@@ -1,10 +1,21 @@
 from functools import partial
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QScrollArea, QGraphicsOpacityEffect
+import asyncio
+from PySide6.QtWidgets import (
+    QGraphicsOpacityEffect,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
 from qasync import asyncSlot
 from PySide6.QtGui import QFont
 from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, Signal
 from loguru import logger
 from pyrolist.ui.widgets.song_card import SongCard
+from pyrolist.ui.widgets.error_state import ErrorStateWidget
 from pyrolist.ui.widgets.load_more import PaginatorFooter
 
 
@@ -15,6 +26,8 @@ class HistoryScreen(QWidget):
     like_requested = Signal(str, object)
     add_to_playlist_requested = Signal(str, str)
     delete_download_requested = Signal(str)
+    artist_clicked = Signal(str)
+    album_clicked = Signal(str)
 
     def __init__(self, yt_client, on_play_song):
         super().__init__()
@@ -29,16 +42,29 @@ class HistoryScreen(QWidget):
         card.like_requested.connect(lambda *a: self.like_requested.emit(*a))
         card.add_to_playlist_requested.connect(lambda *a: self.add_to_playlist_requested.emit(*a))
         card.delete_download_requested.connect(lambda *a: self.delete_download_requested.emit(*a))
+        if hasattr(card, "artist_clicked"):
+            card.artist_clicked.connect(lambda *a: self.artist_clicked.emit(*a))
+        if hasattr(card, "album_clicked"):
+            card.album_clicked.connect(lambda *a: self.album_clicked.emit(*a))
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 16, 24, 16)
 
         from pyrolist.ui.design import tokens
+        header_row = QHBoxLayout()
         header = QLabel("Historial")
         header.setFont(QFont("Inter", 24, QFont.Weight.Bold))
-        header.setStyleSheet(f"")
-        layout.addWidget(header)
+        header.setStyleSheet("")
+        header_row.addWidget(header)
+        header_row.addStretch()
+
+        self.clear_history_btn = QPushButton("Limpiar historial")
+        self.clear_history_btn.setObjectName("dangerButton")
+        self.clear_history_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.clear_history_btn.clicked.connect(self._on_clear_history_clicked)
+        header_row.addWidget(self.clear_history_btn)
+        layout.addLayout(header_row)
 
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
@@ -86,10 +112,24 @@ class HistoryScreen(QWidget):
         anim.start()
 
     async def load(self):
+        try:
+            await self._load_async()
+        except Exception as e:
+            logger.error(f"Error loading history: {e}")
+            self._clear_content()
+            self.content_layout.addWidget(ErrorStateWidget(
+                "No se pudo cargar el historial",
+                retry_callback=lambda: asyncio.ensure_future(self.load()),
+            ))
+
+    def _clear_content(self):
         while self.content_layout.count():
             item = self.content_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
+
+    async def _load_async(self):
+        self._clear_content()
 
         # Show loading skeleton
         from pyrolist.ui.widgets.skeleton_loader import SkeletonListLoader
@@ -107,6 +147,7 @@ class HistoryScreen(QWidget):
         from pyrolist.db.repository import HistoryRepository
         repo = HistoryRepository()
         local_history = await repo.get_history(limit=50)
+        self.clear_history_btn.setEnabled(bool(local_history))
 
         # Fetch YouTube Music history if authenticated
         yt_history = []
@@ -173,6 +214,29 @@ class HistoryScreen(QWidget):
             self.content_layout.addWidget(msg)
             self.content_layout.addStretch()
             self._fade_in_content()
+
+    def _on_clear_history_clicked(self):
+        result = QMessageBox.question(
+            self,
+            "Limpiar historial",
+            "¿Eliminar todo el historial local de reproducción?",
+            QMessageBox.StandardButton.Cancel | QMessageBox.StandardButton.Yes,
+            QMessageBox.StandardButton.Cancel,
+        )
+        if result != QMessageBox.StandardButton.Yes:
+            return
+
+        import asyncio
+        asyncio.ensure_future(self._clear_history_async())
+
+    async def _clear_history_async(self):
+        try:
+            from pyrolist.db.repository import HistoryRepository
+            deleted = await HistoryRepository().clear_history()
+            logger.info(f"Cleared {deleted} local history entries")
+            await self.load()
+        except Exception as e:
+            logger.error(f"Error clearing history: {e}")
 
     def _render_history_chunk(self, chunk_size=20):
         if not hasattr(self, "_history_items") or not self._history_items:

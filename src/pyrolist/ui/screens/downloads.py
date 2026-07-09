@@ -40,6 +40,11 @@ class DownloadItemWidget(QFrame):
 
     def _build_ui(self):
         self.setObjectName("downloadCard")
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        accessible = f"{self.title} - {self.artist}" if self.artist else self.title
+        if self.parent_playlist_title:
+            accessible = f"{accessible} - {self.parent_playlist_title}"
+        self.setAccessibleName(accessible)
         
         layout = QHBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
@@ -343,6 +348,20 @@ class DownloadItemWidget(QFrame):
         else:
             super().mousePressEvent(event)
 
+    def keyPressEvent(self, event) -> None:
+        if event.key() == Qt.Key.Key_Delete:
+            self._on_delete()
+            event.accept()
+            return
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            if getattr(self, "selection_mode", False):
+                self.checkbox.setChecked(not self.checkbox.isChecked())
+            else:
+                self._on_play()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
 class DownloadPlaylistItemWidget(QFrame):
     def __init__(self, playlist_id, title, tracks, on_play_local=None, on_play_local_playlist=None, liked_ids=None):
         super().__init__()
@@ -366,6 +385,8 @@ class DownloadPlaylistItemWidget(QFrame):
         self.header = QFrame()
         self.header.setObjectName("playlistHeader")
         self.header.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.header.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.header.setAccessibleName(f"Expandir {self.title}")
         
         header_layout = QHBoxLayout(self.header)
         header_layout.setContentsMargins(12, 12, 12, 12)
@@ -439,8 +460,8 @@ class DownloadPlaylistItemWidget(QFrame):
         self.tracks_container.hide()
         main_layout.addWidget(self.tracks_container)
         
-        # Permitir expandir haciendo clic en toda la cabecera (excepto si pulsas el botón play)
-        self.header.mousePressEvent = self._on_header_clicked
+        # Permitir expandir haciendo clic en toda la cabecera (excepto si pulsas botones).
+        self.header.installEventFilter(self)
         
         self._update_playlist_item_styles()
         
@@ -525,12 +546,23 @@ class DownloadPlaylistItemWidget(QFrame):
                     self._in_style_change = False
         super().changeEvent(event)
 
-    def _on_header_clicked(self, event):
-        pos = event.position().toPoint()
+    def eventFilter(self, obj, event) -> bool:
+        from PySide6.QtCore import QEvent
+        if obj is self.header and event.type() == QEvent.Type.MouseButtonPress:
+            return self._handle_header_activation(event.position().toPoint())
+        if obj is self.header and event.type() == QEvent.Type.KeyPress:
+            if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+                self.toggle_expand()
+                event.accept()
+                return True
+        return super().eventFilter(obj, event)
+
+    def _handle_header_activation(self, pos) -> bool:
         child = self.header.childAt(pos)
         if child in [self.play_btn, self.expand_btn] or (child and child.parent() in [self.play_btn, self.expand_btn]):
-            return
+            return False
         self.toggle_expand()
+        return True
 
     def toggle_expand(self):
         self.is_expanded = not self.is_expanded
@@ -619,6 +651,7 @@ class DownloadsScreen(QWidget):
         self.on_play_local_playlist = on_play_local_playlist
         self.on_navigate = on_navigate
         self._current_tab = "songs"
+        self._status_filter = "all"
         self._selection_mode = False
         self._items = {} # video_id -> DownloadItemWidget
         self._playlist_cards = {} # playlist_id -> PlaylistCard
@@ -707,6 +740,26 @@ class DownloadsScreen(QWidget):
         
         tabs_layout.addStretch()
         layout.addWidget(self.tabs)
+
+        self.status_filters = QWidget()
+        self.status_filters.setStyleSheet("background: transparent; border: none;")
+        status_layout = QHBoxLayout(self.status_filters)
+        status_layout.setContentsMargins(0, 0, 0, 0)
+        status_layout.setSpacing(8)
+        self.status_filter_btns = {}
+        for key, label in (
+            ("all", "Todas"),
+            ("completed", "Completadas"),
+            ("active", "En curso"),
+            ("error", "Errores"),
+        ):
+            btn = QPushButton(label)
+            btn.setFixedHeight(30)
+            btn.clicked.connect(lambda _checked=False, k=key: self._switch_status_filter(k))
+            status_layout.addWidget(btn)
+            self.status_filter_btns[key] = btn
+        status_layout.addStretch()
+        layout.addWidget(self.status_filters)
         
         self._update_toolbar_styles()
 
@@ -767,10 +820,34 @@ class DownloadsScreen(QWidget):
         self._current_tab = key
         for k, btn in self.tab_btns.items():
             btn.setStyleSheet(self._tab_style(k == key))
+        self.status_filters.setVisible(key == "songs")
             
         if self._current_load_task and not self._current_load_task.done():
             self._current_load_task.cancel()
         self._current_load_task = asyncio.create_task(self.load())
+
+    def _switch_status_filter(self, key: str) -> None:
+        if key == self._status_filter:
+            return
+        self._status_filter = key
+        self._update_status_filter_styles()
+        if getattr(self, "_selection_mode", False):
+            self._toggle_selection_mode()
+        if self._current_load_task and not self._current_load_task.done():
+            self._current_load_task.cancel()
+        self._current_load_task = asyncio.create_task(self.load())
+
+    def _task_matches_filter(self, status: str) -> bool:
+        if self._status_filter == "all":
+            return True
+        if self._status_filter == "active":
+            return status in {"queued", "downloading", "paused"}
+        if self._status_filter == "error":
+            return status == "error"
+        return False
+
+    def _download_matches_filter(self) -> bool:
+        return self._status_filter in {"all", "completed"}
 
     def _connect_manager(self):
         mgr = DownloadManager.get_instance()
@@ -783,7 +860,10 @@ class DownloadsScreen(QWidget):
     def _on_download_queued(self, task):
         # Add to UI if matches current tab
         is_playlist = task.parent_playlist_id is not None
-        if (self._current_tab == "playlists" and is_playlist) or (self._current_tab == "songs" and not is_playlist):
+        if (
+            ((self._current_tab == "playlists" and is_playlist) or (self._current_tab == "songs" and not is_playlist))
+            and (self._current_tab != "songs" or self._task_matches_filter(task.status))
+        ):
             self._add_item_to_ui(task.video_id, task.title, task.artist, task.thumbnail_url, task.parent_playlist_title)
             self._items[task.video_id].set_downloading()
 
@@ -921,22 +1001,35 @@ class DownloadsScreen(QWidget):
                     self.content_layout.insertWidget(0, grid_widget)
             else:
                 # "songs" tab: Show all downloads individually (both completed and active)
-                if not downloads:
+                shown_count = 0
+                completed_downloads = list(reversed(downloads)) if self._download_matches_filter() else []
+                active_tasks = []
+                mgr = DownloadManager.get_instance()
+                for vid, task in mgr._tasks.items():
+                    if self._task_matches_filter(task.status):
+                        active_tasks.append((vid, task))
+
+                if not completed_downloads and not active_tasks:
                     from pyrolist.ui.design import tokens as _t
-                    msg = QLabel("No hay descargas aquí.")
+                    empty_by_filter = {
+                        "completed": "No hay descargas completadas.",
+                        "active": "No hay descargas en curso.",
+                        "error": "No hay descargas con error.",
+                    }
+                    msg = QLabel(empty_by_filter.get(self._status_filter, "No hay descargas aqui."))
                     msg.setStyleSheet(f"color: {_t.CURRENT.text_secondary}; font-size: 16px; padding: 40px;")
                     msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
                     self.content_layout.insertWidget(0, msg)
                 
-                for i, d in enumerate(reversed(downloads)):
+                for i, d in enumerate(completed_downloads):
                     is_liked = d.video_id in liked_ids
                     self._add_item_to_ui(d.video_id, d.title, d.artist, d.thumbnail_url, d.parent_playlist_title, is_liked=is_liked)
                     if d.video_id in self._items:
                         self._items[d.video_id].set_completed(d.file_path)
+                        shown_count += 1
                     
                 # Add active downloads from manager
-                mgr = DownloadManager.get_instance()
-                for i, (vid, task) in enumerate(mgr._tasks.items()):
+                for i, (vid, task) in enumerate(active_tasks):
                     if vid not in self._items:
                         is_liked = vid in liked_ids
                         self._add_item_to_ui(task.video_id, task.title, task.artist, task.thumbnail_url, task.parent_playlist_title, is_liked=is_liked)
@@ -944,6 +1037,9 @@ class DownloadsScreen(QWidget):
                             self._items[vid].set_downloading()
                         elif task.status == "error":
                             self._items[vid].set_error("Error")
+                        else:
+                            self._items[vid].set_downloading()
+                        shown_count += 1
             
             # Animate content fading in beautifully!
             self._fade_in_content()
@@ -1013,6 +1109,38 @@ class DownloadsScreen(QWidget):
         self.btn_select_all.setStyleSheet(btn_style)
         self.btn_delete_selected.setStyleSheet(delete_btn_style)
         self.btn_delete_all.setStyleSheet(delete_btn_style)
+        self._update_status_filter_styles()
+
+    def _update_status_filter_styles(self) -> None:
+        if not hasattr(self, "status_filter_btns"):
+            return
+        from pyrolist.ui.design import tokens
+        active_style = f"""
+            QPushButton {{
+                background: {tokens.CURRENT.accent_dim};
+                color: {tokens.CURRENT.accent};
+                border: 1px solid {tokens.CURRENT.accent};
+                border-radius: 15px;
+                padding: 0 12px;
+                font-weight: 700;
+            }}
+        """
+        inactive_style = f"""
+            QPushButton {{
+                background: transparent;
+                color: {tokens.CURRENT.text_secondary};
+                border: 1px solid {tokens.CURRENT.border};
+                border-radius: 15px;
+                padding: 0 12px;
+                font-weight: 600;
+            }}
+            QPushButton:hover {{
+                background: {tokens.CURRENT.bg_elevated};
+                color: {tokens.CURRENT.text_primary};
+            }}
+        """
+        for key, btn in self.status_filter_btns.items():
+            btn.setStyleSheet(active_style if key == self._status_filter else inactive_style)
 
     def _toggle_selection_mode(self) -> None:
         self._selection_mode = not getattr(self, "_selection_mode", False)
@@ -1126,19 +1254,33 @@ class DownloadsScreen(QWidget):
 
     async def _delete_items_async(self, ids: list[str]) -> None:
         self._toggle_selection_mode()
-        
-        main_win = self.window()
-        if hasattr(main_win, "_delete_download_async"):
-            if self._current_tab == "songs":
-                for vid in ids:
-                    await main_win._delete_download_async(vid)
-            elif self._current_tab in ("playlists", "albums"):
-                downloads = await self._repo.get_downloads()
-                for pid in ids:
-                    group_songs = [d.video_id for d in downloads if d.parent_playlist_id == pid]
-                    for vid in group_songs:
-                        await main_win._delete_download_async(vid)
-            await self.load()
+
+        downloads = await self._repo.get_downloads()
+        if self._current_tab == "songs":
+            target_ids = set(ids)
+        else:
+            target_ids = {
+                d.video_id
+                for d in downloads
+                if d.parent_playlist_id in ids
+            }
+
+        targets = [d for d in downloads if d.video_id in target_ids]
+        for download in targets:
+            if not download.file_path:
+                continue
+            try:
+                path = Path(download.file_path)
+                if path.exists():
+                    path.unlink()
+                lrc_path = path.with_suffix(".lrc")
+                if lrc_path.exists():
+                    lrc_path.unlink()
+            except Exception as e:
+                logger.error(f"Error deleting file {download.file_path}: {e}")
+
+        await self._repo.remove_downloads([d.video_id for d in targets])
+        await self.load()
 
     def _delete_all_items(self) -> None:
         from PySide6.QtWidgets import QMessageBox
@@ -1183,27 +1325,39 @@ class DownloadsScreen(QWidget):
     async def _delete_all_items_async(self) -> None:
         if getattr(self, "_selection_mode", False):
             self._toggle_selection_mode()
-            
-        main_win = self.window()
-        if hasattr(main_win, "_delete_download_async"):
-            downloads = await self._repo.get_downloads()
-            if self._current_tab == "songs":
-                for d in downloads:
-                    await main_win._delete_download_async(d.video_id)
-            elif self._current_tab in ("playlists", "albums"):
-                is_album_tab = self._current_tab == "albums"
-                group_songs = [
-                    d.video_id for d in downloads
-                    if d.parent_playlist_id and d.parent_playlist_id.startswith("album_") == is_album_tab
-                ]
-                for vid in group_songs:
-                    await main_win._delete_download_async(vid)
-            await self.load()
+
+        downloads = await self._repo.get_downloads()
+        if self._current_tab == "songs":
+            targets = downloads
+        else:
+            is_album_tab = self._current_tab == "albums"
+            targets = [
+                d for d in downloads
+                if d.parent_playlist_id
+                and d.parent_playlist_id.startswith("album_") == is_album_tab
+            ]
+
+        for download in targets:
+            if not download.file_path:
+                continue
+            try:
+                path = Path(download.file_path)
+                if path.exists():
+                    path.unlink()
+                lrc_path = path.with_suffix(".lrc")
+                if lrc_path.exists():
+                    lrc_path.unlink()
+            except Exception as e:
+                logger.error(f"Error deleting file {download.file_path}: {e}")
+
+        await self._repo.remove_downloads([d.video_id for d in targets])
+        await self.load()
 
     def _apply_theme_styles(self) -> None:
         self._update_toolbar_styles()
         for key, btn in self.tab_btns.items():
             btn.setStyleSheet(self._tab_style(key == self._current_tab))
+        self._update_status_filter_styles()
 
     def _fade_in_content(self) -> None:
         """Smooth fade-in animation when content finishes loading."""

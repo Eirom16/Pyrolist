@@ -21,6 +21,8 @@ LASTFM_SECRET_USER = "lastfm_api_secret"
 LASTFM_SESSION_USER = "lastfm_session_key"
 
 class SecureStorage:
+    _ignore_legacy_youtube_headers = False
+
     @staticmethod
     def _is_functional() -> bool:
         """Check if keyring is installed and has a functional backend."""
@@ -39,6 +41,7 @@ class SecureStorage:
     @classmethod
     def save_youtube_headers(cls, headers: dict) -> bool:
         """Save YouTube Music headers securely."""
+        cls._ignore_legacy_youtube_headers = False
         headers_str = json.dumps(headers)
         if cls._is_functional():
             try:
@@ -46,13 +49,17 @@ class SecureStorage:
                 logger.info("Credenciales de YouTube Music guardadas de forma segura en el llavero del sistema.")
                 # If a legacy file exists, delete it for security
                 legacy_file = AppDirs.config / "headers_auth.json"
-                if legacy_file.exists():
-                    legacy_file.unlink()
+                try:
+                    if legacy_file.exists():
+                        legacy_file.unlink()
+                except Exception as e:
+                    logger.warning(f"No se pudo eliminar el archivo legacy de credenciales: {e}")
                 return True
             except Exception as e:
                 logger.error(f"Error guardando en llavero: {e}")
 
         # Fallback to local config file
+        cls._ignore_legacy_youtube_headers = False
         try:
             legacy_file = AppDirs.config / "headers_auth.json"
             with open(legacy_file, "w") as f:
@@ -77,7 +84,7 @@ class SecureStorage:
 
         # Fallback to local config file
         legacy_file = AppDirs.config / "headers_auth.json"
-        if legacy_file.exists():
+        if not cls._ignore_legacy_youtube_headers and legacy_file.exists():
             try:
                 with open(legacy_file, "r") as f:
                     return json.load(f)
@@ -88,6 +95,7 @@ class SecureStorage:
     @classmethod
     def delete_youtube_headers(cls) -> None:
         """Delete YouTube Music headers secure storage."""
+        cls._ignore_legacy_youtube_headers = True
         if cls._is_functional():
             try:
                 # Check if it exists before trying to delete
@@ -98,9 +106,12 @@ class SecureStorage:
                 logger.error(f"Error eliminando credenciales del llavero: {e}")
 
         legacy_file = AppDirs.config / "headers_auth.json"
-        if legacy_file.exists():
-            legacy_file.unlink()
-            logger.info("Archivo local de credenciales de YouTube Music eliminado.")
+        try:
+            if legacy_file.exists():
+                legacy_file.unlink()
+                logger.info("Archivo local de credenciales de YouTube Music eliminado.")
+        except Exception as e:
+            logger.warning(f"No se pudo eliminar el archivo local de credenciales: {e}")
 
     @classmethod
     def save_lastfm_credentials(cls, api_key: str, api_secret: str, session_key: str) -> None:
@@ -169,10 +180,10 @@ class SecureStorage:
             logger.error(f"Failed to create secure temp auth file: {e}")
             try:
                 os.close(fd)
-            except Exception:
-                pass
+            except Exception as close_error:
+                logger.debug(f"Could not close secure temp auth fd after failure: {close_error}")
             try:
                 os.unlink(path)
-            except Exception:
-                pass
+            except Exception as unlink_error:
+                logger.debug(f"Could not delete secure temp auth file after failure: {unlink_error}")
             return "", None

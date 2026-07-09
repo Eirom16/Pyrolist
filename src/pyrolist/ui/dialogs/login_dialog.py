@@ -14,6 +14,7 @@ class WebLoginDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Iniciar sesión en YouTube Music")
         self.resize(1000, 700)
+        self.setAccessibleName("Iniciar sesión en YouTube Music")
         from pyrolist.ui.design import tokens
         self.setStyleSheet(f"background-color: {tokens.CURRENT.bg_base};")
 
@@ -38,7 +39,8 @@ class WebLoginDialog(QDialog):
         self.btn_close.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_close.setAutoDefault(False)
         self.btn_close.setDefault(False)
-        self.btn_close.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.btn_close.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.btn_close.setAccessibleName("Cerrar inicio de sesión")
         self.btn_close.setStyleSheet(f"""
             QPushButton {{
                 background-color: transparent;
@@ -60,6 +62,7 @@ class WebLoginDialog(QDialog):
 
         # Web View
         self.view = QWebEngineView()
+        self.view.setAccessibleName("Página de inicio de sesión de YouTube Music")
         self.profile = QWebEngineProfile.defaultProfile()
         self.cookie_store = self.profile.cookieStore()
 
@@ -83,6 +86,7 @@ class WebLoginDialog(QDialog):
         self.view.loadFinished.connect(self._on_load_finished)
 
         self.layout.addWidget(self.view)
+        QWidget.setTabOrder(self.btn_close, self.view)
 
         self.view.load(QUrl("https://music.youtube.com"))
 

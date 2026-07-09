@@ -5,12 +5,16 @@ from PySide6.QtCore import Slot
 
 class SystemTray(QSystemTrayIcon):
 
-    def __init__(self, parent, on_show, on_play_pause, on_next, on_quit):
+    def __init__(self, parent, on_show, on_play_pause, on_prev, on_next, on_quit):
         super().__init__(parent)
         self.on_show = on_show
         self.on_play_pause = on_play_pause
+        self.on_prev = on_prev
         self.on_next = on_next
         self.on_quit = on_quit
+        self._title = ""
+        self._artist = ""
+        self._is_playing = False
         
         # Load own application icon from assets if available
         from pyrolist.config.paths import AppDirs
@@ -36,6 +40,10 @@ class SystemTray(QSystemTrayIcon):
         play_pause_action = QAction("Reproducir/Pausar", menu)
         play_pause_action.triggered.connect(self.on_play_pause)
         menu.addAction(play_pause_action)
+
+        prev_action = QAction("Anterior", menu)
+        prev_action.triggered.connect(self.on_prev)
+        menu.addAction(prev_action)
         
         next_action = QAction("Siguiente", menu)
         next_action.triggered.connect(self.on_next)
@@ -60,6 +68,18 @@ class SystemTray(QSystemTrayIcon):
 
     @Slot()
     def update_play_state(self, is_playing: bool):
-        # Update tooltip to reflect active state
-        state_text = "Reproduciendo" if is_playing else "Pausado"
-        self.setToolTip(f"Pyrolist - {state_text}")
+        self._is_playing = is_playing
+        self._update_tooltip()
+
+    def update_track_info(self, title: str, artist: str) -> None:
+        self._title = title
+        self._artist = artist
+        self._update_tooltip()
+
+    def _update_tooltip(self) -> None:
+        state_text = "Reproduciendo" if self._is_playing else "Pausado"
+        if self._title:
+            track = f"{self._title} - {self._artist}" if self._artist else self._title
+            self.setToolTip(f"Pyrolist - {state_text}\n{track}")
+        else:
+            self.setToolTip(f"Pyrolist - {state_text}")

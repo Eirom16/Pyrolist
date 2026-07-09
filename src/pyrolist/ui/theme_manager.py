@@ -208,8 +208,8 @@ class ThemeManager(QObject):
             if lc.isValid():
                 new_qss = new_qss.replace("255, 74, 112", f"{lc.red()}, {lc.green()}, {lc.blue()}")
                 new_qss = new_qss.replace("255,74,112", f"{lc.red()},{lc.green()},{lc.blue()}")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Could not compute like color RGB replacements: {e}")
 
         # --- Replace background/dark-mode colors ---------------------------
         new_qss = (

@@ -1,8 +1,9 @@
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import declarative_base
-from sqlalchemy import text
 from pyrolist.config.paths import AppDirs
 from loguru import logger
+from pathlib import Path
+import asyncio
 
 Base = declarative_base()
 
@@ -29,39 +30,52 @@ async def get_session_factory():
 
 async def init_db():
     from pyrolist.db import models
+
     engine = get_engine()
-    async with engine.begin() as conn:
-        await conn.run_sync(models.Base.metadata.create_all)
-    
-    # Safely alter table to add the new column for existing databases if missing
-    try:
+
+    if _is_in_memory_database(DATABASE_URL):
         async with engine.begin() as conn:
-            result = await conn.execute(text("PRAGMA table_info(downloads)"))
-            columns = [row[1] for row in result.fetchall()]
-            if "parent_playlist_thumbnail_url" not in columns:
-                await conn.execute(text("ALTER TABLE downloads ADD COLUMN parent_playlist_thumbnail_url TEXT"))
-                logger.info("Added parent_playlist_thumbnail_url column to downloads table")
-            
-            result = await conn.execute(text("PRAGMA table_info(notifications)"))
-            columns = [row[1] for row in result.fetchall()]
-            if "artist_id" not in columns:
-                await conn.execute(text("ALTER TABLE notifications ADD COLUMN artist_id TEXT"))
-                logger.info("Added artist_id column to notifications table")
-    except Exception as e:
-        logger.warning(f"Could not check/alter tables: {e}")
-        
-    # Safely ensure indexes are created on existing databases
-    try:
-        async with engine.begin() as conn:
-            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_songs_is_liked ON songs (is_liked)"))
-            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_songs_last_played ON songs (last_played)"))
-            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_play_history_played_at ON play_history (played_at)"))
-            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_downloads_downloaded_at ON downloads (downloaded_at)"))
-        logger.info("Database indexes verified/created successfully")
-    except Exception as e:
-        logger.warning(f"Could not create database indexes: {e}")
-    
+            await conn.run_sync(models.Base.metadata.create_all)
+    else:
+        await _run_alembic_migrations()
+
     logger.info("Database initialized")
+
+
+def _is_in_memory_database(database_url: str) -> bool:
+    return ":memory:" in database_url
+
+
+def _sync_database_url(database_url: str) -> str:
+    return database_url.replace("sqlite+aiosqlite://", "sqlite://", 1)
+
+
+def _alembic_config():
+    from alembic.config import Config
+
+    migrations_dir = Path(__file__).resolve().parent / "migrations"
+    project_root = Path(__file__).resolve().parents[3]
+    config_file = project_root / "alembic.ini"
+    config = Config(str(config_file) if config_file.exists() else None)
+    config.set_main_option("script_location", str(migrations_dir))
+    config.set_main_option("sqlalchemy.url", _sync_database_url(DATABASE_URL))
+    return config
+
+
+async def _run_alembic_migrations() -> None:
+    try:
+        from alembic import command
+    except ImportError:
+        logger.warning("Alembic is not installed; falling back to metadata.create_all")
+        from pyrolist.db import models
+
+        engine = get_engine()
+        async with engine.begin() as conn:
+            await conn.run_sync(models.Base.metadata.create_all)
+        return
+
+    config = _alembic_config()
+    await asyncio.to_thread(command.upgrade, config, "head")
 
 from contextlib import asynccontextmanager
 
@@ -76,6 +90,5 @@ async def get_session():
     finally:
         try:
             await asyncio.shield(session.close())
-        except Exception:
-            pass
-
+        except Exception as e:
+            logger.warning(f"Error closing database session: {e}")

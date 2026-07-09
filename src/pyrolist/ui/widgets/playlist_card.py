@@ -98,6 +98,9 @@ class PlaylistCard(QWidget, HoverColorAnimationMixin):
     def _build_ui(self) -> None:
         self.setObjectName("playlistCard")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        accessible = f"{self._title} - {self._description}" if self._description else self._title
+        self.setAccessibleName(accessible)
         self.setFixedSize(168, 218)
         
         layout = QVBoxLayout(self)
@@ -145,6 +148,10 @@ class PlaylistCard(QWidget, HoverColorAnimationMixin):
             #playlistCard:hover {{
                 background-color: {bg_elevated};
                 border-color: rgba({acc_r}, {acc_g}, {acc_b}, 0.33);
+            }}
+            #playlistCard:focus {{
+                background-color: {bg_elevated};
+                border: 2px solid {accent};
             }}
         """)
         
@@ -210,6 +217,16 @@ class PlaylistCard(QWidget, HoverColorAnimationMixin):
                 self.clicked.emit()
         super().mousePressEvent(event)
 
+    def keyPressEvent(self, event) -> None:
+        if event.key() not in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            super().keyPressEvent(event)
+            return
+        if getattr(self, "selection_mode", False):
+            self.checkbox.setChecked(not self.checkbox.isChecked())
+        else:
+            self.clicked.emit()
+        event.accept()
+
     def paintEvent(self, event) -> None:
         from PySide6.QtWidgets import QStyle, QStyleOption
         from PySide6.QtGui import QPainter
@@ -229,4 +246,3 @@ class PlaylistCard(QWidget, HoverColorAnimationMixin):
                 finally:
                      self._in_style_change = False
         super().changeEvent(event)
-

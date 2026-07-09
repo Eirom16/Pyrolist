@@ -420,12 +420,19 @@ class NowPlayingScreen(QWidget):
         main = self._find_main_window()
         if main:
             main._update_queue_panel()
+            if hasattr(main, "_persist_queue_playback_settings"):
+                main._persist_queue_playback_settings()
             if main.mpris:
                 main.mpris.update_shuffle(is_shuffled)
 
     def _on_repeat(self):
         self.queue.toggle_repeat()
         self.update_shuffle_repeat_state()
+        main = self._find_main_window()
+        if main and hasattr(main, "_persist_queue_playback_settings"):
+            main._persist_queue_playback_settings()
+        if main and getattr(main, "mpris", None):
+            main.mpris.update_loop_status()
 
     def update_shuffle_repeat_state(self):
         """Sync button visuals with current queue state."""

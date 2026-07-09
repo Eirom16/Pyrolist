@@ -4,6 +4,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal, QPropertyAnimation, QEasingCurve
 from PySide6.QtGui import QFont, QPixmap, QColor, QLinearGradient, QPainter, QPaintEvent
+from loguru import logger
 from pyrolist.utils.time_utils import format_duration, format_duration_short
 import asyncio
 from pyrolist.ui.design.icons import Icon
@@ -23,8 +24,10 @@ class FullPlayerDialog(QDialog):
         self._is_playing = False
         self._lyric_labels: list[QLabel] = []
         self._current_lyric_index = -1
+        self._player_callbacks_connected = False
         self._build_ui()
         self._connect_signals()
+        self.update_shuffle_repeat_state()
         self._fade_in()
 
     def _fade_in(self):
@@ -124,6 +127,7 @@ class FullPlayerDialog(QDialog):
 
         self.btn_shuffle = self._make_btn("shuffle", 22, tokens.CURRENT.text_secondary, 38)
         self.btn_shuffle.setObjectName("fullPlayerShuffleBtn")
+        self.btn_shuffle.clicked.connect(self._on_shuffle)
         controls.addWidget(self.btn_shuffle)
 
         self.btn_prev = self._make_btn("skip_previous", 30, tokens.CURRENT.text_primary, 46)
@@ -142,6 +146,7 @@ class FullPlayerDialog(QDialog):
 
         self.btn_repeat = self._make_btn("repeat", 22, tokens.CURRENT.text_secondary, 38)
         self.btn_repeat.setObjectName("fullPlayerRepeatBtn")
+        self.btn_repeat.clicked.connect(self._on_repeat)
         controls.addWidget(self.btn_repeat)
 
         left.addLayout(controls)
@@ -213,9 +218,24 @@ class FullPlayerDialog(QDialog):
         return btn
 
     def _connect_signals(self):
+        if self._player_callbacks_connected:
+            return
         self.player.on("state_changed", self._on_state_changed)
         self.player.on("position_changed", self._on_position_changed)
         self.player.on("track_ended", self._on_track_ended)
+        self._player_callbacks_connected = True
+
+    def _disconnect_signals(self) -> None:
+        if not self._player_callbacks_connected:
+            return
+        self.player.off("state_changed", self._on_state_changed)
+        self.player.off("position_changed", self._on_position_changed)
+        self.player.off("track_ended", self._on_track_ended)
+        self._player_callbacks_connected = False
+
+    def closeEvent(self, event) -> None:
+        self._disconnect_signals()
+        super().closeEvent(event)
 
     def _on_play_pause(self):
         main = self.parent()
@@ -237,6 +257,52 @@ class FullPlayerDialog(QDialog):
         if main and hasattr(main, '_on_seek') and self.player.status.duration_ms > 0:
             ms = int(value * self.player.status.duration_ms)
             main._on_seek(ms)
+
+    def _on_shuffle(self):
+        is_shuffled = self.queue.toggle_shuffle()
+        self.update_shuffle_repeat_state()
+        main = self.parent()
+        if main:
+            if hasattr(main, "_update_queue_panel"):
+                main._update_queue_panel()
+            if hasattr(main, "_persist_queue_playback_settings"):
+                main._persist_queue_playback_settings()
+            if hasattr(main, "now_playing_screen"):
+                main.now_playing_screen.update_shuffle_repeat_state()
+            if getattr(main, "mpris", None):
+                main.mpris.update_shuffle(is_shuffled)
+
+    def _on_repeat(self):
+        self.queue.toggle_repeat()
+        self.update_shuffle_repeat_state()
+        main = self.parent()
+        if main and hasattr(main, "now_playing_screen"):
+            main.now_playing_screen.update_shuffle_repeat_state()
+        if main and hasattr(main, "_persist_queue_playback_settings"):
+            main._persist_queue_playback_settings()
+        if main and getattr(main, "mpris", None):
+            main.mpris.update_loop_status()
+
+    def update_shuffle_repeat_state(self):
+        from PySide6.QtGui import QColor
+        from pyrolist.audio.queue import RepeatMode
+        from pyrolist.ui.design import tokens
+
+        is_light = QColor(tokens.CURRENT.bg_base).lightness() > 128
+        inactive_color = "rgba(18, 18, 36, 0.55)" if is_light else "rgba(255, 255, 255, 0.5)"
+
+        shuffle_color = tokens.CURRENT.accent if self.queue.shuffle_enabled else inactive_color
+        self.btn_shuffle.setStyleSheet(
+            f"QPushButton {{ color: {shuffle_color}; border: none; background: transparent; }}"
+        )
+
+        mode = self.queue.repeat_mode
+        repeat_color = tokens.CURRENT.accent if mode != RepeatMode.OFF else inactive_color
+        self.btn_repeat.setText(Icon.get("repeat_one" if mode == RepeatMode.ONE else "repeat"))
+        self.btn_repeat.setFont(Icon.font(22))
+        self.btn_repeat.setStyleSheet(
+            f"QPushButton {{ color: {repeat_color}; border: none; background: transparent; }}"
+        )
 
     def _on_state_changed(self, status):
         from pyrolist.audio.player import PlayerState
@@ -303,8 +369,8 @@ class FullPlayerDialog(QDialog):
                     try:
                         with open(lrc_path, "r", encoding="utf-8") as f:
                             lyrics = f.read()
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"Could not read local lyrics file {lrc_path}: {e}")
             
             if not lyrics:
                 from pyrolist.utils.lyrics_cache import LyricsCache
@@ -380,7 +446,8 @@ class FullPlayerDialog(QDialog):
                 no_lyrics.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 no_lyrics.setStyleSheet("color: rgba(255, 255, 255, 0.7);")
                 self.lyrics_content_layout.addWidget(no_lyrics)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Could not load lyrics: {e}")
             while self.lyrics_content_layout.count():
                 item = self.lyrics_content_layout.takeAt(0)
                 if item.widget():

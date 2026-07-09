@@ -71,7 +71,7 @@ if _DBUS_OK:
         @dbus.service.method(PLAYER_IFACE, in_signature="ox", out_signature="")
         def SetPosition(self, track_id, position_us):
             if self.mpris.on_set_position:
-                self.mpris.on_set_position(position_us)
+                self.mpris.on_set_position(track_id, position_us)
 
         @dbus.service.method("org.freedesktop.DBus.Properties", in_signature="ss", out_signature="v")
         def Get(self, interface_name, property_name):
@@ -93,7 +93,7 @@ if _DBUS_OK:
             elif interface_name == PLAYER_IFACE:
                 return {
                     "PlaybackStatus": dbus.String(self.mpris.playback_status),
-                    "LoopStatus": dbus.String("None"),
+                    "LoopStatus": dbus.String(self.mpris.loop_status),
                     "Rate": dbus.Double(1.0),
                     "Shuffle": dbus.Boolean(self.mpris.shuffle),
                     "Metadata": self.mpris.metadata,
@@ -120,13 +120,23 @@ if _DBUS_OK:
                 elif property_name == "Shuffle":
                     if self.mpris.on_set_shuffle:
                         self.mpris.on_set_shuffle(bool(new_value))
+                elif property_name == "LoopStatus":
+                    if self.mpris.on_set_loop_status:
+                        self.mpris.on_set_loop_status(str(new_value))
 
         @dbus.service.signal("org.freedesktop.DBus.Properties", signature="sa{sv}as")
         def PropertiesChanged(self, interface_name, changed_properties, invalidated_properties):
             pass
 
+        @dbus.service.signal(PLAYER_IFACE, signature="x")
+        def Seeked(self, position_us):
+            pass
+
         def notify_properties_changed(self, interface_name, changed_properties):
             self.PropertiesChanged(interface_name, changed_properties, [])
+
+        def notify_seeked(self, position_us):
+            self.Seeked(position_us)
 
 
 class MprisPlayer:
@@ -143,6 +153,7 @@ class MprisPlayer:
         self.volume = 1.0
         self.position_us = 0
         self.shuffle = False
+        self.loop_status = self._loop_status_from_queue()
 
         # Callbacks to wire to MainWindow
         self.on_play_pause = None
@@ -155,8 +166,17 @@ class MprisPlayer:
         self.on_set_position = None
         self.on_set_volume = None
         self.on_set_shuffle = None
+        self.on_set_loop_status = None
         self.on_raise = None
         self.on_quit = None
+
+    def _loop_status_from_queue(self) -> str:
+        from pyrolist.audio.queue import RepeatMode
+        if self.queue.repeat_mode == RepeatMode.ALL:
+            return "Playlist"
+        if self.queue.repeat_mode == RepeatMode.ONE:
+            return "Track"
+        return "None"
 
     def start(self) -> None:
         if not _DBUS_OK:
@@ -179,6 +199,7 @@ class MprisPlayer:
         album: str,
         duration_us: int,
         artwork_url: str,
+        video_id: str = "",
     ) -> None:
         if not self._active or not _DBUS_OK:
             return
@@ -195,10 +216,13 @@ class MprisPlayer:
                 "xesam:title": dbus.String(title),
                 "xesam:artist": dbus.Array([dbus.String(artist)], signature="s"),
                 "xesam:album": dbus.String(album),
+                "xesam:albumArtist": dbus.Array([dbus.String(artist)], signature="s"),
             }, signature="sv")
             
             if artwork_url:
                 self.metadata["mpris:artUrl"] = dbus.String(artwork_url)
+            if video_id and video_id != "local":
+                self.metadata["xesam:url"] = dbus.String(f"https://music.youtube.com/watch?v={video_id}")
                 
             self._service.notify_properties_changed(PLAYER_IFACE, {"Metadata": self.metadata})
         except Exception as e:
@@ -217,6 +241,15 @@ class MprisPlayer:
 
     def update_position(self, position_ms: int) -> None:
         self.position_us = int(position_ms * 1000)
+
+    def emit_seeked(self, position_ms: int) -> None:
+        self.update_position(position_ms)
+        if not self._active or not _DBUS_OK:
+            return
+        try:
+            self._service.notify_seeked(self.position_us)
+        except Exception as e:
+            logger.debug(f"MPRIS2 Seeked notify failed: {e}")
 
     def update_volume(self, volume_percent: int) -> None:
         if not self._active or not _DBUS_OK:
@@ -238,6 +271,19 @@ class MprisPlayer:
                 self._service.notify_properties_changed(PLAYER_IFACE, {"Shuffle": dbus.Boolean(shuffle_enabled)})
             except Exception as e:
                 logger.debug(f"MPRIS2 shuffle notify failed: {e}")
+
+    def update_loop_status(self) -> None:
+        if not self._active or not _DBUS_OK:
+            return
+        loop_status = self._loop_status_from_queue()
+        if loop_status != self.loop_status:
+            self.loop_status = loop_status
+            try:
+                self._service.notify_properties_changed(
+                    PLAYER_IFACE, {"LoopStatus": dbus.String(loop_status)}
+                )
+            except Exception as e:
+                logger.debug(f"MPRIS2 loop status notify failed: {e}")
 
     def stop(self) -> None:
         if not self._active:

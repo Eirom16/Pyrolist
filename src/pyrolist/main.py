@@ -1,5 +1,6 @@
 import sys
 import os
+from loguru import logger
 
 # Desactivar GPU en QtWebEngine/Chromium en Linux de forma universal para evitar caídas catastróficas
 # del controlador gráfico en diálogos embebidos de login (especialmente en Wayland/Xwayland).
@@ -49,13 +50,13 @@ try:
         if not isinstance(flags, QEventLoop.ProcessEventsFlag):
             try:
                 flags = QEventLoop.ProcessEventsFlag(int(flags))
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Could not normalize Qt processEvents flags: {e}")
         return orig_process_events(self, flags)
 
     QAbstractEventDispatcher.processEvents = patched_process_events
-except Exception:
-    pass
+except Exception as e:
+    logger.debug(f"PySide6 qasync compatibility patch not applied: {e}")
 
 import subprocess
 
@@ -73,7 +74,6 @@ import qasync
 import warnings
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
-from loguru import logger
 from pyrolist import __version__
 from pyrolist.utils.vlc_check import check_vlc_available, show_vlc_error_and_exit, setup_vlc_env
 from pyrolist.config.paths import AppDirs
@@ -128,8 +128,8 @@ async def main_async(app: QApplication, settings: AppSettings, loop: qasync.QEve
 
     try:
         await quit_future
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Quit future interrupted during shutdown: {e}")
     finally:
         from pyrolist.db.database import get_engine
         try:

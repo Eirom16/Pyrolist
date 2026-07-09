@@ -37,6 +37,8 @@
 
 ¿Listo para subir el volumen? Sigue estos sencillos pasos:
 
+> **Requisito de Python:** usa Python 3.12 o 3.13. Python 3.14 queda excluido temporalmente porque `aiosqlite` puede bloquearse al abrir conexiones SQLite en esa versión.
+
 1.  **Abre la aplicación** y déjate llevar por la interfaz moderna.
 2.  **Conecta tu cuenta** de forma segura para acceder a tus listas y recomendaciones.
 3.  **Dale al Play** y disfruta de una experiencia fluida, sin distracciones.

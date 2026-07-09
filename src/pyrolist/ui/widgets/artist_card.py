@@ -53,6 +53,8 @@ class ArtistCard(QWidget):
     def _build_ui(self) -> None:
         self.setObjectName("artistCard")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setAccessibleName(self._name)
         self.setFixedSize(168, 210)
         
         layout = QVBoxLayout(self)
@@ -96,6 +98,10 @@ class ArtistCard(QWidget):
                 background-color: {bg_elevated};
                 border-color: rgba({acc_r}, {acc_g}, {acc_b}, 0.33);
             }}
+            #artistCard:focus {{
+                background-color: {bg_elevated};
+                border: 2px solid {accent};
+            }}
         """)
         
         if not self.thumbnail.pixmap():
@@ -117,6 +123,13 @@ class ArtistCard(QWidget):
             self.clicked.emit()
         super().mousePressEvent(event)
 
+    def keyPressEvent(self, event) -> None:
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self.clicked.emit()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
     def paintEvent(self, event) -> None:
         from PySide6.QtWidgets import QStyle, QStyleOption
         from PySide6.QtGui import QPainter
@@ -136,4 +149,3 @@ class ArtistCard(QWidget):
                 finally:
                      self._in_style_change = False
         super().changeEvent(event)
-

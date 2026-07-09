@@ -98,6 +98,9 @@ class SettingsScreen(QWidget):
             scroll.setWidget(wrapper)
             self.stack.addWidget(scroll)
 
+        for previous, current in zip(self._cat_buttons, self._cat_buttons[1:], strict=False):
+            QWidget.setTabOrder(previous, current)
+
         self._select_category(0)
 
     def _make_cat_button(self, icon_name: str, label: str, index: int) -> QPushButton:
@@ -105,6 +108,7 @@ class SettingsScreen(QWidget):
         button.setCheckable(True)
         button.setCursor(Qt.CursorShape.PointingHandCursor)
         button.setFixedHeight(40)
+        button.setAccessibleName(label)
         row = QHBoxLayout(button)
         row.setContentsMargins(12, 0, 12, 0)
         row.setSpacing(10)
@@ -164,4 +168,3 @@ class SettingsScreen(QWidget):
                 finally:
                     self._in_style_change = False
         super().changeEvent(event)
-

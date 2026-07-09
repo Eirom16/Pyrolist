@@ -13,6 +13,7 @@ from pyrolist.ui.widgets.album_card import AlbumCard
 from pyrolist.ui.widgets.playlist_card import PlaylistCard
 from pyrolist.ui.widgets.song_card import SongCard
 from pyrolist.ui.widgets.artist_card import ArtistCard
+from pyrolist.ui.widgets.error_state import ErrorStateWidget
 from pyrolist.ui.widgets.ripple_button import RippleButton
 from pyrolist.ui.widgets.skeleton_loader import SkeletonListLoader
 from pyrolist.ui.widgets.horizontal_scroll import HorizontalScrollArea
@@ -429,6 +430,8 @@ class HomeScreen(QWidget):
     like_requested = Signal(str, object)
     add_to_playlist_requested = Signal(str, str)
     delete_download_requested = Signal(str)
+    artist_clicked = Signal(str)
+    album_clicked = Signal(str)
 
     def __init__(self, yt_client, on_play_song, on_navigate=None):
         super().__init__()
@@ -462,6 +465,10 @@ class HomeScreen(QWidget):
         card.like_requested.connect(lambda *a: self.like_requested.emit(*a))
         card.add_to_playlist_requested.connect(lambda *a: self.add_to_playlist_requested.emit(*a))
         card.delete_download_requested.connect(lambda *a: self.delete_download_requested.emit(*a))
+        if hasattr(card, "artist_clicked"):
+            card.artist_clicked.connect(lambda *a: self.artist_clicked.emit(*a))
+        if hasattr(card, "album_clicked"):
+            card.album_clicked.connect(lambda *a: self.album_clicked.emit(*a))
 
     def _handle_download(self, vid, title, artist, thumb):
         self.download_requested.emit(vid, title, artist, thumb)
@@ -713,7 +720,10 @@ class HomeScreen(QWidget):
         except Exception as e:
             logger.error(f"Error loading YouTube home: {e}")
             self._clear_content()
-            await self._load_genres_view()
+            self.content_layout.addWidget(ErrorStateWidget(
+                "No se pudo cargar el inicio",
+                retry_callback=lambda: asyncio.ensure_future(self.load()),
+            ))
 
     def _render_quick_access_grid(self, sections, liked_ids):
         valid_items = []

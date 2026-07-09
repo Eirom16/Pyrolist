@@ -37,6 +37,11 @@ class MusicPlayer:
     END_REACHED_DURATION_TOLERANCE_MS = 1500
 
     def __init__(self):
+        try:
+            self._loop = asyncio.get_event_loop()
+        except RuntimeError:
+            self._loop = None
+            
         vlc_lib = get_vlc()
         self._instance = vlc_lib.Instance(
             "--no-video",
@@ -169,8 +174,8 @@ class MusicPlayer:
         try:
             self._player.set_equalizer(None)
             self._eq = None
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Could not reset equalizer: {e}")
 
     # ─── CALLBACKS ────────────────────────────────────────────────────
 
@@ -216,10 +221,13 @@ class MusicPlayer:
 
     def _schedule(self, func, *args):
         try:
-            loop = asyncio.get_event_loop()
-            loop.call_soon_threadsafe(func, *args)
-        except RuntimeError:
-            pass
+            if hasattr(self, '_loop') and self._loop and not self._loop.is_closed():
+                self._loop.call_soon_threadsafe(func, *args)
+            else:
+                loop = asyncio.get_event_loop()
+                loop.call_soon_threadsafe(func, *args)
+        except Exception as e:
+            logger.error(f"Failed to schedule callback: {e}")
 
     def _refresh_timing_from_player(self) -> None:
         pos = self._player.get_time()

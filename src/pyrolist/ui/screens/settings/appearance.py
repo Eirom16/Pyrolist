@@ -78,7 +78,6 @@ class AppearanceSettingsScreen(QWidget):
         self.on_changed(self.settings)
         
         from pyrolist.ui.widgets.toast import ToastNotification
-        ToastNotification.show(self, _("Idioma cambiado con éxito"), "success")
-
+        ToastNotification.show(self, _("Idioma cambiado. Reinicia la aplicación para aplicarlo en toda la interfaz."), "success")
 
 

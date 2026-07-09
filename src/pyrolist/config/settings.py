@@ -24,6 +24,8 @@ class PlayerSettings(BaseModel):
     stop_on_close: bool = False
     sleep_timer_minutes: int = 0
     minimize_to_tray: bool = True
+    shuffle_enabled: bool = False
+    repeat_mode: str = "off"
 
 class EqualizerSettings(BaseModel):
     enabled: bool = False

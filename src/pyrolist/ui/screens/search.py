@@ -21,6 +21,7 @@ from pyrolist.ui.widgets.song_card import SongCard
 from pyrolist.ui.widgets.album_card import AlbumCard
 from pyrolist.ui.widgets.artist_card import ArtistCard
 from pyrolist.ui.widgets.playlist_card import PlaylistCard
+from pyrolist.ui.widgets.error_state import ErrorStateWidget
 from pyrolist.ui.widgets.ripple_button import RippleButton
 from pyrolist.ui.widgets.skeleton_loader import SkeletonListLoader
 from pyrolist.ui.design.icons import Icon
@@ -528,6 +529,11 @@ class SearchScreen(QWidget):
             await self._fetch_category_results(query, self._active_category)
         except Exception as e:
             logger.error(f"Search error: {e}")
+            self._clear_results()
+            self._results_layout.addWidget(ErrorStateWidget(
+                "No se pudo realizar la búsqueda",
+                retry_callback=lambda: asyncio.ensure_future(self._do_search(query)),
+            ))
 
     async def _fetch_category_results(self, query: str, category: str):
         # Fetch liked ids to display the correct liked state
@@ -564,8 +570,11 @@ class SearchScreen(QWidget):
             if not shiboken6.isValid(self):
                 return
             logger.error(f"Error fetching results for {category}: {e}")
-            self._results_by_cat[category] = []
-            self._render_filtered()
+            self._clear_results()
+            self._results_layout.addWidget(ErrorStateWidget(
+                "No se pudieron cargar los resultados",
+                retry_callback=lambda: asyncio.ensure_future(self._fetch_category_results(query, category)),
+            ))
 
     # ------------------------------------------------------------------
     # Rendering

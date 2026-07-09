@@ -1,9 +1,10 @@
 import asyncio
+import json
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
-    QFrame
+    QFrame, QMessageBox
 )
-from PySide6.QtCore import Qt, QSize, QEasingCurve, QPropertyAnimation, Property, QTimer
+from PySide6.QtCore import QByteArray, Qt, QSize, QEasingCurve, QPropertyAnimation, Property, QTimer
 from qasync import asyncSlot
 from loguru import logger
 from pyrolist.config.settings import AppSettings
@@ -13,7 +14,7 @@ from pyrolist.api.lyrics import LyricsClient
 from pyrolist.api.lastfm import LastFmScrobbler
 from pyrolist.api.discord_rpc import DiscordRPC
 from pyrolist.audio.player import MusicPlayer, PlayerState
-from pyrolist.audio.queue import PlayQueue, QueueItem
+from pyrolist.audio.queue import PlayQueue, QueueItem, RepeatMode
 from pyrolist.system.mpris import MprisPlayer
 from pyrolist.system.tray import SystemTray
 from pyrolist.ui.widgets.nav_sidebar import NavSidebar
@@ -39,6 +40,7 @@ class MainWindow(QMainWindow):
         "search": 9,
         "stats": 10,
     }
+    ONLINE_ROUTES = {"home", "library", "playlist", "album", "artist", "search"}
 
     def __init__(self, settings: AppSettings, event_loop=None):
         super().__init__()
@@ -48,6 +50,7 @@ class MainWindow(QMainWindow):
         self._current_nav_task: asyncio.Task | None = None
         self._current_play_id = 0
         self._nav_history: list[int] = []  # stack of previous screen indices for back navigation
+        self.queue_panel = None
         self.theme_manager = ThemeManager(self)
 
         
@@ -63,10 +66,26 @@ class MainWindow(QMainWindow):
         self.lyrics_client = LyricsClient()
         self.player = MusicPlayer()
         self.queue = PlayQueue()
+        self.queue.shuffle_enabled = self.settings.player.shuffle_enabled
+        try:
+            self.queue.repeat_mode = RepeatMode(self.settings.player.repeat_mode)
+        except ValueError:
+            self.queue.repeat_mode = RepeatMode.OFF
         self.mpris = MprisPlayer(self.player, self.queue)
         self.scrobbler: LastFmScrobbler | None = None
+        self._lastfm_track_key: tuple[str, str, str] | None = None
+        self._lastfm_started_at: int | None = None
+        self._lastfm_scrobbled = False
+        self._lastfm_scrobble_pending = False
         self.discord: DiscordRPC | None = None
         self._force_close = False
+        from pyrolist.config.paths import AppDirs
+        self._queue_state_file = AppDirs.data / "queue_state.json"
+        self._window_state_file = AppDirs.data / "window_state.json"
+        self._resume_position_ms = 0
+        self._current_route = "home"
+        self._offline_blocked_path: str | None = None
+        self._stream_recovery_attempts: set[str] = set()
         self.sleep_timer = SleepTimer()
         self.crossfade_manager = CrossfadeManager(
             enabled=settings.player.crossfade_enabled,
@@ -100,9 +119,26 @@ class MainWindow(QMainWindow):
                 super().__init__(main_window)
                 self.mw = main_window
 
+            def _close_escape_target(self) -> bool:
+                search_bar = getattr(self.mw, "search_bar", None)
+                dropdown = getattr(search_bar, "_dropdown", None)
+                if dropdown is not None and dropdown.isVisible():
+                    search_bar._hide_dropdown()
+                    return True
+
+                notification_panel = getattr(self.mw, "notification_panel", None)
+                if notification_panel is not None and notification_panel.isVisible():
+                    notification_panel._close_anim()
+                    return True
+
+                return False
+
             def eventFilter(self, obj, event):
                 if event.type() == QEvent.Type.KeyPress:
                     focus_widget = QApplication.focusWidget()
+                    if event.key() == Qt.Key.Key_Escape and self._close_escape_target():
+                        return True
+
                     if isinstance(focus_widget, (QLineEdit, QTextEdit, QAbstractSpinBox)):
                         if event.key() == Qt.Key.Key_Escape:
                             focus_widget.clearFocus()
@@ -110,8 +146,15 @@ class MainWindow(QMainWindow):
                         return False
                         
                     key = event.key()
+                    modifiers = event.modifiers()
                     if key == Qt.Key.Key_Space:
                         self.mw._on_play_pause()
+                        return True
+                    elif key == Qt.Key.Key_Right and modifiers & Qt.KeyboardModifier.ControlModifier:
+                        self.mw._on_next()
+                        return True
+                    elif key == Qt.Key.Key_Left and modifiers & Qt.KeyboardModifier.ControlModifier:
+                        self.mw._on_prev()
                         return True
                     elif key == Qt.Key.Key_Right:
                         if self.mw.player.status.duration_ms > 0:
@@ -164,6 +207,28 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Pyrolist")
         self.setMinimumSize(QSize(960, 640))
         self.resize(1300, 820)
+        self._restore_window_state()
+
+    def _restore_window_state(self) -> None:
+        try:
+            if not self._window_state_file.exists():
+                return
+            with open(self._window_state_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            geometry_hex = data.get("geometry")
+            if geometry_hex:
+                self.restoreGeometry(QByteArray.fromHex(geometry_hex.encode("ascii")))
+        except Exception as e:
+            logger.debug(f"Failed to restore window state: {e}")
+
+    def _save_window_state(self) -> None:
+        try:
+            self._window_state_file.parent.mkdir(parents=True, exist_ok=True)
+            data = {"geometry": bytes(self.saveGeometry().toHex()).decode("ascii")}
+            with open(self._window_state_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+        except Exception as e:
+            logger.debug(f"Failed to save window state: {e}")
 
     def _build_ui(self) -> None:
         central = QWidget()
@@ -204,8 +269,8 @@ class MainWindow(QMainWindow):
                     profile_file = AppDirs.config / "user_profile.json"
                     with open(profile_file, "w") as f:
                         json.dump({"name": name, "avatar_url": avatar}, f, indent=4)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Could not refresh account info from API: {e}")
             
             # Fallback: read from saved profile
             if name == "YouTube Music":
@@ -216,8 +281,8 @@ class MainWindow(QMainWindow):
                             data = json.load(f)
                             name = data.get("name", "YouTube Music") or "YouTube Music"
                             avatar = data.get("avatar_url", "")
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"Could not read saved user profile: {e}")
             self.sidebar.update_auth_state(True, name, avatar)
         h_layout.addWidget(self.sidebar)
 
@@ -275,6 +340,7 @@ class MainWindow(QMainWindow):
         from pyrolist.ui.screens.now_playing import NowPlayingScreen
         from pyrolist.ui.screens.search import SearchScreen
         from pyrolist.ui.screens.stats import StatsScreen
+        from pyrolist.ui.widgets.error_state import ErrorStateWidget
 
         self.home_screen = HomeScreen(self.yt, self._play_song_sync, self._navigate_to)
         self.library_screen = LibraryScreen(self.yt, self._play_song_sync, self._navigate_to)
@@ -292,6 +358,11 @@ class MainWindow(QMainWindow):
         self.now_playing_screen = NowPlayingScreen(self.player, self.queue, self.yt, self._play_queue_item, self.settings, on_back=self._go_back)
         self.search_screen = SearchScreen(self.yt, self._play_song_sync, self._navigate_to)
         self.stats_screen = StatsScreen(self.yt, self._play_song_sync)
+        self.offline_state_screen = ErrorStateWidget(
+            "No hay conexion. Puedes seguir escuchando tu musica descargada.",
+            retry_callback=lambda: self._navigate_to("downloads"),
+            action_text="Ir a Descargas",
+        )
 
         for screen in [
             self.home_screen,
@@ -326,17 +397,21 @@ class MainWindow(QMainWindow):
                 screen.delete_download_requested.connect(self._on_delete_download_requested)
             if hasattr(screen, 'delete_playlist_requested'):
                 screen.delete_playlist_requested.connect(self._on_delete_playlist_requested)
+            if hasattr(screen, 'artist_clicked'):
+                screen.artist_clicked.connect(self.resolve_and_navigate_artist)
+            if hasattr(screen, 'album_clicked'):
+                screen.album_clicked.connect(self.resolve_and_navigate_album)
+
+        self._offline_state_index = self.stack.addWidget(self.offline_state_screen)
 
         if hasattr(self.now_playing_screen, 'queue_tab'):
             self.now_playing_screen.queue_tab.like_requested.connect(self._on_like_requested)
+            self.now_playing_screen.queue_tab.artist_clicked.connect(self.resolve_and_navigate_artist)
+            self.now_playing_screen.queue_tab.album_clicked.connect(self.resolve_and_navigate_album)
             
         # Connect queue panel artist
-        if hasattr(self, 'queue_panel'):
+        if self.queue_panel:
             self.queue_panel.artist_clicked.connect(self.resolve_and_navigate_artist)
-
-        # Connect player artists
-        if hasattr(self, 'now_playing_screen'):
-            self.now_playing_screen.artist_clicked.connect(self.resolve_and_navigate_artist)
 
         right_layout.addLayout(self.main_content_hbox)
 
@@ -371,6 +446,7 @@ class MainWindow(QMainWindow):
             parent=self,
             on_show=self._show_and_activate,
             on_play_pause=self._on_play_pause,
+            on_prev=self._on_prev,
             on_next=self._on_next,
             on_quit=self._on_tray_quit,
         )
@@ -406,9 +482,40 @@ class MainWindow(QMainWindow):
         self.player.on("track_ended", self._on_track_ended_callback)
         self.player.on("state_changed", self._on_state_changed_callback)
         self.player.on("position_changed", self._on_position_changed_callback)
+        self.player.on("error", self._on_player_error_callback)
 
     def _on_track_ended_callback(self, status) -> None:
         self._run_async(self._advance_queue())
+
+    def _on_player_error_callback(self, status) -> None:
+        self._run_async(self._recover_player_error(status))
+
+    async def _recover_player_error(self, status) -> None:
+        item = self.queue.current
+        if not item:
+            return
+
+        if (
+            item.video_id not in self._stream_recovery_attempts
+            and not item.is_local
+            and not self._should_show_offline_state("home")
+        ):
+            self._stream_recovery_attempts.add(item.video_id)
+            logger.warning(f"Trying alternative stream after VLC error: {item.title}")
+            alt_url = await self.extractor.get_alternative_stream(item.video_id)
+            if alt_url and await self.player.play_url(alt_url, item.video_id):
+                ToastNotification.show(self, "Reproduciendo formato alternativo", "info")
+                return
+
+        await self._handle_playback_failure(item, "No se pudo reproducir la pista. Saltando a la siguiente.")
+
+    async def _handle_playback_failure(self, item: QueueItem, message: str) -> None:
+        logger.error(f"Playback failed for {item.video_id}: {item.title}")
+        ToastNotification.show(self, message, "error")
+        if self.queue.next_item:
+            await self._advance_queue()
+        else:
+            await self.player.stop()
 
     def _on_state_changed_callback(self, status) -> None:
         self.mini_player.update_state(status)
@@ -435,9 +542,59 @@ class MainWindow(QMainWindow):
         self.now_playing_screen.update_position(
             status.position_ms, status.duration_ms
         )
+        self._maybe_scrobble_lastfm(status)
         if self.mpris:
             self.mpris.update_position(status.position_ms)
             self.mpris.update_volume(status.volume)
+
+    def _reset_lastfm_scrobble_state(self, item: QueueItem) -> None:
+        import time
+        self._lastfm_track_key = (item.video_id, item.title, item.artist)
+        self._lastfm_started_at = int(time.time())
+        self._lastfm_scrobbled = False
+        self._lastfm_scrobble_pending = False
+
+    def _maybe_scrobble_lastfm(self, status) -> None:
+        if (
+            not self.scrobbler
+            or self._lastfm_scrobbled
+            or self._lastfm_scrobble_pending
+            or status.duration_ms <= 0
+        ):
+            return
+
+        item = self.queue.current
+        if not item or self._lastfm_track_key != (item.video_id, item.title, item.artist):
+            return
+
+        threshold_ms = min(status.duration_ms * 0.5, 240_000)
+        if status.position_ms < threshold_ms:
+            return
+
+        self._lastfm_scrobble_pending = True
+        self._run_async(self._scrobble_current_lastfm(item, self._lastfm_started_at))
+
+    async def _scrobble_current_lastfm(self, item: QueueItem, started_at: int | None) -> None:
+        if not self.scrobbler or not started_at:
+            self._lastfm_scrobble_pending = False
+            return
+        track_key = (item.video_id, item.title, item.artist)
+        if self._lastfm_track_key != track_key:
+            self._lastfm_scrobble_pending = False
+            return
+        try:
+            success = await self.scrobbler.scrobble(
+                item.artist, item.title, item.album, timestamp=started_at
+            )
+            if success:
+                self._lastfm_scrobbled = True
+                logger.info(f"Last.fm scrobbled: {item.artist} - {item.title}")
+            else:
+                logger.info(f"Last.fm scrobble queued for retry: {item.artist} - {item.title}")
+        except Exception as e:
+            logger.warning(f"Last.fm scrobble failed for {item.video_id}: {e}")
+        finally:
+            self._lastfm_scrobble_pending = False
 
     def _setup_integrations(self) -> None:
         # Initialize player parameters from settings
@@ -458,14 +615,16 @@ class MainWindow(QMainWindow):
             self.mpris.on_stop = lambda: self._run_async(self.player.stop())
             self.mpris.on_next = self._on_next
             self.mpris.on_prev = self._on_prev
-            self.mpris.on_seek = lambda offset_us: self._on_seek(int(offset_us / 1000))
+            self.mpris.on_seek = lambda offset_us: self._on_seek(self.player.status.position_ms + int(offset_us / 1000))
             self.mpris.on_set_position = lambda track_id, position_us: self._on_seek(int(position_us / 1000))
             self.mpris.on_set_volume = lambda vol: (self.player.set_volume(int(vol * 100)), self._on_mpris_volume_changed(int(vol * 100)))
             self.mpris.on_set_shuffle = lambda shuffle: self._toggle_shuffle_from_mpris(shuffle)
+            self.mpris.on_set_loop_status = self._set_repeat_from_mpris
             self.mpris.on_raise = lambda: (self.show(), self.raise_(), self.activateWindow())
             self.mpris.on_quit = self.close
             self.mpris.start()
             self.mpris.update_shuffle(self.queue.shuffle_enabled)
+            self.mpris.update_loop_status()
 
         if self.settings.integrations.lastfm_enabled and self.settings.integrations.lastfm_session_key:
             self.scrobbler = LastFmScrobbler(
@@ -490,31 +649,61 @@ class MainWindow(QMainWindow):
             player_settings_page = self.settings_screen.stack.findChild(PlayerSettingsScreen)
             if player_settings_page:
                 player_settings_page.update_fields()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Could not sync player settings screen volume: {e}")
 
     def _on_connectivity_change(self, is_connected: bool) -> None:
         """Handle network status transitions dynamically."""
         if not is_connected:
             self.offline_banner.show_banner()
             ToastNotification.show(self, "Sin conexión: reproduciendo descargas locales", "warning")
+            if self._current_route in self.ONLINE_ROUTES:
+                self._offline_blocked_path = self._current_route
+                self._show_offline_state(self._current_route)
         else:
             self.offline_banner.hide_banner()
             ToastNotification.show(self, "Conexión de red restablecida", "success")
             
             # Reload active static screen to resume online capabilities
-            current_index = self.stack.currentIndex()
-            active_route = next((k for k, v in self.ROUTES.items() if v == current_index), None)
-            if active_route:
-                self._run_async(self._load_screen(active_route))
+            if self._offline_blocked_path:
+                blocked_path = self._offline_blocked_path
+                self._offline_blocked_path = None
+                self._navigate_to(blocked_path)
+            else:
+                current_index = self.stack.currentIndex()
+                active_route = next((k for k, v in self.ROUTES.items() if v == current_index), None)
+                if active_route:
+                    self._run_async(self._load_screen(active_route))
 
     def _toggle_shuffle_from_mpris(self, enable: bool) -> None:
         if enable != self.queue.shuffle_enabled:
             self.queue.toggle_shuffle()
+            self._persist_queue_playback_settings()
             self.now_playing_screen.update_shuffle_repeat_state()
             self._update_queue_panel()
             if self.mpris:
                 self.mpris.update_shuffle(enable)
+
+    def _persist_queue_playback_settings(self) -> None:
+        self.settings.player.shuffle_enabled = self.queue.shuffle_enabled
+        self.settings.player.repeat_mode = self.queue.repeat_mode.value
+        self._on_settings_changed(self.settings)
+
+    def _set_repeat_from_mpris(self, loop_status: str) -> None:
+        mapping = {
+            "None": RepeatMode.OFF,
+            "Playlist": RepeatMode.ALL,
+            "Track": RepeatMode.ONE,
+        }
+        repeat_mode = mapping.get(loop_status, RepeatMode.OFF)
+        if self.queue.repeat_mode == repeat_mode:
+            return
+        self.queue.repeat_mode = repeat_mode
+        self._persist_queue_playback_settings()
+        if hasattr(self, "now_playing_screen"):
+            self.now_playing_screen.update_shuffle_repeat_state()
+        if self.mpris:
+            self.mpris.update_loop_status()
 
     def _track_task(self, task: asyncio.Task) -> None:
         self._pending_tasks.add(task)
@@ -700,6 +889,16 @@ class MainWindow(QMainWindow):
     def _on_delete_download_requested(self, video_id: str):
         self._run_async(self._delete_download_async(video_id))
 
+    def _confirm_destructive_action(self, title: str, message: str) -> bool:
+        result = QMessageBox.question(
+            self,
+            title,
+            message,
+            QMessageBox.StandardButton.Cancel | QMessageBox.StandardButton.Yes,
+            QMessageBox.StandardButton.Cancel,
+        )
+        return result == QMessageBox.StandardButton.Yes
+
     async def _delete_download_async(self, video_id: str):
         from pathlib import Path
         from pyrolist.db.repository import DownloadRepository
@@ -707,6 +906,11 @@ class MainWindow(QMainWindow):
         d = await repo.get_download(video_id)
         if d:
             title = d.title
+            if not self._confirm_destructive_action(
+                "Eliminar descarga",
+                f"¿Eliminar la descarga local de \"{title}\"?",
+            ):
+                return
             if d.file_path:
                 try:
                     p = Path(d.file_path)
@@ -738,24 +942,36 @@ class MainWindow(QMainWindow):
         from pyrolist.db.repository import DownloadRepository
         repo = DownloadRepository()
         downloads = await repo.get_downloads()
+
+        playlist_downloads = [
+            d for d in downloads if d.parent_playlist_id == playlist_id
+        ]
+        playlist_title = next(
+            (d.parent_playlist_title for d in playlist_downloads if d.parent_playlist_title),
+            playlist_id,
+        )
+        if not playlist_downloads:
+            return
+        if not self._confirm_destructive_action(
+            "Eliminar playlist local",
+            f"¿Eliminar \"{playlist_title}\" y sus {len(playlist_downloads)} canciones descargadas?",
+        ):
+            return
         
         count = 0
-        playlist_title = ""
-        for d in downloads:
-            if d.parent_playlist_id == playlist_id:
-                playlist_title = d.parent_playlist_title or playlist_title
-                if d.file_path:
-                    try:
-                        p = Path(d.file_path)
-                        if p.exists():
-                            p.unlink()
-                            lrc_path = p.with_suffix(".lrc")
-                            if lrc_path.exists():
-                                lrc_path.unlink()
-                    except Exception as e:
-                        logger.error(f"Error deleting file {d.file_path}: {e}")
-                await repo.remove_download(d.video_id)
-                count += 1
+        for d in playlist_downloads:
+            if d.file_path:
+                try:
+                    p = Path(d.file_path)
+                    if p.exists():
+                        p.unlink()
+                        lrc_path = p.with_suffix(".lrc")
+                        if lrc_path.exists():
+                            lrc_path.unlink()
+                except Exception as e:
+                    logger.error(f"Error deleting file {d.file_path}: {e}")
+            await repo.remove_download(d.video_id)
+            count += 1
                 
         self.statusBar().showMessage(f"Playlist eliminada: {playlist_title or playlist_id} ({count} canciones)", 4000)
         self.show_notification(f"Playlist local eliminada: {playlist_title or playlist_id}", "info")
@@ -1149,7 +1365,63 @@ class MainWindow(QMainWindow):
             self._run_async(self.network_monitor.stop())
 
     async def _initialize(self) -> None:
+        self._restore_playback_session()
         await self._navigate("home")
+        if self.settings.player.resume_on_startup and self.queue.current:
+            self._update_queue_panel()
+            item = self.queue.current
+            self.mini_player.update_track_info(item.title, item.artist, item.thumbnail_url)
+            self.now_playing_screen.update_track_info(item.title, item.artist, item.thumbnail_url)
+            self._run_async(self._resume_playback_after_startup())
+
+    async def _resume_playback_after_startup(self) -> None:
+        try:
+            await self._play_current()
+            if self._resume_position_ms > 0:
+                await self.player.seek(self._resume_position_ms)
+        except Exception as e:
+            logger.warning(f"Failed to resume playback session: {e}")
+
+    def _restore_playback_session(self) -> None:
+        try:
+            if not self._queue_state_file.exists():
+                return
+            with open(self._queue_state_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            restored = PlayQueue.from_dict(data.get("queue", {}))
+            if not restored.items:
+                return
+            self.queue = restored
+            self.queue.shuffle_enabled = self.settings.player.shuffle_enabled
+            try:
+                self.queue.repeat_mode = RepeatMode(self.settings.player.repeat_mode)
+            except ValueError:
+                self.queue.repeat_mode = RepeatMode.OFF
+            self.mpris.queue = self.queue
+            self.mini_player.queue = self.queue
+            self.now_playing_screen.queue = self.queue
+            self.settings.last_video_id = data.get("last_video_id") or self.queue.current.video_id
+            self._resume_position_ms = int(data.get("position_ms", 0))
+            logger.info(f"Restored playback queue with {len(self.queue.items)} items")
+        except Exception as e:
+            logger.warning(f"Failed to restore playback session: {e}")
+
+    def _save_playback_session(self) -> None:
+        try:
+            current = self.queue.current
+            self.settings.last_video_id = current.video_id if current else None
+            payload = {
+                "queue": self.queue.to_dict(),
+                "last_video_id": self.settings.last_video_id,
+                "position_ms": self.player.status.position_ms,
+            }
+            self._queue_state_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(self._queue_state_file, "w", encoding="utf-8") as f:
+                json.dump(payload, f, ensure_ascii=False, indent=2)
+            from pyrolist.config.paths import AppDirs
+            self.settings.save(AppDirs.settings_file)
+        except Exception as e:
+            logger.warning(f"Failed to save playback session: {e}")
 
     async def _check_updates(self) -> None:
         """Comprueba actualizaciones silenciosamente al arrancar."""
@@ -1168,6 +1440,14 @@ class MainWindow(QMainWindow):
         query = ""
         if "?" in path:
             route, query = path.split("?", 1)
+
+        self._current_route = route
+        if self._should_show_offline_state(route):
+            self._offline_blocked_path = path
+            self._show_offline_state(route)
+            return
+        if route not in self.ONLINE_ROUTES:
+            self._offline_blocked_path = None
             
         if route != "search":
             self.search_bar.input.blockSignals(True)
@@ -1181,6 +1461,17 @@ class MainWindow(QMainWindow):
         import asyncio
         await asyncio.sleep(0.3)
         await self._load_screen_with_query(route, query)
+
+    def _should_show_offline_state(self, route: str) -> bool:
+        return (
+            route in self.ONLINE_ROUTES
+            and hasattr(self, "network_monitor")
+            and not self.network_monitor.is_connected
+        )
+
+    def _show_offline_state(self, route: str) -> None:
+        self._current_route = route
+        self._set_stack_index(self._offline_state_index)
 
     def resolve_and_navigate_artist(self, artist_name: str) -> None:
         """Dynamically searches for the artist by name and navigates to their profile."""
@@ -1203,6 +1494,25 @@ class MainWindow(QMainWindow):
                 self._navigate_to(f"search?query={artist_name}")
 
         import asyncio
+        asyncio.create_task(_resolve_task())
+
+    def resolve_and_navigate_album(self, album_name: str) -> None:
+        if not album_name:
+            return
+
+        async def _resolve_task():
+            try:
+                results = await self.yt.search(album_name, filter="albums")
+                if results:
+                    album_id = results[0].get("browseId")
+                    if album_id:
+                        self._navigate_to(f"album?id={album_id}")
+                        return
+                self._navigate_to(f"search?query={album_name}")
+            except Exception as e:
+                logger.error(f"Failed to resolve album '{album_name}': {e}")
+                self._navigate_to(f"search?query={album_name}")
+
         asyncio.create_task(_resolve_task())
 
     def _navigate_to(self, path: str) -> None:
@@ -1276,8 +1586,8 @@ class MainWindow(QMainWindow):
                             name = data.get("name", "YouTube Music") or "YouTube Music"
                             if not avatar_url:
                                 avatar_url = data.get("avatar_url", "")
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"Could not read saved user profile after login: {e}")
             
             self.sidebar.update_auth_state(True, name, avatar_url)
             logger.info(f"Post-login: yt client propagated, name={name}, avatar={avatar_url}")
@@ -1293,8 +1603,8 @@ class MainWindow(QMainWindow):
             if profile_file.exists():
                 try:
                     profile_file.unlink()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Could not delete saved user profile on logout: {e}")
             
             self.yt = YouTubeMusicClient(self.settings)
             self._update_screens_yt_client()
@@ -1485,6 +1795,8 @@ class MainWindow(QMainWindow):
         self.now_playing_screen.update_track_info(
             item.title, item.artist, item.thumbnail_url
         )
+        if hasattr(self, "tray") and self.tray:
+            self.tray.update_track_info(item.title, item.artist)
 
         async def _check_liked_state() -> None:
             try:
@@ -1499,6 +1811,8 @@ class MainWindow(QMainWindow):
 
         self._current_play_id += 1
         play_id = self._current_play_id
+        self._stream_recovery_attempts.discard(item.video_id)
+        self._reset_lastfm_scrobble_state(item)
 
         # Immediate visual feedback for lyrics and related suggestions
         self.now_playing_screen.set_lyrics_loading()
@@ -1523,6 +1837,21 @@ class MainWindow(QMainWindow):
                 self._run_async(self._save_play_history(item))
                 if self.settings.player.crossfade_enabled:
                     self._run_async(self.crossfade_manager.fade_in(self.player, self.settings.player.volume, duration_sec=1.2))
+                if self.scrobbler:
+                    await self.scrobbler.update_now_playing(
+                        item.artist, item.title, item.album
+                    )
+                if self.discord:
+                    await self.discord.update(
+                        item.title, item.artist, item.album, True, item.thumbnail_url
+                    )
+                if self.mpris:
+                    self.mpris.update_metadata(
+                        item.title, item.artist, item.album,
+                        item.duration_ms * 1000, item.thumbnail_url, item.video_id
+                    )
+            else:
+                await self._handle_playback_failure(item, "No se pudo reproducir el archivo local.")
             return
 
         # Check if preloaded stream_url is already valid
@@ -1550,8 +1879,13 @@ class MainWindow(QMainWindow):
                         success = await self.player.play_url(alt_url, item.video_id)
                         if success and self.settings.player.crossfade_enabled:
                             self._run_async(self.crossfade_manager.fade_in(self.player, self.settings.player.volume, duration_sec=1.2))
+                    if not success:
+                        await self._handle_playback_failure(item, "No se pudo reproducir la pista. Saltando a la siguiente.")
+                        return
             else:
                 logger.error(f"No stream URL for preloaded {item.title}")
+                await self._handle_playback_failure(item, "No se pudo obtener una URL de reproduccion.")
+                return
 
             if getattr(getattr(self.settings, 'network', None), 'preload_next', True):
                 self._run_async(self._preload_next())
@@ -1567,7 +1901,7 @@ class MainWindow(QMainWindow):
             if self.mpris:
                 self.mpris.update_metadata(
                     item.title, item.artist, item.album,
-                    item.duration_ms * 1000, item.thumbnail_url
+                    item.duration_ms * 1000, item.thumbnail_url, item.video_id
                 )
             return
 
@@ -1617,8 +1951,13 @@ class MainWindow(QMainWindow):
                         success = await self.player.play_url(alt_url, item.video_id)
                         if success and self.settings.player.crossfade_enabled:
                             self._run_async(self.crossfade_manager.fade_in(self.player, self.settings.player.volume, duration_sec=1.2))
+                    if not success:
+                        await self._handle_playback_failure(item, "No se pudo reproducir la pista. Saltando a la siguiente.")
+                        return
             else:
                 logger.error(f"No stream URL for {item.title}")
+                await self._handle_playback_failure(item, "No se pudo obtener una URL de reproduccion.")
+                return
 
             if getattr(getattr(self.settings, 'network', None), 'preload_next', True):
                 self._run_async(self._preload_next())
@@ -1634,11 +1973,12 @@ class MainWindow(QMainWindow):
             if self.mpris:
                 self.mpris.update_metadata(
                     item.title, item.artist, item.album,
-                    item.duration_ms * 1000, item.thumbnail_url
+                    item.duration_ms * 1000, item.thumbnail_url, item.video_id
                 )
 
         except Exception as e:
             logger.error(f"Failed to play {item.video_id}: {e}")
+            await self._handle_playback_failure(item, "Error de reproduccion. Saltando a la siguiente.")
 
     async def _load_lyrics(self, item: QueueItem, play_id: int) -> None:
         self.now_playing_screen.set_lyrics_loading()
@@ -1768,10 +2108,13 @@ class MainWindow(QMainWindow):
         # 2. Preload stream URL
         if not next_item.stream_url:
             try:
+                import time
                 info = await self.extractor.get_stream_info(next_item.video_id)
-                next_item.stream_url = info["url"]
-            except Exception:
-                pass
+                next_item.stream_url = info.get("url", "")
+                if next_item.stream_url:
+                    next_item.stream_expires_at = time.time() + 21600
+            except Exception as e:
+                logger.debug(f"Failed to preload next stream: {e}")
 
     async def _advance_queue(self) -> None:
         item = self.queue.advance()
@@ -1853,8 +2196,8 @@ class MainWindow(QMainWindow):
         is_vlc_playing = False
         try:
             is_vlc_playing = self.player._player.is_playing()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Could not query VLC playing state: {e}")
 
         if self.player.status.state in (PlayerState.PLAYING, PlayerState.LOADING) or is_vlc_playing:
             await self.player.pause()
@@ -1876,6 +2219,8 @@ class MainWindow(QMainWindow):
                 await self._play_current()
 
     def _on_seek(self, position_ms: int) -> None:
+        if self.mpris:
+            self.mpris.emit_seeked(position_ms)
         self._run_async(self.player.seek(position_ms))
 
     def _update_queue_panel(self) -> None:
@@ -2026,10 +2371,24 @@ class MainWindow(QMainWindow):
         self.close()
 
     def closeEvent(self, event) -> None:
+        self._save_playback_session()
+        self._save_window_state()
         if getattr(self.settings.player, "minimize_to_tray", True) and not getattr(self, "_force_close", False) and hasattr(self, "tray") and self.tray.isVisible():
             self.hide()
             event.ignore()
         else:
+            active_downloads = getattr(self.download_manager, "active_count", 0)
+            if active_downloads > 0:
+                result = QMessageBox.question(
+                    self,
+                    "Descargas activas",
+                    f"Hay {active_downloads} descargas en curso o en cola. ¿Salir de todos modos?",
+                    QMessageBox.StandardButton.Cancel | QMessageBox.StandardButton.Yes,
+                    QMessageBox.StandardButton.Cancel,
+                )
+                if result != QMessageBox.StandardButton.Yes:
+                    event.ignore()
+                    return
             if self.settings.player.stop_on_close:
                 self._run_async(self.player.stop())
             self.player.release()

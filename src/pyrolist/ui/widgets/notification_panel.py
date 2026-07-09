@@ -572,38 +572,29 @@ class NotificationPanel(QWidget):
     
     @asyncSlot()
     async def load_db_notifications(self):
-        from pyrolist.db.database import get_session
-        from pyrolist.db.models import Notification
-        from sqlalchemy import select
+        from pyrolist.db.repository import NotificationRepository
         
         try:
-            async with get_session() as session:
-                stmt = select(Notification).order_by(Notification.created_at.desc()).limit(20)
-                result = await session.execute(stmt)
-                releases = result.scalars().all()
+            repo = NotificationRepository()
+            releases = await repo.get_recent(limit=20)
                 
-                # Clear old release rows
-                while self.releases_layout.count() > 1:
-                    item = self.releases_layout.takeAt(1)
-                    if item.widget():
-                        item.widget().deleteLater()
-                        
-                # Releases
-                for notif in releases:
-                    row = ReleaseNotificationRow(notif.video_id, notif.title, notif.artist, notif.artist_id, notif.thumbnail_url, notif.created_at)
-                    row.artist_clicked.connect(self.artist_clicked.emit)
-                    row.song_clicked.connect(self.song_clicked.emit)
-                    self.releases_layout.addWidget(row)
+            # Clear old release rows
+            while self.releases_layout.count() > 1:
+                item = self.releases_layout.takeAt(1)
+                if item.widget():
+                    item.widget().deleteLater()
                     
-                self.releases_container.show()
+            # Releases
+            for notif in releases:
+                row = ReleaseNotificationRow(notif.video_id, notif.title, notif.artist, notif.artist_id, notif.thumbnail_url, notif.created_at)
+                row.artist_clicked.connect(self.artist_clicked.emit)
+                row.song_clicked.connect(self.song_clicked.emit)
+                self.releases_layout.addWidget(row)
                 
-                self._update_visibility()
-                
-                # Mark all as read
-                for release in releases:
-                    if not release.is_read:
-                        release.is_read = True
-                await session.commit()
+            self.releases_container.show()
+            
+            self._update_visibility()
+            await repo.mark_all_read()
         except Exception as e:
             from loguru import logger
             logger.error(f"Error loading notifications for dropdown: {e}")

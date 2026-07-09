@@ -36,8 +36,8 @@ def _load_history() -> list[str]:
     try:
         if _HISTORY_FILE.exists():
             return json.loads(_HISTORY_FILE.read_text())[:_MAX_HISTORY]
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Could not load search history: {e}")
     return []
 
 
@@ -45,16 +45,16 @@ def _save_history(history: list[str]):
     try:
         AppDirs.data.mkdir(parents=True, exist_ok=True)
         _HISTORY_FILE.write_text(json.dumps(history[:_MAX_HISTORY]))
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Could not save search history: {e}")
 
 
 def _clear_history():
     try:
         if _HISTORY_FILE.exists():
             _HISTORY_FILE.unlink()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Could not clear search history: {e}")
 
 
 # ---------------------------------------------------------------------------

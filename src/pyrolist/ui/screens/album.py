@@ -7,6 +7,7 @@ import asyncio
 import random
 from pyrolist.audio.queue import QueueItem
 from pyrolist.ui.widgets.song_card import SongCard
+from pyrolist.ui.widgets.error_state import ErrorStateWidget
 from pyrolist.ui.widgets.icon_button import IconButton
 from pyrolist.ui.design.icons import Icon
 from pyrolist.utils.image_cache import ImageCache
@@ -162,7 +163,10 @@ class AlbumScreen(QWidget):
         except Exception as e:
             logger.error(f"Error loading album: {e}")
             self._clear_content()
-            self.content_layout.addWidget(QLabel("Error cargando álbum"))
+            self.content_layout.addWidget(ErrorStateWidget(
+                "No se pudo cargar el álbum",
+                retry_callback=lambda: asyncio.ensure_future(self.load(browse_id)),
+            ))
 
     async def _display_album(self, data: dict):
         self._clear_content()

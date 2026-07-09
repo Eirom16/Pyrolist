@@ -10,6 +10,7 @@ import asyncio
 from pyrolist.ui.widgets.song_card import SongCard
 from pyrolist.ui.widgets.album_card import AlbumCard
 from pyrolist.ui.widgets.artist_card import ArtistCard
+from pyrolist.ui.widgets.error_state import ErrorStateWidget
 from pyrolist.ui.design.fonts import AppFont
 from pyrolist.ui.design.icons import Icon
 from pyrolist.ui.design import tokens
@@ -109,9 +110,10 @@ class ArtistScreen(QWidget):
         except Exception as e:
             logger.error(f"Error loading artist: {e}")
             self._clear_content()
-            err = QLabel("Error cargando artista")
-            err.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent;")
-            self.content_layout.addWidget(err)
+            self.content_layout.addWidget(ErrorStateWidget(
+                "No se pudo cargar el artista",
+                retry_callback=lambda: asyncio.ensure_future(self.load(channel_id)),
+            ))
 
     async def _display_artist(self, data: dict):
         self._clear_content()

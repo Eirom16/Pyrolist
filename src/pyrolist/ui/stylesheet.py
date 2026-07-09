@@ -61,6 +61,9 @@ SongCard QPushButton#menu_btn:hover {
     background-color: #16162A;
     border-color: rgba(167,139,250,0.33);
 }
+#albumCard:focus, #artistCard:focus, #playlistCard:focus {
+    border: 2px solid #A78BFA;
+}
 
 #albumCard QLabel#thumbnail_placeholder, #artistCard QLabel#thumbnail_placeholder, #playlistCard QLabel#thumbnail_placeholder {
     background: #1E1E38;
@@ -113,9 +116,6 @@ QPushButton#primaryPlayBtn:pressed {
 }
 
 /* ─── Accessibility Focus Rings ────────────────────────────── */
-*:focus {
-    outline: none;
-}
 QPushButton:focus, QLineEdit:focus, QSlider:focus {
     outline: none;
     border: 2px solid #A78BFA;
@@ -123,6 +123,9 @@ QPushButton:focus, QLineEdit:focus, QSlider:focus {
 }
 QPushButton#primaryPlayBtn:focus {
     border: 2px solid #F1F0FF;
+}
+QWidget#songCard:focus, QWidget#albumCard:focus, QWidget#artistCard:focus, QWidget#playlistCard:focus {
+    border: 2px solid #A78BFA;
 }
 
 /* ─── Sidebar ──────────────────────────────────────────────── */
@@ -406,6 +409,10 @@ QLabel#libraryEmptyMessage {
 
 #songCard:hover {
     background-color: rgba(167,139,250,0.06);
+}
+#songCard:focus {
+    background-color: rgba(167,139,250,0.08);
+    border: 2px solid #A78BFA;
 }
 
 /* ─── Global rounded corners for QFrame ────────────────────── */

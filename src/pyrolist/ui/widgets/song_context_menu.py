@@ -12,12 +12,24 @@ class SongContextMenu(GlassPanel):
     play_next = Signal()
     add_to_queue = Signal()
     add_to_playlist = Signal()
+    go_to_artist = Signal()
+    go_to_album = Signal()
+    copy_link = Signal()
     download = Signal()
     delete_download = Signal()
+    remove_from_playlist = Signal()
 
-    def __init__(self, parent=None, is_downloaded: bool = False):
+    def __init__(
+        self,
+        parent=None,
+        is_downloaded: bool = False,
+        has_album: bool = False,
+        can_remove_from_playlist: bool = False,
+    ):
         super().__init__(parent)
         self.is_downloaded = is_downloaded
+        self.has_album = has_album
+        self.can_remove_from_playlist = can_remove_from_playlist
         self.setMinimumWidth(250)
         self._build()
 
@@ -30,13 +42,20 @@ class SongContextMenu(GlassPanel):
             ("play_arrow", "Reproducir a continuacion", "play_next"),
             ("queue_music", "Anadir a la cola", "add_to_queue"),
             ("playlist_add", "Anadir a playlist", "add_to_playlist"),
+            ("person", "Ir a artista", "go_to_artist"),
+            ("link", "Copiar enlace", "copy_link"),
             None,
         ]
+        if self.has_album:
+            actions.insert(4, ("album", "Ir a album", "go_to_album"))
         
         if self.is_downloaded:
             actions.append(("delete", "Borrar descarga", "delete_download"))
         else:
             actions.append(("download", "Descargar", "download"))
+
+        if self.can_remove_from_playlist:
+            actions.append(("playlist_remove", "Quitar de playlist", "remove_from_playlist"))
 
         for action in actions:
             if action is None:

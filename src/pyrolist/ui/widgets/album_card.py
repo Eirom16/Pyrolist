@@ -55,6 +55,9 @@ class AlbumCard(QWidget):
     def _build_ui(self) -> None:
         self.setObjectName("albumCard")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        accessible = f"{self._title} - {self._artist}" if self._artist else self._title
+        self.setAccessibleName(accessible)
         self.setFixedSize(168, 218)
 
         layout = QVBoxLayout(self)
@@ -103,6 +106,10 @@ class AlbumCard(QWidget):
                 background-color: {bg_elevated};
                 border-color: rgba({acc_r}, {acc_g}, {acc_b}, 0.33);
             }}
+            #albumCard:focus {{
+                background-color: {bg_elevated};
+                border: 2px solid {accent};
+            }}
         """)
         
         if not self.thumbnail.pixmap():
@@ -125,6 +132,13 @@ class AlbumCard(QWidget):
             self.clicked.emit()
         super().mousePressEvent(event)
 
+    def keyPressEvent(self, event) -> None:
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self.clicked.emit()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
     def paintEvent(self, event) -> None:
         from PySide6.QtWidgets import QStyle, QStyleOption
         from PySide6.QtGui import QPainter
@@ -144,4 +158,3 @@ class AlbumCard(QWidget):
                 finally:
                      self._in_style_change = False
         super().changeEvent(event)
-

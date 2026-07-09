@@ -6,7 +6,8 @@ from PySide6.QtCore import Qt, Signal, QPropertyAnimation, QEasingCurve
 from PySide6.QtGui import QFont, QColor
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QScrollArea, QHBoxLayout, 
-    QPushButton, QGridLayout, QGraphicsOpacityEffect, QGraphicsDropShadowEffect
+    QPushButton, QGridLayout, QGraphicsOpacityEffect, QGraphicsDropShadowEffect,
+    QLineEdit, QComboBox
 )
 
 from pyrolist.ui.design.fonts import AppFont
@@ -14,6 +15,7 @@ from pyrolist.ui.widgets.song_card import SongCard
 from pyrolist.ui.widgets.album_card import AlbumCard
 from pyrolist.ui.widgets.artist_card import ArtistCard
 from pyrolist.ui.widgets.playlist_card import PlaylistCard
+from pyrolist.ui.widgets.error_state import ErrorStateWidget
 from pyrolist.ui.widgets.skeleton_loader import SkeletonListLoader
 from pyrolist.ui.widgets.load_more import PaginatorFooter
 from pyrolist.db.repository import DownloadRepository, SongRepository
@@ -26,6 +28,8 @@ class LibraryScreen(QWidget):
     add_to_playlist_requested = Signal(str, str) # video_id, title
     like_requested = Signal(str, object)
     delete_download_requested = Signal(str)
+    artist_clicked = Signal(str)
+    album_clicked = Signal(str)
 
     def __init__(self, yt_client, on_play_song, on_navigate=None):
         super().__init__()
@@ -37,6 +41,8 @@ class LibraryScreen(QWidget):
         self._currently_rendered_tab = None
         self._library_cache = {}
         self._library_cache_time = {}
+        self._library_filter = ""
+        self._library_sort = "recent"
         self._build_ui()
 
     def _connect_card_signals(self, card):
@@ -47,6 +53,10 @@ class LibraryScreen(QWidget):
         card.add_to_playlist_requested.connect(lambda *a: self.add_to_playlist_requested.emit(*a))
         card.like_requested.connect(lambda *a: self.like_requested.emit(*a))
         card.delete_download_requested.connect(lambda *a: self.delete_download_requested.emit(*a))
+        if hasattr(card, "artist_clicked"):
+            card.artist_clicked.connect(lambda *a: self.artist_clicked.emit(*a))
+        if hasattr(card, "album_clicked"):
+            card.album_clicked.connect(lambda *a: self.album_clicked.emit(*a))
 
     def _handle_download(self, vid, title, artist, thumb):
         self.download_requested.emit(vid, title, artist, thumb)
@@ -93,6 +103,27 @@ class LibraryScreen(QWidget):
 
         tabs_layout.addStretch()
         layout.addWidget(self.tabs)
+
+        filters = QWidget()
+        filters.setStyleSheet("background: transparent; border: none;")
+        filters_layout = QHBoxLayout(filters)
+        filters_layout.setContentsMargins(0, 0, 0, 8)
+        filters_layout.setSpacing(10)
+
+        self.filter_input = QLineEdit()
+        self.filter_input.setPlaceholderText("Buscar en biblioteca")
+        self.filter_input.setClearButtonEnabled(True)
+        self.filter_input.textChanged.connect(self._on_library_filter_changed)
+        filters_layout.addWidget(self.filter_input, stretch=1)
+
+        self.sort_combo = QComboBox()
+        self.sort_combo.addItem("Recientes", "recent")
+        self.sort_combo.addItem("Título", "title")
+        self.sort_combo.addItem("Artista", "artist")
+        self.sort_combo.currentIndexChanged.connect(self._on_library_sort_changed)
+        filters_layout.addWidget(self.sort_combo)
+        layout.addWidget(filters)
+        self._update_filter_styles()
 
         self.content = QScrollArea()
         self.content.setWidgetResizable(True)
@@ -199,6 +230,33 @@ class LibraryScreen(QWidget):
 
         self._tab_fade_anim.finished.connect(on_fade_out_finished)
         self._tab_fade_anim.start()
+
+    def _on_library_filter_changed(self, text: str) -> None:
+        self._library_filter = text.strip().lower()
+        self._reload_current_tab_for_filters()
+
+    def _on_library_sort_changed(self) -> None:
+        self._library_sort = self.sort_combo.currentData() or "recent"
+        self._reload_current_tab_for_filters()
+
+    def _reload_current_tab_for_filters(self) -> None:
+        self._currently_rendered_tab = None
+        if self._current_tab_task and not self._current_tab_task.done():
+            self._current_tab_task.cancel()
+        self._current_tab_task = asyncio.create_task(self._load_tab(self._current_tab))
+
+    def _matches_library_filter(self, *values) -> bool:
+        if not self._library_filter:
+            return True
+        haystack = " ".join(str(value or "").lower() for value in values)
+        return self._library_filter in haystack
+
+    def _sort_items(self, items: list, title_getter, artist_getter=None) -> list:
+        if self._library_sort == "title":
+            return sorted(items, key=lambda item: str(title_getter(item) or "").lower())
+        if self._library_sort == "artist" and artist_getter:
+            return sorted(items, key=lambda item: str(artist_getter(item) or "").lower())
+        return items
 
     async def load(self):
         import time
@@ -316,6 +374,16 @@ class LibraryScreen(QWidget):
                             'is_liked': True
                         })
 
+                combined_tracks = [
+                    track for track in combined_tracks
+                    if self._matches_library_filter(track.get('title'), track.get('artist'), track.get('album'))
+                ]
+                combined_tracks = self._sort_items(
+                    combined_tracks,
+                    lambda track: track.get('title'),
+                    lambda track: track.get('artist'),
+                )
+
                 if combined_tracks:
                     header = QLabel("Canciones que te gustan")
                     header.setFont(AppFont.heading(16))
@@ -350,6 +418,32 @@ class LibraryScreen(QWidget):
                     msg.setObjectName("libraryEmptyMessage")
                     self.content_layout.addWidget(msg)
                 else:
+                    albums = [
+                        album for album in albums
+                        if self._matches_library_filter(
+                            album.get("title"),
+                            ", ".join(a.get("name", "") for a in album.get("artists", []) if isinstance(a, dict))
+                            if isinstance(album.get("artists", []), list)
+                            else album.get("artists", ""),
+                            album.get("year", ""),
+                        )
+                    ]
+                    albums = self._sort_items(
+                        albums,
+                        lambda album: album.get("title"),
+                        lambda album: ", ".join(a.get("name", "") for a in album.get("artists", []) if isinstance(a, dict))
+                        if isinstance(album.get("artists", []), list)
+                        else album.get("artists", ""),
+                    )
+                    if not albums:
+                        msg = QLabel("No hay álbumes que coincidan con la búsqueda")
+                        msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                        msg.setObjectName("libraryEmptyMessage")
+                        self.content_layout.addWidget(msg)
+                        self._currently_rendered_tab = tab
+                        self.content_layout.addStretch()
+                        self._fade_in_content()
+                        return
                     header = QLabel("Tus Álbumes")
                     header.setFont(QFont("Inter", 16, QFont.Weight.Bold))
                     header.setObjectName("libraryHeader")
@@ -400,6 +494,24 @@ class LibraryScreen(QWidget):
                     msg.setObjectName("libraryEmptyMessage")
                     self.content_layout.addWidget(msg)
                 else:
+                    artists = [
+                        artist for artist in artists
+                        if self._matches_library_filter(artist.get("artist"), artist.get("browseId"))
+                    ]
+                    artists = self._sort_items(
+                        artists,
+                        lambda artist: artist.get("artist"),
+                        lambda artist: artist.get("artist"),
+                    )
+                    if not artists:
+                        msg = QLabel("No hay artistas que coincidan con la búsqueda")
+                        msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                        msg.setObjectName("libraryEmptyMessage")
+                        self.content_layout.addWidget(msg)
+                        self._currently_rendered_tab = tab
+                        self.content_layout.addStretch()
+                        self._fade_in_content()
+                        return
                     header = QLabel("Tus Artistas")
                     header.setFont(QFont("Inter", 16, QFont.Weight.Bold))
                     header.setObjectName("libraryHeader")
@@ -456,6 +568,23 @@ class LibraryScreen(QWidget):
                     msg.setObjectName("libraryEmptyMessage")
                     self.content_layout.addWidget(msg)
                 else:
+                    playlists = [
+                        playlist for playlist in playlists
+                        if self._matches_library_filter(playlist.get("title"), playlist.get("count"))
+                    ]
+                    playlists = self._sort_items(
+                        playlists,
+                        lambda playlist: playlist.get("title"),
+                    )
+                    if not playlists:
+                        msg = QLabel("No hay playlists que coincidan con la búsqueda")
+                        msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                        msg.setObjectName("libraryEmptyMessage")
+                        self.content_layout.addWidget(msg)
+                        self._currently_rendered_tab = tab
+                        self.content_layout.addStretch()
+                        self._fade_in_content()
+                        return
                     grid = QGridLayout()
                     grid.setSpacing(16)
                     for col in range(4):
@@ -490,7 +619,10 @@ class LibraryScreen(QWidget):
         except Exception as e:
             logger.error(f"Error loading {tab}: {e}")
             self._clear_content()
-            self._show_no_auth_message()
+            self.content_layout.addWidget(ErrorStateWidget(
+                "No se pudo cargar la biblioteca",
+                retry_callback=lambda: asyncio.ensure_future(self.load()),
+            ))
 
         self._currently_rendered_tab = tab
         self.content_layout.addStretch()
@@ -535,6 +667,7 @@ class LibraryScreen(QWidget):
                 on_play=partial(self._handle_play, track['videoId'], track['title'], track['artist'], track['thumbnail_url']),
                 video_id=track['videoId'],
                 is_liked=track['is_liked'],
+                album=track.get('album', ''),
             )
             self._connect_card_signals(card)
             self.content_layout.addWidget(card)
@@ -838,6 +971,37 @@ class LibraryScreen(QWidget):
             }}
         """)
 
+    def _update_filter_styles(self) -> None:
+        if not hasattr(self, "filter_input"):
+            return
+        from pyrolist.ui.design import tokens
+        self.filter_input.setStyleSheet(f"""
+            QLineEdit {{
+                background: {tokens.CURRENT.bg_surface};
+                color: {tokens.CURRENT.text_primary};
+                border: 1px solid {tokens.CURRENT.border};
+                border-radius: 8px;
+                padding: 8px 12px;
+                font-size: 13px;
+            }}
+            QLineEdit:focus {{
+                border-color: {tokens.CURRENT.accent};
+            }}
+        """)
+        self.sort_combo.setStyleSheet(f"""
+            QComboBox {{
+                background: {tokens.CURRENT.bg_surface};
+                color: {tokens.CURRENT.text_primary};
+                border: 1px solid {tokens.CURRENT.border};
+                border-radius: 8px;
+                padding: 7px 12px;
+                min-width: 128px;
+            }}
+            QComboBox:hover {{
+                border-color: {tokens.CURRENT.accent};
+            }}
+        """)
+
     def invalidate_songs_cache(self) -> None:
         if hasattr(self, "_library_cache"):
             self._library_cache.pop("songs", None)
@@ -849,4 +1013,4 @@ class LibraryScreen(QWidget):
     def _apply_theme_styles(self) -> None:
         self._update_tab_styles()
         self._update_fab_style()
-
+        self._update_filter_styles()

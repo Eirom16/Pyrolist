@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 from pathlib import Path
 from PySide6.QtCore import QObject, Signal
@@ -29,6 +30,37 @@ class DownloadTask:
     def pause(self):
         self._pause_flag = True
 
+    def to_dict(self) -> dict:
+        status = "queued" if self.status == "downloading" else self.status
+        return {
+            "video_id": self.video_id,
+            "title": self.title,
+            "artist": self.artist,
+            "thumbnail_url": self.thumbnail_url,
+            "parent_playlist_id": self.parent_playlist_id,
+            "parent_playlist_title": self.parent_playlist_title,
+            "parent_playlist_thumbnail_url": self.parent_playlist_thumbnail_url,
+            "status": status,
+            "progress": self.progress,
+            "speed": self.speed,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "DownloadTask":
+        task = cls(
+            video_id=str(data.get("video_id", "")),
+            title=str(data.get("title", "Unknown")),
+            artist=str(data.get("artist", "Unknown")),
+            thumbnail_url=str(data.get("thumbnail_url", "")),
+            parent_playlist_id=data.get("parent_playlist_id"),
+            parent_playlist_title=data.get("parent_playlist_title"),
+            parent_playlist_thumbnail_url=data.get("parent_playlist_thumbnail_url"),
+        )
+        task.status = str(data.get("status", "queued"))
+        task.progress = float(data.get("progress", 0.0) or 0.0)
+        task.speed = str(data.get("speed", ""))
+        return task
+
 class DownloadManager(QObject):
     download_queued = Signal(object) # DownloadTask
     download_started = Signal(str) # video_id
@@ -51,10 +83,15 @@ class DownloadManager(QObject):
         self._workers = []
         self._running = False
         self._repo = DownloadRepository()
+        self._state_file = AppDirs.data / "download_tasks.json"
+        self._restored_state = False
 
     def start(self, max_concurrent: int = 3):
         if self._running:
             return
+        if not self._restored_state:
+            self._restore_incomplete_tasks()
+            self._restored_state = True
         self._running = True
         for _ in range(max_concurrent):
             worker = asyncio.ensure_future(self._worker())
@@ -62,9 +99,17 @@ class DownloadManager(QObject):
 
     def stop(self):
         self._running = False
+        self._save_incomplete_tasks()
         for worker in self._workers:
             worker.cancel()
         self._workers.clear()
+
+    @property
+    def active_count(self) -> int:
+        return sum(
+            1 for task in self._tasks.values()
+            if task.status in {"queued", "downloading"}
+        )
 
     def add_download(self, video_id: str, title: str, artist: str, thumbnail_url: str, parent_playlist_id: str = None, parent_playlist_title: str = None, parent_playlist_thumbnail_url: str = None) -> bool:
         if video_id in self._tasks:
@@ -74,15 +119,18 @@ class DownloadManager(QObject):
         self._tasks[video_id] = task
         self.download_queued.emit(task)
         self._queue.put_nowait(task)
+        self._save_incomplete_tasks()
         return True
 
     def cancel_download(self, video_id: str):
         if video_id in self._tasks:
             self._tasks[video_id].cancel()
+            self._save_incomplete_tasks()
 
     def pause_download(self, video_id: str):
         if video_id in self._tasks:
             self._tasks[video_id].pause()
+            self._save_incomplete_tasks()
 
     def resume_download(self, video_id: str):
         if video_id in self._tasks:
@@ -93,9 +141,45 @@ class DownloadManager(QObject):
                 task._cancel_flag = False
                 self.download_queued.emit(task)
                 self._queue.put_nowait(task)
+                self._save_incomplete_tasks()
 
     def retry_download(self, video_id: str):
         self.resume_download(video_id)
+
+    def _save_incomplete_tasks(self) -> None:
+        try:
+            tasks = [
+                task.to_dict()
+                for task in self._tasks.values()
+                if task.status in {"queued", "downloading", "paused", "error"}
+                and not task._cancel_flag
+            ]
+            self._state_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(self._state_file, "w", encoding="utf-8") as f:
+                json.dump(tasks, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.debug(f"Failed to persist download tasks: {e}")
+
+    def _restore_incomplete_tasks(self) -> None:
+        try:
+            if not self._state_file.exists():
+                return
+            with open(self._state_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if not isinstance(data, list):
+                return
+            for item in data:
+                task = DownloadTask.from_dict(item)
+                if not task.video_id or task.video_id in self._tasks:
+                    continue
+                self._tasks[task.video_id] = task
+                if task.status in {"queued", "downloading"}:
+                    task.status = "queued"
+                    self.download_queued.emit(task)
+                    self._queue.put_nowait(task)
+            self._save_incomplete_tasks()
+        except Exception as e:
+            logger.debug(f"Failed to restore download tasks: {e}")
 
     async def _worker(self):
         while self._running:
@@ -114,6 +198,7 @@ class DownloadManager(QObject):
 
     async def _process_download(self, task: DownloadTask):
         task.status = "downloading"
+        self._save_incomplete_tasks()
         self.download_started.emit(task.video_id)
         
         loop = asyncio.get_event_loop()
@@ -158,6 +243,8 @@ class DownloadManager(QObject):
             'progress_hooks': [progress_hook],
             'quiet': True,
             'no_warnings': True,
+            'continuedl': True,
+            'nopart': False,
         }
         
         if has_ffmpeg:
@@ -190,9 +277,11 @@ class DownloadManager(QObject):
             if task._cancel_flag:
                 if os.path.exists(filepath):
                     os.remove(filepath)
+                self._save_incomplete_tasks()
                 return
                 
             task.status = "completed"
+            self._save_incomplete_tasks()
             
             # Fetch and save offline lyrics (.lrc format next to audio file)
             try:
@@ -226,6 +315,7 @@ class DownloadManager(QObject):
         except Exception as e:
             if str(e) == "PAUSED":
                 task.status = "paused"
+                self._save_incomplete_tasks()
                 logger.info(f"Download paused: {task.title}")
                 # Do NOT delete from self._tasks so it can be resumed
                 return
@@ -234,6 +324,7 @@ class DownloadManager(QObject):
             else:
                 logger.error(f"Download failed for {task.video_id}: {e}")
                 task.status = "error"
+                self._save_incomplete_tasks()
                 # Do NOT delete from self._tasks so it can be retried
                 self.download_error.emit(task.video_id, str(e))
                 return
@@ -243,3 +334,4 @@ class DownloadManager(QObject):
                 del self._tasks[task.video_id]
             elif task.video_id in self._tasks and task._cancel_flag:
                 del self._tasks[task.video_id]
+            self._save_incomplete_tasks()

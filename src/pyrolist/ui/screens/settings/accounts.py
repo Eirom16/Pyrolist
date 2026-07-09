@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtWidgets import QLineEdit, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QLineEdit, QMessageBox, QVBoxLayout, QWidget
 
 from pyrolist.config.paths import AppDirs
 from pyrolist.ui.screens.settings.components import SettingsRow, SettingsSection, page_title
@@ -113,6 +113,16 @@ class AccountsSettingsScreen(QWidget):
             self.on_auth_changed(True, avatar_url)
 
     def _on_logout(self) -> None:
+        result = QMessageBox.question(
+            self,
+            "Cerrar sesión",
+            "¿Cerrar sesión y borrar las cookies, credenciales y perfil local de YouTube Music?",
+            QMessageBox.StandardButton.Cancel | QMessageBox.StandardButton.Yes,
+            QMessageBox.StandardButton.Cancel,
+        )
+        if result != QMessageBox.StandardButton.Yes:
+            return
+
         try:
             from PySide6.QtWebEngineCore import QWebEngineProfile
             QWebEngineProfile.defaultProfile().cookieStore().deleteAllCookies()

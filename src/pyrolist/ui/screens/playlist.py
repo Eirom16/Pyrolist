@@ -1,4 +1,12 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea, QPushButton
+from PySide6.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QScrollArea,
+    QPushButton,
+    QMessageBox,
+)
 from PySide6.QtCore import Qt, Signal, QRectF, QSize
 from PySide6.QtGui import QFont, QPixmap, QPainter, QPen, QColor
 from functools import partial
@@ -10,6 +18,7 @@ from pyrolist.ui.widgets.song_card import SongCard
 from pyrolist.ui.widgets.icon_button import IconButton
 from pyrolist.ui.design.icons import Icon
 from pyrolist.ui.widgets.album_card import AlbumCard
+from pyrolist.ui.widgets.error_state import ErrorStateWidget
 from pyrolist.ui.widgets.load_more import PaginatorFooter
 from pyrolist.utils.image_cache import ImageCache
 
@@ -175,7 +184,10 @@ class PlaylistScreen(QWidget):
         except Exception as e:
             logger.exception(f"Error loading playlist: {e}")
             self._clear_content()
-            self.content_layout.addWidget(QLabel(f"Error cargando playlist:\n{e}"))
+            self.content_layout.addWidget(ErrorStateWidget(
+                "No se pudo cargar la playlist",
+                retry_callback=lambda: asyncio.ensure_future(self.load(playlist_id)),
+            ))
 
     async def _load_local_playlist(self, playlist_id: str):
         actual_pid = playlist_id.replace("local_", "")
@@ -457,7 +469,9 @@ class PlaylistScreen(QWidget):
                     thumbnail_url=track_thumbnail_url,
                     on_play=partial(self._handle_play, video_id, title, artist_names, i, thumbnail_url=track_thumbnail_url),
                     video_id=video_id,
-                    is_liked=is_liked
+                    is_liked=is_liked,
+                    playlist_id=self._playlist_id or "",
+                    set_video_id=track.get("setVideoId", ""),
                 )
                 card.download_requested.connect(self.download_requested.emit)
                 card.play_next_requested.connect(self.play_next_requested.emit)
@@ -465,6 +479,7 @@ class PlaylistScreen(QWidget):
                 card.add_to_playlist_requested.connect(self.add_to_playlist_requested.emit)
                 card.like_requested.connect(self.like_requested.emit)
                 card.delete_download_requested.connect(self.delete_download_requested.emit)
+                card.remove_from_playlist_requested.connect(self._on_remove_from_playlist_requested)
                 self.tracks_layout.addWidget(card)
                 
         self._playlist_render_idx = end
@@ -479,6 +494,54 @@ class PlaylistScreen(QWidget):
     def _on_playlist_load_more(self):
         from PySide6.QtCore import QTimer
         QTimer.singleShot(100, lambda: self._render_playlist_chunk(20))
+
+    def _on_remove_from_playlist_requested(
+        self,
+        playlist_id: str,
+        video_id: str,
+        set_video_id: str,
+        title: str,
+    ) -> None:
+        asyncio.create_task(
+            self._remove_from_playlist_async(playlist_id, video_id, set_video_id, title)
+        )
+
+    async def _remove_from_playlist_async(
+        self,
+        playlist_id: str,
+        video_id: str,
+        set_video_id: str,
+        title: str,
+    ) -> None:
+        if not playlist_id or playlist_id.startswith("local_") or not set_video_id:
+            return
+
+        from pyrolist.ui.widgets.toast import ToastNotification
+
+        if not self.yt or not self.yt.is_authenticated:
+            ToastNotification.show(self.window(), "Inicia sesion para editar playlists", "warning")
+            return
+
+        result = QMessageBox.question(
+            self,
+            "Quitar de playlist",
+            f"Quieres quitar '{title}' de esta playlist?",
+            QMessageBox.StandardButton.Cancel | QMessageBox.StandardButton.Yes,
+            QMessageBox.StandardButton.Cancel,
+        )
+        if result != QMessageBox.StandardButton.Yes:
+            return
+
+        response = await self.yt.remove_playlist_items(
+            playlist_id,
+            [{"videoId": video_id, "setVideoId": set_video_id}],
+        )
+
+        if response:
+            ToastNotification.show(self.window(), f"Quitado de playlist: {title}", "success")
+            await self.load(playlist_id)
+        else:
+            ToastNotification.show(self.window(), "No se pudo quitar de la playlist", "error")
 
     async def _load_cover(self, url: str):
         path = await _image_cache.download(url)

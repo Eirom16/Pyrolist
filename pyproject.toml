@@ -2,7 +2,7 @@
 name = "pyrolist"
 version = "2.0.0"
 description = "Cliente de escritorio para YouTube Music - Linux"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.14"
 dependencies = [
     "PySide6>=6.7.0",
     "qasync>=0.27.0",
@@ -26,6 +26,12 @@ dependencies = [
     "keyring>=25.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.4",
+    "pytest-asyncio>=1.4",
+]
+
 [project.scripts]
 pyrolist = "pyrolist.main:main"
 
@@ -35,3 +41,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pyrolist"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

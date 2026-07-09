@@ -10,6 +10,7 @@ from loguru import logger
 from qasync import asyncSlot
 
 from pyrolist.ui.widgets.song_card import SongCard
+from pyrolist.ui.widgets.error_state import ErrorStateWidget
 from pyrolist.ui.design import tokens
 
 
@@ -185,6 +186,8 @@ class StatsScreen(QWidget):
     like_requested = Signal(str, object)
     add_to_playlist_requested = Signal(str, str)
     delete_download_requested = Signal(str)
+    artist_clicked = Signal(str)
+    album_clicked = Signal(str)
 
     def __init__(self, yt_client, on_play_song):
         super().__init__()
@@ -199,6 +202,10 @@ class StatsScreen(QWidget):
         card.like_requested.connect(lambda *a: self.like_requested.emit(*a))
         card.add_to_playlist_requested.connect(lambda *a: self.add_to_playlist_requested.emit(*a))
         card.delete_download_requested.connect(lambda *a: self.delete_download_requested.emit(*a))
+        if hasattr(card, "artist_clicked"):
+            card.artist_clicked.connect(lambda *a: self.artist_clicked.emit(*a))
+        if hasattr(card, "album_clicked"):
+            card.album_clicked.connect(lambda *a: self.album_clicked.emit(*a))
 
     def _build_ui(self):
         main_layout = QVBoxLayout(self)
@@ -312,6 +319,21 @@ class StatsScreen(QWidget):
         anim.start()
 
     async def load(self):
+        try:
+            await self._load_async()
+        except Exception as e:
+            logger.error(f"Error loading stats: {e}")
+            while self.songs_container.count():
+                item = self.songs_container.takeAt(0)
+                if item.widget():
+                    item.widget().deleteLater()
+            self.songs_container.addWidget(ErrorStateWidget(
+                "No se pudieron cargar las estadísticas",
+                retry_callback=lambda: asyncio.ensure_future(self.load()),
+            ))
+            self.bar_chart.set_data([])
+
+    async def _load_async(self):
         # Fetch local history and calculate stats
         from pyrolist.db.repository import HistoryRepository, SongRepository
         history_repo = HistoryRepository()

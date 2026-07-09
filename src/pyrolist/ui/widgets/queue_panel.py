@@ -5,6 +5,7 @@ from pyrolist.utils.time_utils import format_duration_short
 
 class QueuePanel(QWidget):
     artist_clicked = Signal(str)
+    album_clicked = Signal(str)
     like_requested = Signal(str, object)  # video_id, btn_like widget
     download_requested = Signal(str, str, str, str)
     play_next_requested = Signal(str, str, str, str)
@@ -68,12 +69,14 @@ class QueuePanel(QWidget):
                 thumbnail_url=getattr(item, 'thumbnail_url', ''),
                 video_id=video_id,
                 is_liked=video_id in liked_ids,
-                on_play=on_play_cb
+                on_play=on_play_cb,
+                album=getattr(item, 'album', ''),
             )
             
             
             # Connect artist_clicked signal
             card.artist_clicked.connect(self.artist_clicked.emit)
+            card.album_clicked.connect(self.album_clicked.emit)
             
             # Connect like signal
             card.like_requested.connect(lambda vid, btn: self.like_requested.emit(vid, btn))

@@ -1,6 +1,7 @@
 import random
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass
 from enum import Enum
+from loguru import logger
 
 
 class RepeatMode(Enum):
@@ -149,9 +150,40 @@ class PlayQueue:
         self._original.clear()
         self._index = -1
 
-    @property
-    def items(self) -> list[QueueItem]:
-        return self._queue.copy()
+    def to_dict(self) -> dict:
+        def serialize(item: QueueItem) -> dict:
+            data = asdict(item)
+            data["stream_url"] = None
+            data["stream_expires_at"] = 0.0
+            return data
+
+        return {
+            "items": [serialize(item) for item in self._queue],
+            "original": [serialize(item) for item in self._original],
+            "index": self._index,
+            "repeat_mode": self.repeat_mode.value,
+            "shuffle_enabled": self.shuffle_enabled,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "PlayQueue":
+        queue = cls()
+        try:
+            queue._queue = [QueueItem(**item) for item in data.get("items", [])]
+            queue._original = [QueueItem(**item) for item in data.get("original", [])]
+            if not queue._original:
+                queue._original = queue._queue.copy()
+            queue._index = int(data.get("index", -1))
+            if queue._queue:
+                queue._index = max(0, min(queue._index, len(queue._queue) - 1))
+            else:
+                queue._index = -1
+            queue.shuffle_enabled = bool(data.get("shuffle_enabled", False))
+            queue.repeat_mode = RepeatMode(data.get("repeat_mode", RepeatMode.OFF.value))
+        except Exception as e:
+            logger.warning(f"Could not restore queue state: {e}")
+            return cls()
+        return queue
 
     async def save_queue_as_playlist(self, api_client, title: str, description: str = "") -> str:
         """Saves current queue as a playlist via the API and returns playlist_id."""
