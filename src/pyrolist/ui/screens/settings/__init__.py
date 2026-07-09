@@ -89,6 +89,15 @@ class SettingsScreen(QWidget):
             scroll.setWidgetResizable(True)
             scroll.setFrameShape(QScrollArea.Shape.NoFrame)
             scroll.setStyleSheet("background: transparent; border: none;")
+            
+            def make_scroll_handler(p):
+                from PySide6.QtWidgets import QComboBox
+                def on_scroll(_):
+                    for cb in p.findChildren(QComboBox):
+                        cb.hidePopup()
+                return on_scroll
+            scroll.verticalScrollBar().valueChanged.connect(make_scroll_handler(page))
+
             wrapper = QWidget()
             wrapper.setObjectName("settingsPageWrapper")
             wrapper_layout = QVBoxLayout(wrapper)

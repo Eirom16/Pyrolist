@@ -472,6 +472,12 @@ class MainWindow(QMainWindow):
         self.mini_player.setGeometry(x, max(0, y), width, max(0, player_height))
         self.mini_player.raise_()
 
+        if hasattr(self, "stack"):
+            bottom_margin = player_height + margin * 2 if player_height > 0 else 0
+            current_margins = self.stack.contentsMargins()
+            if current_margins.bottom() != bottom_margin:
+                self.stack.setContentsMargins(0, 0, 0, bottom_margin)
+
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self._position_mini_player()
