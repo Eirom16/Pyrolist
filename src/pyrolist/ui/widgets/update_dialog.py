@@ -276,24 +276,10 @@ class UpdateDialog(QDialog):
 
         self._progress_bar.set_value(1.0)
 
-        # Solicitar contraseña de administrador en Linux
+        # Solicitar autenticación del sistema (pkexec) en Linux
         password = None
         if platform.system() == "Linux":
             self._progress_label.setText("Autenticación requerida para la instalación...")
-            from pyrolist.ui.dialogs.sudo_dialog import SudoPasswordDialog
-            sudo_dlg = SudoPasswordDialog(self)
-            res = sudo_dlg.exec()
-
-            if res == QDialog.DialogCode.Accepted:
-                password = sudo_dlg.get_password()
-            else:
-                self._progress_label.setText(
-                    f"Instalación cancelada. El archivo se descargó en:\n{pkg_path}"
-                )
-                self._update_btn.setEnabled(True)
-                self._postpone_btn.setEnabled(True)
-                self._downloading = False
-                return
 
         self._progress_label.setText(
             "Instalando actualización... Por favor, no cierres la aplicación."

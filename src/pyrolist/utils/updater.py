@@ -21,7 +21,7 @@ import httpx
 from loguru import logger
 
 # ── Constantes ────────────────────────────────────────────────────────────────
-CURRENT_VERSION = "v2.1.0"          # actualizar en cada release
+CURRENT_VERSION = "v2.1.1"          # actualizar en cada release
 GITHUB_API_URL  = (
     "https://api.github.com/repos/Eirom16/pyrolist/releases/latest"
 )
@@ -251,63 +251,36 @@ async def install_update_async(package_path: Path, password: str | None = None) 
     if system == "Linux":
         mgr = _detect_package_manager()
 
-        if password is not None:
-            # sudo -S lee la contraseña desde la entrada estándar
-            install_cmds = {
-                "pacman": ["sudo", "-S", "pacman", "-U", "--noconfirm", path],
-                "apt":    ["sudo", "-S", "apt",    "install", "-y", path],
-                "dnf":    ["sudo", "-S", "dnf",    "install", "-y", path],
-                "zypper": ["sudo", "-S", "zypper", "install", "-y", path],
-            }
-            cmd = install_cmds.get(mgr)
-            if not cmd:
-                logger.warning(f"Unknown package manager: {mgr}")
-                return False
+        install_cmds = {
+            "pacman": ["pkexec", "pacman", "-U", "--noconfirm", path],
+            "apt":    ["pkexec", "apt",    "install", "-y", path],
+            "dnf":    ["pkexec", "dnf",    "install", "-y", path],
+            "zypper": ["pkexec", "zypper", "install", "-y", path],
+        }
 
-            try:
-                proc = await asyncio.create_subprocess_exec(
-                    *cmd,
-                    stdin=asyncio.subprocess.PIPE,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
-                )
-                
-                # Escribir contraseña en stdin
-                proc.stdin.write((password + "\n").encode())
-                await proc.stdin.drain()
-                
-                # Esperar a que termine la instalación
-                stdout, stderr = await proc.communicate()
-                
-                logger.info(f"Installation process finished with return code: {proc.returncode}")
-                if proc.returncode == 0:
-                    return True
-                else:
-                    err_msg = stderr.decode().strip()
-                    logger.error(f"Installation failed: {err_msg}")
-                    return False
-            except Exception as e:
-                logger.error(f"Async installation execution failed: {e}")
-                return False
-        else:
-            # Caso fallback si no se proporciona contraseña (usa pkexec original)
-            install_cmds = {
-                "pacman": ["pkexec", "pacman", "-U", "--noconfirm", path],
-                "apt":    ["pkexec", "apt",    "install", "-y", path],
-                "dnf":    ["pkexec", "dnf",    "install", "-y", path],
-                "zypper": ["pkexec", "zypper", "install", "-y", path],
-            }
+        cmd = install_cmds.get(mgr)
+        if not cmd:
+            logger.warning(f"Unknown package manager: {mgr}")
+            return False
 
-            cmd = install_cmds.get(mgr)
-            if not cmd:
-                logger.warning(f"Unknown package manager: {mgr}")
-                return False
-
-            try:
-                subprocess.Popen(cmd, start_new_session=True)
+        try:
+            # Esperamos a que termine pkexec, que mostrará el diálogo del sistema
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            
+            stdout, stderr = await proc.communicate()
+            
+            logger.info(f"Installation process finished with return code: {proc.returncode}")
+            if proc.returncode == 0:
                 return True
-            except FileNotFoundError:
-                # pkexec no disponible — intentar con sudo en terminal
+            else:
+                err_msg = stderr.decode().strip()
+                logger.error(f"Installation failed: {err_msg}")
+                # Fallback to terminal if pkexec fails or is not available
                 terminal_cmds = {
                     "pacman": f"sudo pacman -U --noconfirm {path}",
                     "apt":    f"sudo apt install -y {path}",
@@ -316,13 +289,15 @@ async def install_update_async(package_path: Path, password: str | None = None) 
                 }
                 cmd_str = terminal_cmds.get(mgr, "")
                 if cmd_str:
-                    # Abrir en la terminal disponible
                     for term in ["konsole", "gnome-terminal", "xterm", "alacritty"]:
                         if shutil.which(term):
                             subprocess.Popen([term, "-e", "bash", "-c",
                                              f"{cmd_str}; read -p 'Presiona Enter para cerrar'"],
                                              start_new_session=True)
                             return True
+                return False
+        except Exception as e:
+            logger.error(f"Async installation execution failed: {e}")
             return False
 
     return False
