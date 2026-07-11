@@ -40,8 +40,9 @@ class QuickAccessTile(QWidget):
         self._video_id = video_id
         self._thumbnail_url = thumbnail_url
         self._on_play = on_play
+        self.setObjectName("quickAccessTile")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setFixedHeight(56)
+        self.setFixedHeight(60)
         self._build_ui()
         if self._thumbnail_url:
             asyncio.ensure_future(self._load_thumbnail())
@@ -53,11 +54,11 @@ class QuickAccessTile(QWidget):
             return
         if path:
             from PySide6.QtGui import QPixmapCache
-            cache_key = f"{path}_56_56"
+            cache_key = f"{path}_44_44"
             pixmap = QPixmap()
             if QPixmapCache.find(cache_key, pixmap):
                 self.thumb.setPixmap(pixmap)
-                self.thumb.setStyleSheet("background: transparent; border-top-left-radius: 8px; border-bottom-left-radius: 8px;")
+                self.thumb.setStyleSheet("background: transparent; border-radius: 10px;")
             else:
                 from pyrolist.utils.image_cache import load_scaled_async
                 def on_loaded(bytes_data):
@@ -68,19 +69,20 @@ class QuickAccessTile(QWidget):
                         if pix.loadFromData(bytes_data):
                             QPixmapCache.insert(cache_key, pix)
                             self.thumb.setPixmap(pix)
-                            self.thumb.setStyleSheet("background: transparent; border-top-left-radius: 8px; border-bottom-left-radius: 8px;")
-                load_scaled_async(path, 56, 56, self, on_loaded)
+                            self.thumb.setStyleSheet("background: transparent; border-radius: 10px;")
+                load_scaled_async(path, 44, 44, self, on_loaded)
 
     def _build_ui(self):
         lay = QHBoxLayout(self)
-        lay.setContentsMargins(0, 0, 12, 0)
+        lay.setContentsMargins(10, 6, 8, 6)
         lay.setSpacing(12)
 
         self.thumb = QLabel()
-        self.thumb.setFixedSize(56, 56)
+        self.thumb.setFixedSize(44, 44)
         self.thumb.setText(Icon.get("album"))
         self.thumb.setFont(Icon.font(24))
         self.thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.thumb.setStyleSheet(f"background: {tokens.CURRENT.bg_high}; color: {tokens.CURRENT.text_secondary}; border-radius: 10px;")
         lay.addWidget(self.thumb)
 
         self.title_lbl = QLabel()
@@ -122,15 +124,17 @@ class QuickAccessTile(QWidget):
 
         if QuickAccessTile._cached_style and QuickAccessTile._cached_theme_id == theme_id:
             self.setStyleSheet(QuickAccessTile._cached_style)
+            if hasattr(self, "thumb") and (not self.thumb.pixmap() or self.thumb.pixmap().isNull()):
+                self.thumb.setStyleSheet(f"background: {t.bg_high}; color: {t.text_secondary}; border-radius: 10px;")
             return
 
         style = f"""
-            QWidget {{
+            QWidget#quickAccessTile {{
                 background-color: {t.bg_surface};
                 border: 1px solid {t.border};
-                border-radius: 8px;
+                border-radius: 12px;
             }}
-            QWidget:hover {{
+            QWidget#quickAccessTile:hover {{
                 background-color: {t.bg_elevated};
                 border-color: {t.border_focus};
             }}
@@ -161,6 +165,8 @@ class QuickAccessTile(QWidget):
         QuickAccessTile._cached_style = style
         QuickAccessTile._cached_theme_id = theme_id
         self.setStyleSheet(style)
+        if hasattr(self, "thumb") and (not self.thumb.pixmap() or self.thumb.pixmap().isNull()):
+            self.thumb.setStyleSheet(f"background: {t.bg_high}; color: {t.text_secondary}; border-radius: 10px;")
 
     def _on_download_clicked(self):
         if self._video_id:

@@ -133,15 +133,16 @@ class ReleaseNotificationRow(QWidget):
 
     def _build_ui(self):
         from pyrolist.ui.widgets.clickable_label import ClickableLabel
+        self.setMinimumHeight(68)
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setContentsMargins(14, 8, 14, 8)
         layout.setSpacing(12)
 
         # Left Avatar (Circular)
         self.avatar_img = ClickableLabel()
         self.avatar_img.set_clicked_callback(lambda: self.artist_clicked.emit(self.artist, self.artist_id or ""))
-        self.avatar_img.setFixedSize(44, 44)
-        self.avatar_img.setStyleSheet(f"background: {tokens.CURRENT.bg_high}; border-radius: 22px;")
+        self.avatar_img.setFixedSize(42, 42)
+        self.avatar_img.setStyleSheet(f"background: {tokens.CURRENT.bg_high}; border-radius: 21px;")
         layout.addWidget(self.avatar_img)
 
         # Middle Content
@@ -167,8 +168,8 @@ class ReleaseNotificationRow(QWidget):
         # Right Video Thumbnail (Rectangular)
         self.video_img = ClickableLabel()
         self.video_img.set_clicked_callback(lambda: self.song_clicked.emit(self.video_id, self.title, self.artist, self.thumb_url))
-        self.video_img.setFixedSize(72, 40)
-        self.video_img.setStyleSheet(f"background: {tokens.CURRENT.bg_high}; border-radius: 6px;")
+        self.video_img.setFixedSize(56, 40)
+        self.video_img.setStyleSheet(f"background: {tokens.CURRENT.bg_high}; border-radius: 8px;")
         layout.addWidget(self.video_img)
         
         self._update_styles()
@@ -193,19 +194,19 @@ class ReleaseNotificationRow(QWidget):
             pixmap = QPixmap()
             if pixmap.load(str(path)):
                 # Rectangular for video
-                video_pix = pixmap.scaled(72, 40, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
+                video_pix = pixmap.scaled(56, 40, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
                 self.video_img.setPixmap(video_pix)
-                self.video_img.setStyleSheet("background: transparent; border-radius: 6px;")
+                self.video_img.setStyleSheet("background: transparent; border-radius: 8px;")
                 
                 # Circular for avatar
-                scaled = pixmap.scaled(44, 44, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
-                out_pix = QPixmap(44, 44)
+                scaled = pixmap.scaled(42, 42, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
+                out_pix = QPixmap(42, 42)
                 out_pix.fill(Qt.GlobalColor.transparent)
                 
                 painter = QPainter(out_pix)
                 painter.setRenderHint(QPainter.RenderHint.Antialiasing)
                 path_obj = QPainterPath()
-                path_obj.addEllipse(QRectF(0, 0, 44, 44))
+                path_obj.addEllipse(QRectF(0, 0, 42, 42))
                 painter.setClipPath(path_obj)
                 painter.drawPixmap(0, 0, scaled)
                 painter.end()
@@ -352,11 +353,12 @@ class NotificationPanel(QWidget):
         root_layout.setSpacing(0)
         
         self.container = QWidget()
+        self.container.setObjectName("notificationPanelContainer")
         self.container.setFixedWidth(360)
         container_layout = QVBoxLayout(self.container)
         container_layout.setContentsMargins(0, 0, 0, 0)
         container_layout.setSpacing(0)
-        root_layout.addWidget(self.container, alignment=Qt.AlignmentFlag.AlignRight)
+        root_layout.addWidget(self.container)
 
         # Header
         header_widget = QWidget()
@@ -395,15 +397,9 @@ class NotificationPanel(QWidget):
         self._inner = QWidget()
         self._inner.setObjectName("notificationScrollInner")
         self._inner_layout = QVBoxLayout(self._inner)
-        self._inner_layout.setContentsMargins(0, 0, 0, 8)
+        self._inner_layout.setContentsMargins(8, 8, 8, 12)
         self._inner_layout.setSpacing(6)
         
-        # Divider
-        divider = QWidget()
-        divider.setFixedHeight(1)
-        divider.setStyleSheet(f"background: {tokens.CURRENT.border};")
-        self._inner_layout.addWidget(divider)
-
         # Sections inside inner layout
         # A. Empty State
         self.empty_widget = QWidget()
@@ -426,7 +422,7 @@ class NotificationPanel(QWidget):
         self.active_layout.setContentsMargins(0, 0, 0, 0)
         self.active_layout.setSpacing(4)
         
-        self.active_hdr = QLabel("  Descargas en curso")
+        self.active_hdr = QLabel("Descargas en curso")
         self.active_hdr.setFont(QFont("Inter", 10, QFont.Weight.Bold))
         self.active_layout.addWidget(self.active_hdr)
         self._inner_layout.addWidget(self.active_container)
@@ -438,7 +434,7 @@ class NotificationPanel(QWidget):
         self.history_layout.setContentsMargins(0, 0, 0, 0)
         self.history_layout.setSpacing(4)
 
-        self.history_hdr = QLabel("  Historial")
+        self.history_hdr = QLabel("Historial")
         self.history_hdr.setFont(QFont("Inter", 10, QFont.Weight.Bold))
         self.history_layout.addWidget(self.history_hdr)
         self._inner_layout.addWidget(self.history_container)
@@ -450,7 +446,7 @@ class NotificationPanel(QWidget):
         self.releases_layout.setContentsMargins(0, 0, 0, 0)
         self.releases_layout.setSpacing(0)
         
-        self.releases_hdr = QLabel("  Nuevos lanzamientos")
+        self.releases_hdr = QLabel("Nuevos lanzamientos")
         self.releases_hdr.setFont(QFont("Inter", 10, QFont.Weight.Bold))
         self.releases_layout.addWidget(self.releases_hdr)
         self._inner_layout.addWidget(self.releases_container)
@@ -469,17 +465,19 @@ class NotificationPanel(QWidget):
             return
         text_primary = tokens.CURRENT.text_primary
         text_secondary = tokens.CURRENT.text_secondary
-        bg_surface = tokens.CURRENT.bg_surface
+        bg_overlay = tokens.CURRENT.bg_overlay
         border_color = tokens.CURRENT.border
         accent = tokens.CURRENT.accent
         c = QColor(text_primary)
 
         self.setStyleSheet(f"""
             #notificationPanel {{
-                background-color: {tokens.CURRENT.bg_surface};
+                background: transparent;
+                border: none;
+            }}
+            #notificationPanelContainer {{
+                background: {bg_overlay};
                 border-left: 1px solid {border_color};
-                border-top-right-radius: 12px;
-                border-bottom-right-radius: 12px;
             }}
             #notificationScrollInner {{
                 background: transparent;
@@ -506,10 +504,37 @@ class NotificationPanel(QWidget):
             self.empty_icon.setStyleSheet(f" background: transparent;")
         if hasattr(self, "empty_lbl") and self.empty_lbl:
             self.empty_lbl.setStyleSheet(f"color: {text_secondary}; background: transparent;")
+        section_style = f"color: {text_secondary}; background: transparent; padding: 4px 6px 6px 6px;"
         if hasattr(self, "active_hdr") and self.active_hdr:
-            self.active_hdr.setStyleSheet(f"color: {text_secondary}; background: transparent;")
+            self.active_hdr.setStyleSheet(section_style)
         if hasattr(self, "history_hdr") and self.history_hdr:
-            self.history_hdr.setStyleSheet(f"color: {text_secondary}; background: transparent;")
+            self.history_hdr.setStyleSheet(section_style)
+        if hasattr(self, "releases_hdr") and self.releases_hdr:
+            self.releases_hdr.setStyleSheet(section_style)
+
+        self._scroll.setStyleSheet(f"""
+            QScrollArea {{ background: transparent; border: none; }}
+            QScrollBar:vertical {{
+                background: transparent;
+                width: 6px;
+                margin: 8px 2px 8px 0;
+            }}
+            QScrollBar::handle:vertical {{
+                background: rgba({c.red()},{c.green()},{c.blue()},0.12);
+                border-radius: 3px;
+                min-height: 36px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background: rgba({QColor(accent).red()},{QColor(accent).green()},{QColor(accent).blue()},0.42);
+            }}
+            QScrollBar::add-line:vertical,
+            QScrollBar::sub-line:vertical,
+            QScrollBar::add-page:vertical,
+            QScrollBar::sub-page:vertical {{
+                background: transparent;
+                height: 0;
+            }}
+        """)
 
     def changeEvent(self, event):
         from PySide6.QtCore import QEvent

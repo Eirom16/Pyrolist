@@ -187,11 +187,6 @@ class IconButton(QPushButton):
             painter.setBrush(QBrush(color))
             painter.drawEllipse(self.rect())
             
-        if self._is_active:
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(active_color))
-            painter.drawEllipse(w // 2 - 3, h - 6, 6, 4)
-            
         if self.text():
             painter.setFont(self.font())
             text_color = self.palette().color(self.foregroundRole())

@@ -369,17 +369,17 @@ class MiniPlayerWidget(QWidget):
         base = QColor(tokens.CURRENT.bg_base)
         accent = QColor(tokens.CURRENT.accent)
         is_light = base.lightness() > 150
-        surface_alpha = 0.92 if is_light else 0.76
-        border_alpha = 0.22 if is_light else 0.30
-        hover_alpha = 0.10 if is_light else 0.16
+        surface_alpha = 0.94 if is_light else 0.86
+        border_alpha = 0.18 if is_light else 0.22
+        hover_alpha = 0.10 if is_light else 0.14
         placeholder_bg = "rgba(0,0,0,0.08)" if is_light else "rgba(255,255,255,0.10)"
         
         if not hasattr(self, "_card_shadow"):
             self._card_shadow = QGraphicsDropShadowEffect(self.card)
             self.card.setGraphicsEffect(self._card_shadow)
-        self._card_shadow.setBlurRadius(28 if is_light else 32)
-        self._card_shadow.setOffset(0, 5 if is_light else 6)
-        self._card_shadow.setColor(QColor(8, 10, 20, 52 if is_light else 128))
+        self._card_shadow.setBlurRadius(30 if is_light else 34)
+        self._card_shadow.setOffset(0, 6 if is_light else 8)
+        self._card_shadow.setColor(QColor(8, 10, 20, 48 if is_light else 150))
 
         # 1. Floating capsule: adaptive frosted material, no nested black panels.
         self.card.setStyleSheet(f"""

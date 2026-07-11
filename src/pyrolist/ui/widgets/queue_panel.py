@@ -40,7 +40,7 @@ class QueuePanel(QWidget):
         self.queue_list = QWidget()
         self.queue_list.setObjectName("queueList")
         self.queue_layout = QVBoxLayout(self.queue_list)
-        self.queue_layout.setContentsMargins(0, 0, 0, 0)
+        self.queue_layout.setContentsMargins(0, 0, 0, 112)
         self.queue_layout.setSpacing(8)
         
         self.scroll.setWidget(self.queue_list)

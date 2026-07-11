@@ -126,6 +126,10 @@ class NowPlayingScreen(QWidget):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self.ambient_bg.setGeometry(self.rect())
+        if hasattr(self, "artwork"):
+            target_size = 240 if self.height() < 700 else 280
+            if self.artwork.width() != target_size:
+                self.artwork.setFixedSize(target_size, target_size)
 
     def _make_btn(self, icon_name, size=24, color="#FFFFFF", btn_size=40, primary=False):
         if primary:
@@ -185,7 +189,10 @@ class NowPlayingScreen(QWidget):
         outer_layout.addLayout(top_bar)
 
         layout = QHBoxLayout()
-        layout.setContentsMargins(40, 16, 40, 120)
+        # The mini player floats above this screen, so keeping a large reserved
+        # bottom margin here compresses the left column and can make playback
+        # controls overlap the album artwork on shorter windows.
+        layout.setContentsMargins(40, 16, 40, 24)
         layout.setSpacing(40)
 
         # Left Side (Artwork & Details + Controls)
@@ -199,6 +206,7 @@ class NowPlayingScreen(QWidget):
 
         self.artwork = QLabel()
         self.artwork.setFixedSize(280, 280)
+        self.artwork.setScaledContents(True)
         self.artwork.setObjectName("nowPlayingArtwork")
         self.artwork.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.artwork.setText(Icon.get("library_music"))
@@ -339,7 +347,7 @@ class NowPlayingScreen(QWidget):
         self.lyrics_container.setStyleSheet("#lyricsContainer { background: transparent; }")
         self.lyrics_layout = QVBoxLayout(self.lyrics_container)
         self.lyrics_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        self.lyrics_layout.setContentsMargins(16, 16, 16, 80)
+        self.lyrics_layout.setContentsMargins(16, 16, 16, 112)
         self.lyrics_scroll.setWidget(self.lyrics_container)
         
         self._lyric_lines = []
@@ -366,6 +374,7 @@ class NowPlayingScreen(QWidget):
         self.related_container.setStyleSheet("#relatedContainer { background: transparent; }")
         self.related_layout = QVBoxLayout(self.related_container)
         self.related_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.related_layout.setContentsMargins(0, 0, 0, 112)
         self.related_scroll.setWidget(self.related_container)
         
         self.tabs.addTab(self.related_scroll, "SIMILARES")
@@ -739,8 +748,8 @@ class NowPlayingScreen(QWidget):
             pixmap = QPixmap(str(path))
             logger.debug(f"NowPlaying: QPixmap null={pixmap.isNull()}, size={pixmap.width()}x{pixmap.height()}")
             if not pixmap.isNull():
-                size = 280
-                radius = 24
+                size = max(220, self.artwork.width() or 280)
+                radius = 24 if size >= 270 else 20
                 pixmap = pixmap.scaled(size, size, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
                 # Center crop
                 x = (pixmap.width() - size) // 2

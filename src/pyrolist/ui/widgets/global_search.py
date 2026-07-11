@@ -209,19 +209,22 @@ class _SearchDropdown(GlassPanel):
         from pyrolist.ui.design import tokens
         from PySide6.QtGui import QColor
         is_light = QColor(tokens.CURRENT.bg_surface).lightness() > 128
-        color_str = "rgba(0,0,0,0.18)" if is_light else "rgba(255,255,255,0.15)"
-        hover_color_str = "rgba(0,0,0,0.30)" if is_light else "rgba(255,255,255,0.30)"
+        color_str = "rgba(0,0,0,0.16)" if is_light else "rgba(255,255,255,0.12)"
+        hover_color_str = tokens.CURRENT.border_focus
         
         self._scroll.setStyleSheet(f"""
             QScrollArea {{ background: transparent; border: none; }}
             QScrollBar:vertical {{
-                background: transparent; width: 6px; margin: 4px 2px;
+                background: transparent; width: 6px; margin: 8px 2px 8px 0;
             }}
             QScrollBar::handle:vertical {{
-                background: {color_str}; border-radius: 3px; min-height: 30px;
+                background: {color_str}; border-radius: 3px; min-height: 36px;
             }}
             QScrollBar::handle:vertical:hover {{ background: {hover_color_str}; }}
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
+            QScrollBar::add-line:vertical,
+            QScrollBar::sub-line:vertical,
+            QScrollBar::add-page:vertical,
+            QScrollBar::sub-page:vertical {{ background: transparent; height: 0; }}
         """)
 
     def changeEvent(self, event):

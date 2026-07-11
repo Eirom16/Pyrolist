@@ -16,17 +16,17 @@ SongCard IconButton#btn_like[liked="false"] {
     border-radius: 20px;
 }
 SongCard IconButton#btn_like[liked="false"]:hover {
-    background-color: rgba(255, 74, 112, 0.15);
-    color: #FF4A70;
+    background-color: rgba(244, 114, 182, 0.15);
+    color: #F472B6;
 }
 SongCard IconButton#btn_like[liked="true"] {
-    color: #FF4A70;
+    color: #F472B6;
     background: transparent;
     border: none;
     border-radius: 20px;
 }
 SongCard IconButton#btn_like[liked="true"]:hover {
-    background-color: rgba(255, 74, 112, 0.15);
+    background-color: rgba(244, 114, 182, 0.15);
 }
 SongCard IconButton#btn_play {
     background-color: transparent;
@@ -168,33 +168,53 @@ QScrollArea {
 /* ─── Scroll Bars ──────────────────────────────────────────── */
 QScrollBar:vertical {
     background: transparent;
-    width: 5px;
-    margin: 0;
+    width: 6px;
+    margin: 8px 3px 8px 0;
 }
 
 QScrollBar::handle:vertical {
-    background: rgba(167,139,250,0.22);
+    background: rgba(255,255,255,0.12);
     border-radius: 3px;
-    min-height: 30px;
+    min-height: 36px;
 }
 
 QScrollBar::handle:vertical:hover {
-    background: rgba(167,139,250,0.50);
+    background: rgba(167,139,250,0.42);
 }
 
 QScrollBar::add-line:vertical,
 QScrollBar::sub-line:vertical {
     height: 0px;
+    background: transparent;
+}
+
+QScrollBar::add-page:vertical,
+QScrollBar::sub-page:vertical {
+    background: transparent;
 }
 
 QScrollBar:horizontal {
     background: transparent;
-    height: 5px;
+    height: 6px;
+    margin: 0 8px 3px 8px;
 }
 
 QScrollBar::handle:horizontal {
-    background: rgba(167,139,250,0.22);
+    background: rgba(255,255,255,0.12);
     border-radius: 3px;
+    min-width: 36px;
+}
+
+QScrollBar::handle:horizontal:hover {
+    background: rgba(167,139,250,0.42);
+}
+
+QScrollBar::add-line:horizontal,
+QScrollBar::sub-line:horizontal,
+QScrollBar::add-page:horizontal,
+QScrollBar::sub-page:horizontal {
+    width: 0px;
+    background: transparent;
 }
 
 /* ─── Line Edits (Inputs) ──────────────────────────────────── */
@@ -317,9 +337,9 @@ QTabBar::tab {
     color: #6B6B9B;
     padding: 10px 20px;
     border: none;
-    font-family: 'Nunito';
-    font-size: 14px;
-    font-weight: 600;
+    font-family: 'Inter';
+    font-size: 13px;
+    font-weight: 700;
 }
 
 QTabBar::tab:selected {

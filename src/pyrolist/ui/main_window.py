@@ -458,7 +458,7 @@ class MainWindow(QMainWindow):
         if central is None:
             return
 
-        margin = 12
+        margin = 16
         player_height = self.mini_player.height()
         sidebar_width = self.sidebar.width() if hasattr(self, "sidebar") and self.sidebar.isVisible() else 0
         
@@ -466,17 +466,22 @@ class MainWindow(QMainWindow):
         if hasattr(self, "notification_panel") and self.notification_panel.isVisible():
             right_panel_width = self.notification_panel.maximumWidth()
             
-        x = sidebar_width + margin
-        width = max(0, central.width() - x - margin - right_panel_width)
+        content_x = sidebar_width + margin
+        available_width = max(0, central.width() - content_x - margin - right_panel_width)
+        max_player_width = 1060
+        width = min(available_width, max_player_width)
+        x = content_x + max(0, (available_width - width) // 2)
         y = central.height() - player_height - margin if player_height > 0 else central.height()
         self.mini_player.setGeometry(x, max(0, y), width, max(0, player_height))
         self.mini_player.raise_()
 
         if hasattr(self, "stack"):
-            bottom_margin = player_height + margin * 2 if player_height > 0 else 0
+            # The mini player is an overlay attached to the central widget. Do not
+            # reserve bottom space in the stacked content; that creates a visible
+            # solid strip underneath instead of the intended floating effect.
             current_margins = self.stack.contentsMargins()
-            if current_margins.bottom() != bottom_margin:
-                self.stack.setContentsMargins(0, 0, 0, bottom_margin)
+            if current_margins.bottom() != 0:
+                self.stack.setContentsMargins(0, 0, 0, 0)
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)

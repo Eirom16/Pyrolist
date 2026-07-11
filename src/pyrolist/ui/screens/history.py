@@ -76,7 +76,7 @@ class HistoryScreen(QWidget):
         
         self.content_layout = QVBoxLayout()
         self.content_layout.setSpacing(16)
-        self.content_layout.setContentsMargins(24, 0, 24, 24)
+        self.content_layout.setContentsMargins(24, 0, 24, 112)
         
         self._content_wrapper_layout.addLayout(self.content_layout)
         self._content_wrapper_layout.addStretch()
