@@ -7,14 +7,13 @@ botones Actualizar / Posponer / Ver en GitHub.
 """
 from __future__ import annotations
 
-import asyncio
 import webbrowser
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QTextEdit, QFrame, QWidget, QApplication
 )
 from PySide6.QtCore import Qt, Signal, QTimer
-from PySide6.QtGui import QFont, QColor
+from PySide6.QtGui import QColor
 from qasync import asyncSlot
 
 from pyrolist.ui.design.fonts import AppFont
@@ -69,6 +68,11 @@ class UpdateDialog(QDialog):
     def showEvent(self, event) -> None:
         super().showEvent(event)
         self._center_on_parent()
+
+    def reject(self) -> None:
+        if self._downloading:
+            return
+        super().reject()
 
     def hideEvent(self, event) -> None:
         if UpdateDialog._active_instance is self:
@@ -222,7 +226,7 @@ class UpdateDialog(QDialog):
         root.addWidget(panel)
 
     def _center_on_parent(self) -> None:
-        parent = self.parent()
+        parent = self.parentWidget()
         if parent and parent.isVisible():
             parent_geo = parent.geometry()
             x = parent_geo.x() + (parent_geo.width()  - self.width())  // 2
@@ -241,7 +245,6 @@ class UpdateDialog(QDialog):
     async def _on_update_clicked(self) -> None:
         from pyrolist.ui.design import tokens
         import platform
-        from loguru import logger
 
         asset = self.release.get_asset_for_platform()
         if not asset:

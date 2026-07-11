@@ -41,10 +41,14 @@ jobs:
           VERSION="${VERSION#v}"   # quitar la 'v' inicial
           sed -i "s/VERSION_PLACEHOLDER/$VERSION/g" packaging/arch/PKGBUILD
 
-      - name: Actualizar CURRENT_VERSION en el código
+      - name: Actualizar versión en el código
         run: |
-          sed -i "s/CURRENT_VERSION = \".*\"/CURRENT_VERSION = \"${{ github.ref_name }}\"/" \
+          VERSION="${{ github.ref_name }}"
+          VERSION_NO_V="${VERSION#v}"
+          sed -i "s/CURRENT_VERSION = \".*\"/CURRENT_VERSION = \"${VERSION}\"/" \
             src/pyrolist/utils/updater.py
+          sed -i "s/__version__ = \".*\"/__version__ = \"${VERSION_NO_V}\"/" \
+            src/pyrolist/__init__.py
 
       - name: Crear usuario builder (makepkg no puede correr como root)
         run: |
@@ -83,10 +87,14 @@ jobs:
             dpkg-dev \
             lintian
 
-      - name: Actualizar CURRENT_VERSION en el código
+      - name: Actualizar versión en el código
         run: |
-          sed -i "s/CURRENT_VERSION = \".*\"/CURRENT_VERSION = \"${{ github.ref_name }}\"/" \
+          VERSION="${{ github.ref_name }}"
+          VERSION_NO_V="${VERSION#v}"
+          sed -i "s/CURRENT_VERSION = \".*\"/CURRENT_VERSION = \"${VERSION}\"/" \
             src/pyrolist/utils/updater.py
+          sed -i "s/__version__ = \".*\"/__version__ = \"${VERSION_NO_V}\"/" \
+            src/pyrolist/__init__.py
 
       - name: Preparar estructura del paquete
         run: |
@@ -170,10 +178,14 @@ jobs:
       - name: Setup estructura rpmbuild
         run: rpmdev-setuptree
 
-      - name: Actualizar CURRENT_VERSION en el código
+      - name: Actualizar versión en el código
         run: |
-          sed -i "s/CURRENT_VERSION = \".*\"/CURRENT_VERSION = \"${{ github.ref_name }}\"/" \
+          VERSION="${{ github.ref_name }}"
+          VERSION_NO_V="${VERSION#v}"
+          sed -i "s/CURRENT_VERSION = \".*\"/CURRENT_VERSION = \"${VERSION}\"/" \
             src/pyrolist/utils/updater.py
+          sed -i "s/__version__ = \".*\"/__version__ = \"${VERSION_NO_V}\"/" \
+            src/pyrolist/__init__.py
 
       - name: Preparar fuentes
         run: |
@@ -232,10 +244,14 @@ jobs:
             python3-devel \
             python3-pip
 
-      - name: Actualizar CURRENT_VERSION en el código
+      - name: Actualizar versión en el código
         run: |
-          sed -i "s/CURRENT_VERSION = \".*\"/CURRENT_VERSION = \"${{ github.ref_name }}\"/" \
+          VERSION="${{ github.ref_name }}"
+          VERSION_NO_V="${VERSION#v}"
+          sed -i "s/CURRENT_VERSION = \".*\"/CURRENT_VERSION = \"${VERSION}\"/" \
             src/pyrolist/utils/updater.py
+          sed -i "s/__version__ = \".*\"/__version__ = \"${VERSION_NO_V}\"/" \
+            src/pyrolist/__init__.py
 
       - name: Construir RPM para openSUSE
         run: |
@@ -291,9 +307,13 @@ jobs:
         shell: pwsh
         run: |
           $version = "${{ github.ref_name }}"
+          $versionNoV = $version.TrimStart("v")
           (Get-Content src\pyrolist\utils\updater.py) `
             -replace 'CURRENT_VERSION = ".*"', "CURRENT_VERSION = `"$version`"" |
             Set-Content src\pyrolist\utils\updater.py
+          (Get-Content src\pyrolist\__init__.py) `
+            -replace '__version__ = ".*"', "__version__ = `"$versionNoV`"" |
+            Set-Content src\pyrolist\__init__.py
 
       - name: Construir con PyInstaller
         run: pyinstaller pyrolist.spec

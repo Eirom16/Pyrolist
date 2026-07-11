@@ -39,7 +39,7 @@ class SudoPasswordDialog(QDialog):
         self._center_on_parent()
 
     def _center_on_parent(self) -> None:
-        parent = self.parent()
+        parent = self.parentWidget()
         if parent and parent.isVisible():
             parent_geo = parent.geometry()
             x = parent_geo.x() + (parent_geo.width()  - self.width())  // 2
