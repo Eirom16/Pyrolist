@@ -1,17 +1,15 @@
-# Pyrolist v2.1.3
+# Pyrolist v2.1.4
 
 ## Resumen
 
-Pyrolist v2.1.3 es un hotfix crítico del actualizador automático. Corrige el caso donde una instalación exitosa podía seguir reportándose como desactualizada porque el paquete instalado conservaba metadatos internos de una versión anterior.
+Pyrolist v2.1.4 trae mejoras visuales y de espaciado en la interfaz, incluyendo refinamientos en el panel de notificaciones y la cola de reproducción.
 
-## Correcciones
+## Mejoras en Interfaz (UI)
 
-- **Versión instalada:** `CURRENT_VERSION` ahora se deriva de `pyrolist.__version__`, evitando duplicar versiones entre el actualizador y el paquete instalado.
-- **Paquetes Arch:** El `PKGBUILD` inyecta `pkgver` en `src/pyrolist/__init__.py` y `pyproject.toml` dentro del tarball descargado antes de empaquetar, evitando que el binario quede con una versión interna antigua.
-- **Workflow multiplataforma:** Las builds actualizan `__version__` y `pyproject.toml` como fuentes de versión, en lugar de editar una constante del actualizador que ya no existe.
-- **Acerca de / Actualizaciones:** Limpieza de diagnósticos menores en la pantalla de ajustes relacionada con notificaciones de actualización.
+- **Panel de Notificaciones:** Ajustes de espaciado, bordes redondeados y rediseño de márgenes para una apariencia más limpia y transparente.
+- **Cola de reproducción:** Corrección del espacio inferior de la lista (112px de margen) para permitir una navegación más cómoda sin ser tapada por otros elementos.
 
 ## Build y release
 
-- Versión subida a `2.1.3` / `v2.1.3`.
-- Esta versión debe reemplazar a `v2.1.2` como release recomendada para cortar el ciclo de actualización repetida.
+- Versión subida a `2.1.4` / `v2.1.4`.
+- El workflow de compilación multiplataforma generará paquetes nativos actualizados para todos los sistemas soportados.
