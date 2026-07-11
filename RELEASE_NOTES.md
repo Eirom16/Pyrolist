@@ -1,15 +1,15 @@
-# Pyrolist v2.1.1 (Hotfix)
+# Pyrolist v2.1.2
 
 ## Resumen
 
-¡Pyrolist v2.1.1 ya está aquí! Esta es una actualización menor de corrección de errores (Hotfix) centrada en solucionar un fallo crítico con el sistema de actualizaciones en sistemas operativos Linux.
+¡Pyrolist v2.1.2 ya está aquí! Esta es una actualización menor de mantenimiento enfocada en optimizar nuestros flujos de compilación y mejorar la estabilidad de la interfaz en los diálogos de actualización.
 
 ## Mejoras y Correcciones de Errores
 
-- **Actualizador en Linux:** Se ha corregido un error crítico donde la aplicación se cerraba a los 2 segundos de iniciar la actualización, matando el diálogo de autenticación (Polkit) antes de que pudieses colocar tu contraseña. Ahora el actualizador esperará pacientemente a que se complete la elevación de permisos mediante `pkexec`.
-- **Seguridad en Elevación de Privilegios:** Se ha eliminado un parche anterior inestable para el ingreso de la contraseña (SudoPasswordDialog) y ahora se delega el 100% de la elevación de permisos a las herramientas nativas y seguras del sistema operativo de Linux (Polkit).
+- **Mantenimiento Interno:** Se ha implementado la sincronización automática de versiones en el workflow multiplataforma, asegurando que todos los componentes (incluidos `__init__.py` y `updater.py`) siempre reflejen la versión correcta del tag del lanzamiento sin necesidad de intervención manual.
+- **Diálogos de Actualización:** Corrección de la obtención de la ventana padre (`parentWidget()`) y prevención de cierre del diálogo si una descarga de actualización ya ha comenzado.
 
 ## Build y release
 
-- Versión subida a `2.1.1` / `v2.1.1`.
+- Versión subida a `2.1.2` / `v2.1.2`.
 - El workflow de compilación multiplataforma generará paquetes nativos actualizados para todos los sistemas soportados.
