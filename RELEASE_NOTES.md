@@ -1,15 +1,17 @@
-# Pyrolist v2.1.2
+# Pyrolist v2.1.3
 
 ## Resumen
 
-¡Pyrolist v2.1.2 ya está aquí! Esta es una actualización menor de mantenimiento enfocada en optimizar nuestros flujos de compilación y mejorar la estabilidad de la interfaz en los diálogos de actualización.
+Pyrolist v2.1.3 es un hotfix crítico del actualizador automático. Corrige el caso donde una instalación exitosa podía seguir reportándose como desactualizada porque el paquete instalado conservaba metadatos internos de una versión anterior.
 
-## Mejoras y Correcciones de Errores
+## Correcciones
 
-- **Mantenimiento Interno:** Se ha implementado la sincronización automática de versiones en el workflow multiplataforma, asegurando que todos los componentes (incluidos `__init__.py` y `updater.py`) siempre reflejen la versión correcta del tag del lanzamiento sin necesidad de intervención manual.
-- **Diálogos de Actualización:** Corrección de la obtención de la ventana padre (`parentWidget()`) y prevención de cierre del diálogo si una descarga de actualización ya ha comenzado.
+- **Versión instalada:** `CURRENT_VERSION` ahora se deriva de `pyrolist.__version__`, evitando duplicar versiones entre el actualizador y el paquete instalado.
+- **Paquetes Arch:** El `PKGBUILD` inyecta `pkgver` en `src/pyrolist/__init__.py` y `pyproject.toml` dentro del tarball descargado antes de empaquetar, evitando que el binario quede con una versión interna antigua.
+- **Workflow multiplataforma:** Las builds actualizan `__version__` y `pyproject.toml` como fuentes de versión, en lugar de editar una constante del actualizador que ya no existe.
+- **Acerca de / Actualizaciones:** Limpieza de diagnósticos menores en la pantalla de ajustes relacionada con notificaciones de actualización.
 
 ## Build y release
 
-- Versión subida a `2.1.2` / `v2.1.2`.
-- El workflow de compilación multiplataforma generará paquetes nativos actualizados para todos los sistemas soportados.
+- Versión subida a `2.1.3` / `v2.1.3`.
+- Esta versión debe reemplazar a `v2.1.2` como release recomendada para cortar el ciclo de actualización repetida.

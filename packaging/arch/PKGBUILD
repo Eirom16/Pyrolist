@@ -36,6 +36,8 @@ sha256sums=('SKIP')
 
 build() {
     cd "Pyrolist-$pkgver"
+    sed -i "s/__version__ = \".*\"/__version__ = \"$pkgver\"/" src/pyrolist/__init__.py
+    sed -i "s/version = \".*\"/version = \"$pkgver\"/" pyproject.toml
     mkdir -p "$srcdir/tmp_deps"
     pip install --isolated --break-system-packages --target="$srcdir/tmp_deps" \
         ytmusicapi \

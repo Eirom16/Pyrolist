@@ -11,8 +11,6 @@ import asyncio
 import platform
 import shutil
 import subprocess
-import sys
-import os
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -21,7 +19,12 @@ import httpx
 from loguru import logger
 
 # ── Constantes ────────────────────────────────────────────────────────────────
-CURRENT_VERSION = "v2.1.1"          # actualizar en cada release
+try:
+    from pyrolist import __version__
+except Exception:
+    __version__ = "0.0.0"
+
+CURRENT_VERSION = f"v{__version__}"
 GITHUB_API_URL  = (
     "https://api.github.com/repos/Eirom16/pyrolist/releases/latest"
 )
@@ -47,7 +50,6 @@ class ReleaseInfo:
                        → pyrolist-X.Y.Z-1-x86_64.pkg.tar.zst (si pacman)
         """
         system = platform.system()
-        machine = platform.machine().lower()
 
         if system == "Windows":
             suffix = "-Setup.exe"

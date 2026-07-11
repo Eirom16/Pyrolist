@@ -45,10 +45,10 @@ jobs:
         run: |
           VERSION="${{ github.ref_name }}"
           VERSION_NO_V="${VERSION#v}"
-          sed -i "s/CURRENT_VERSION = \".*\"/CURRENT_VERSION = \"${VERSION}\"/" \
-            src/pyrolist/utils/updater.py
           sed -i "s/__version__ = \".*\"/__version__ = \"${VERSION_NO_V}\"/" \
             src/pyrolist/__init__.py
+          sed -i "s/version = \".*\"/version = \"${VERSION_NO_V}\"/" \
+            pyproject.toml
 
       - name: Crear usuario builder (makepkg no puede correr como root)
         run: |
@@ -91,10 +91,10 @@ jobs:
         run: |
           VERSION="${{ github.ref_name }}"
           VERSION_NO_V="${VERSION#v}"
-          sed -i "s/CURRENT_VERSION = \".*\"/CURRENT_VERSION = \"${VERSION}\"/" \
-            src/pyrolist/utils/updater.py
           sed -i "s/__version__ = \".*\"/__version__ = \"${VERSION_NO_V}\"/" \
             src/pyrolist/__init__.py
+          sed -i "s/version = \".*\"/version = \"${VERSION_NO_V}\"/" \
+            pyproject.toml
 
       - name: Preparar estructura del paquete
         run: |
@@ -182,10 +182,10 @@ jobs:
         run: |
           VERSION="${{ github.ref_name }}"
           VERSION_NO_V="${VERSION#v}"
-          sed -i "s/CURRENT_VERSION = \".*\"/CURRENT_VERSION = \"${VERSION}\"/" \
-            src/pyrolist/utils/updater.py
           sed -i "s/__version__ = \".*\"/__version__ = \"${VERSION_NO_V}\"/" \
             src/pyrolist/__init__.py
+          sed -i "s/version = \".*\"/version = \"${VERSION_NO_V}\"/" \
+            pyproject.toml
 
       - name: Preparar fuentes
         run: |
@@ -248,10 +248,10 @@ jobs:
         run: |
           VERSION="${{ github.ref_name }}"
           VERSION_NO_V="${VERSION#v}"
-          sed -i "s/CURRENT_VERSION = \".*\"/CURRENT_VERSION = \"${VERSION}\"/" \
-            src/pyrolist/utils/updater.py
           sed -i "s/__version__ = \".*\"/__version__ = \"${VERSION_NO_V}\"/" \
             src/pyrolist/__init__.py
+          sed -i "s/version = \".*\"/version = \"${VERSION_NO_V}\"/" \
+            pyproject.toml
 
       - name: Construir RPM para openSUSE
         run: |
@@ -308,12 +308,12 @@ jobs:
         run: |
           $version = "${{ github.ref_name }}"
           $versionNoV = $version.TrimStart("v")
-          (Get-Content src\pyrolist\utils\updater.py) `
-            -replace 'CURRENT_VERSION = ".*"', "CURRENT_VERSION = `"$version`"" |
-            Set-Content src\pyrolist\utils\updater.py
           (Get-Content src\pyrolist\__init__.py) `
             -replace '__version__ = ".*"', "__version__ = `"$versionNoV`"" |
             Set-Content src\pyrolist\__init__.py
+          (Get-Content pyproject.toml) `
+            -replace 'version = ".*"', "version = `"$versionNoV`"" |
+            Set-Content pyproject.toml
 
       - name: Construir con PyInstaller
         run: pyinstaller pyrolist.spec

@@ -155,7 +155,6 @@ class AboutScreen(QWidget):
     async def _manual_check(self) -> None:
         from pyrolist.utils.updater import check_for_updates, CURRENT_VERSION
         from pyrolist.ui.widgets.update_dialog import UpdateDialog
-        from pyrolist.ui.design.icons import Icon
 
         self._check_btn.setEnabled(False)
         self._check_btn.setText("Comprobando...")
@@ -170,8 +169,9 @@ class AboutScreen(QWidget):
             dlg.show()
         else:
             main_win = self.window()
-            if hasattr(main_win, 'show_notification'):
-                main_win.show_notification(
+            show_notification = getattr(main_win, "show_notification", None)
+            if callable(show_notification):
+                show_notification(
                     f"Ya tienes la última versión ({CURRENT_VERSION})",
                     "success"
                 )
@@ -195,9 +195,9 @@ class AboutScreen(QWidget):
             self._logo.setGraphicsEffect(self._logo_effect)
             self._logo.update()
         if hasattr(self, "version") and self.version:
-            self.version.setStyleSheet(f" background: transparent;")
+            self.version.setStyleSheet(" background: transparent;")
         if hasattr(self, "description") and self.description:
-            self.description.setStyleSheet(f" background: transparent;")
+            self.description.setStyleSheet(" background: transparent;")
         if hasattr(self, "_current_ver_lbl") and self._current_ver_lbl:
             self._current_ver_lbl.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent;")
         if hasattr(self, "_update_status_lbl") and self._update_status_lbl:
