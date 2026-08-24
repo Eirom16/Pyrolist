@@ -92,10 +92,10 @@ class HistoryScreen(QWidget):
         secs = seconds % 60
         return f"{mins}:{secs:02d}"
 
-    def _handle_play(self, video_id, title, artists, thumbnail_url=""):
+    def _handle_play(self, video_id, title, artists, thumbnail_url="", duration_ms=0):
         try:
             if self.on_play_song:
-                self.on_play_song(video_id, title, artists, "", 0, thumbnail_url)
+                self.on_play_song(video_id, title, artists, "", duration_ms, thumbnail_url)
         except Exception as e:
             logger.error(f"Play error: {e}")
 
@@ -252,12 +252,24 @@ class HistoryScreen(QWidget):
         
         for i in range(start, end):
             entry = items[i]
+            # Parse duration string to ms
+            dur_ms = 0
+            dur_str = entry.get('duration', '')
+            if dur_str:
+                try:
+                    parts = str(dur_str).split(':')
+                    if len(parts) == 2:
+                        dur_ms = (int(parts[0]) * 60 + int(parts[1])) * 1000
+                    elif len(parts) == 3:
+                        dur_ms = (int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])) * 1000
+                except (ValueError, IndexError):
+                    pass
             card = SongCard(
                 title=entry['title'],
                 artist=entry['artist'],
                 duration=entry['duration'],
                 thumbnail_url=entry['thumbnail_url'],
-                on_play=partial(self._handle_play, entry['videoId'], entry['title'], entry['artist'], entry['thumbnail_url']),
+                on_play=partial(self._handle_play, entry['videoId'], entry['title'], entry['artist'], entry['thumbnail_url'], dur_ms),
                 video_id=entry['videoId'],
                 is_liked=entry['videoId'] in self._liked_ids,
             )

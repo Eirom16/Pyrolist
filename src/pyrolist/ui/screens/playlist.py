@@ -461,13 +461,25 @@ class PlaylistScreen(QWidget):
             track_thumbnail_url = track_thumbnails[-1].get('url', '') if track_thumbnails else ''
             
             if video_id:
+                # Parse duration string to ms
+                dur_ms = 0
+                if duration:
+                    try:
+                        parts = str(duration).split(':')
+                        if len(parts) == 2:
+                            dur_ms = (int(parts[0]) * 60 + int(parts[1])) * 1000
+                        elif len(parts) == 3:
+                            dur_ms = (int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])) * 1000
+                    except (ValueError, IndexError):
+                        pass
+                
                 is_liked = video_id in getattr(self, "liked_video_ids", set())
                 card = SongCard(
                     title=title,
                     artist=artist_names,
                     duration=duration,
                     thumbnail_url=track_thumbnail_url,
-                    on_play=partial(self._handle_play, video_id, title, artist_names, i, thumbnail_url=track_thumbnail_url),
+                    on_play=partial(self._handle_play, video_id, title, artist_names, i, thumbnail_url=track_thumbnail_url, duration_ms=dur_ms),
                     video_id=video_id,
                     is_liked=is_liked,
                     playlist_id=self._playlist_id or "",
@@ -571,20 +583,8 @@ class PlaylistScreen(QWidget):
         return fallback
 
     def _duration_to_ms(self, value) -> int:
-        if value is None or value == "":
-            return 0
-        if isinstance(value, (int, float)):
-            return int(value * 1000)
-        text = str(value).strip()
-        try:
-            if ":" not in text:
-                return int(float(text) * 1000)
-            total_seconds = 0
-            for part in text.split(":"):
-                total_seconds = total_seconds * 60 + int(part)
-            return total_seconds * 1000
-        except (TypeError, ValueError):
-            return 0
+        from pyrolist.utils.time_utils import parse_duration_to_ms
+        return parse_duration_to_ms(value)
 
     def _track_duration_ms(self, track: dict) -> int:
         for key in ('duration_seconds', 'durationSeconds', 'lengthSeconds'):
@@ -629,7 +629,7 @@ class PlaylistScreen(QWidget):
     def _is_local_playlist(self) -> bool:
         return bool((self._playlist_data or {}).get('is_local_playlist', False))
 
-    def _handle_play(self, video_id, title, artists, index=0, thumbnail_url=""):
+    def _handle_play(self, video_id, title, artists, index=0, thumbnail_url="", duration_ms=0):
         if self._is_local_playlist():
             if self.on_play_local_playlist:
                 self.on_play_local_playlist(self._local_tracks_meta, index)
@@ -654,7 +654,7 @@ class PlaylistScreen(QWidget):
                     queue_index,
                 )
             else:
-                self.on_play_song(video_id, title, artists, "", 0, thumbnail_url)
+                self.on_play_song(video_id, title, artists, "", duration_ms, thumbnail_url)
 
     def _handle_play_entire(self, shuffle: bool) -> None:
         if self._is_local_playlist():

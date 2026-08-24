@@ -300,10 +300,10 @@ class StatsScreen(QWidget):
         secs = seconds % 60
         return f"{mins}:{secs:02d}"
 
-    def _handle_play(self, video_id, title, artists, thumbnail_url=""):
+    def _handle_play(self, video_id, title, artists, thumbnail_url, duration_ms=0):
         try:
             if self.on_play_song:
-                self.on_play_song(video_id, title, artists, "", 0, thumbnail_url)
+                self.on_play_song(video_id, title, artists, "", duration_ms, thumbnail_url)
         except Exception as e:
             logger.error(f"Play error: {e}")
 

@@ -479,11 +479,11 @@ class HomeScreen(QWidget):
     def _handle_download(self, vid, title, artist, thumb):
         self.download_requested.emit(vid, title, artist, thumb)
     
-    def _handle_play(self, video_id, title, artists, thumbnail_url=""):
+    def _handle_play(self, video_id, title, artists, thumbnail_url="", duration_ms=0):
         try:
             artist_str = ", ".join([a.get("name", "") for a in artists]) if isinstance(artists, list) else str(artists)
             if self.on_play_song:
-                self.on_play_song(video_id, title, artist_str, "", 0, thumbnail_url)
+                self.on_play_song(video_id, title, artist_str, "", duration_ms, thumbnail_url)
         except Exception as e:
             logger.error(f"Play error: {e}")
 
@@ -773,9 +773,24 @@ class HomeScreen(QWidget):
             else:
                 artist_names = 'Unknown'
             
+            # Extract duration from item (duration_seconds or duration string)
+            dur_ms = 0
+            if item.get('duration_seconds'):
+                dur_ms = int(item.get('duration_seconds')) * 1000
+            elif item.get('duration'):
+                try:
+                    dur_str = str(item['duration'])
+                    parts = dur_str.split(':')
+                    if len(parts) == 2:
+                        dur_ms = (int(parts[0]) * 60 + int(parts[1])) * 1000
+                    elif len(parts) == 3:
+                        dur_ms = (int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])) * 1000
+                except (ValueError, IndexError):
+                    pass
+            
             on_play = None
             if video_id:
-                on_play = partial(self._handle_play, video_id, str(title), artist_names, thumb_url)
+                on_play = partial(self._handle_play, video_id, str(title), artist_names, thumb_url, dur_ms)
             
             tile = QuickAccessTile(
                 title=str(title),
@@ -818,12 +833,27 @@ class HomeScreen(QWidget):
         thumbnail_url = thumbnails[-1].get('url', '') if thumbnails else ''
             
         if video_id:
+            # Extract duration_ms from item
+            dur_ms = 0
+            if item.get('duration_seconds'):
+                dur_ms = int(item.get('duration_seconds')) * 1000
+            elif duration:
+                try:
+                    dur_str = str(duration)
+                    parts = dur_str.split(':')
+                    if len(parts) == 2:
+                        dur_ms = (int(parts[0]) * 60 + int(parts[1])) * 1000
+                    elif len(parts) == 3:
+                        dur_ms = (int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])) * 1000
+                except (ValueError, IndexError):
+                    pass
+            
             card = SongCard(
                 title=str(title),
                 artist=artist_names,
                 duration=str(duration) if duration else '',
                 thumbnail_url=thumbnail_url,
-                on_play=partial(self._handle_play, video_id, str(title), artist_names, thumbnail_url),
+                on_play=partial(self._handle_play, video_id, str(title), artist_names, thumbnail_url, dur_ms),
                 video_id=video_id,
                 is_liked=video_id in liked_ids,
             )
@@ -997,12 +1027,25 @@ class HomeScreen(QWidget):
                     thumbnail_url = thumbnails[-1].get('url', '') if thumbnails else ''
 
                     if video_id:
+                        # Parse duration string to ms
+                        dur_ms = 0
+                        if duration:
+                            try:
+                                dur_str = str(duration)
+                                parts = dur_str.split(':')
+                                if len(parts) == 2:
+                                    dur_ms = (int(parts[0]) * 60 + int(parts[1])) * 1000
+                                elif len(parts) == 3:
+                                    dur_ms = (int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])) * 1000
+                            except (ValueError, IndexError):
+                                pass
+                        
                         card = SongCard(
                             title=title,
                             artist=artist_names,
                             duration=duration,
                             thumbnail_url=thumbnail_url,
-                            on_play=partial(self._handle_play, video_id, title, artist_names, thumbnail_url),
+                            on_play=partial(self._handle_play, video_id, title, artist_names, thumbnail_url, dur_ms),
                             video_id=video_id
                         )
                         card.download_requested.connect(self._handle_download)
@@ -1034,12 +1077,25 @@ class HomeScreen(QWidget):
                 thumbnail_url = thumbnails[-1].get('url', '') if thumbnails else ''
 
                 if video_id:
+                    # Parse duration string to ms
+                    dur_ms = 0
+                    if duration:
+                        try:
+                            dur_str = str(duration)
+                            parts = dur_str.split(':')
+                            if len(parts) == 2:
+                                dur_ms = (int(parts[0]) * 60 + int(parts[1])) * 1000
+                            elif len(parts) == 3:
+                                dur_ms = (int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])) * 1000
+                        except (ValueError, IndexError):
+                            pass
+                    
                     card = SongCard(
                         title=title,
                         artist=artist_names,
                         duration=duration,
                         thumbnail_url=thumbnail_url,
-                        on_play=partial(self._handle_play, video_id, title, artist_names, thumbnail_url)
+                        on_play=partial(self._handle_play, video_id, title, artist_names, thumbnail_url, dur_ms)
                     )
                     grid.addWidget(card, card_index // columns, card_index % columns)
                     card_index += 1
@@ -1183,11 +1239,25 @@ class HomeScreen(QWidget):
                         video_id = video.get("videoId", "")
 
                         if video_id:
+                            # Extract duration from video data if available
+                            dur_ms = 0
+                            video_duration = video.get("lengthText") or video.get("duration")
+                            if video_duration:
+                                try:
+                                    dur_str = str(video_duration)
+                                    parts = dur_str.split(':')
+                                    if len(parts) == 2:
+                                        dur_ms = (int(parts[0]) * 60 + int(parts[1])) * 1000
+                                    elif len(parts) == 3:
+                                        dur_ms = (int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])) * 1000
+                                except (ValueError, IndexError):
+                                    pass
+                            
                             card = SongCard(
                                 title=title_text,
                                 artist=artists_text,
-                                duration="",
-                                on_play=partial(self._handle_play, video_id, title_text, artists_text, "") # Thumbnail might be missing here but fixed others
+                                duration=video_duration or "",
+                                on_play=partial(self._handle_play, video_id, title_text, artists_text, "", dur_ms)
                             )
                             section_layout.addWidget(card)
 

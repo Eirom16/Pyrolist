@@ -372,7 +372,7 @@ class SearchScreen(QWidget):
     # ------------------------------------------------------------------
     # Play handler
     # ------------------------------------------------------------------
-    def _handle_play(self, video_id, title, artists, thumbnail_url):
+    def _handle_play(self, video_id, title, artists, thumbnail_url, duration_ms=0):
         logger.info(f"_handle_play: video_id={repr(video_id)}, title={title[:30]}")
         try:
             if not video_id:
@@ -384,7 +384,7 @@ class SearchScreen(QWidget):
                 else str(artists)
             )
             if self.on_play_song:
-                self.on_play_song(video_id, title, artist_str, "", 0, thumbnail_url)
+                self.on_play_song(video_id, title, artist_str, "", duration_ms, thumbnail_url)
         except Exception as e:
             logger.error(f"Play error: {e}")
 
@@ -673,7 +673,9 @@ class SearchScreen(QWidget):
                 artist=artist_str,
                 result_type=type_label,
                 thumbnail_url=thumb_url,
-                on_play=lambda: self._handle_play(video_id, title, artists, thumb_url) if video_id else None,
+                on_play=lambda: self._handle_play(video_id, title, artists, thumb_url, 
+                    int(top.get("duration", 0)) * 1000 if isinstance(top.get("duration"), (int, float)) else
+                    (lambda d: (lambda p: (int(p[0])*60+int(p[1]))*1000 if len(p)==2 else 0)(d.split(":")) if isinstance(d,str) else 0)(top.get("duration"))) if video_id else None,
                 video_id=video_id
             )
             top_card.download_requested.connect(lambda *a: self.download_requested.emit(*a))
@@ -809,6 +811,21 @@ class SearchScreen(QWidget):
                 duration_str = duration
             else:
                 duration_str = ""
+            
+            # Extract duration_ms for queue
+            dur_ms = 0
+            if isinstance(duration, (int, float)) and duration > 0:
+                dur_ms = int(duration) * 1000
+            elif isinstance(duration, str):
+                try:
+                    dur_str = str(duration)
+                    parts = dur_str.split(':')
+                    if len(parts) == 2:
+                        dur_ms = (int(parts[0]) * 60 + int(parts[1])) * 1000
+                    elif len(parts) == 3:
+                        dur_ms = (int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])) * 1000
+                except (ValueError, IndexError):
+                    pass
 
             liked_ids = getattr(self, "liked_video_ids", set())
             is_liked = video_id in liked_ids
@@ -817,7 +834,7 @@ class SearchScreen(QWidget):
                 artist=artist_names,
                 duration=duration_str,
                 thumbnail_url=thumb_url,
-                on_play=lambda: self._handle_play(video_id, title, artists, thumb_url),
+                on_play=lambda: self._handle_play(video_id, title, artists, thumb_url, dur_ms),
                 video_id=video_id,
                 is_liked=is_liked
             )

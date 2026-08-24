@@ -61,6 +61,8 @@ class MusicPlayer:
             "buffering": [],
         }
         self._poll_task: asyncio.Task | None = None
+        self._play_lock = asyncio.Lock()
+        self._playback_ready: asyncio.Event = asyncio.Event()
 
         em = self._player.event_manager()
         em.event_attach(vlc_lib.EventType.MediaPlayerEndReached, self._on_ended)
@@ -72,76 +74,87 @@ class MusicPlayer:
     # ─── REPRODUCCIÓN ─────────────────────────────────────────────────
 
     async def play_url(self, stream_url: str, video_id: str) -> bool:
-        try:
-            self.status.state = PlayerState.LOADING
-            self.status.current_video_id = video_id
-            self.status.position_ms = 0
-            self.status.duration_ms = 0
-            self._notify("state_changed", self.status)
+        async with self._play_lock:
+            self._playback_ready.clear()
+            try:
+                self.status.state = PlayerState.LOADING
+                self.status.current_video_id = video_id
+                self.status.position_ms = 0
+                self.status.duration_ms = 0
+                self._notify("state_changed", self.status)
 
-            self._player.stop()
-            
-            media = self._instance.media_new(stream_url)
-            media.add_option(
-                ":http-user-agent=Mozilla/5.0 (X11; Linux x86_64) "
-                "AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
-            )
-            self._player.set_media(media)
-            self._player.play()
-            
-            # Reduce wait time for local files since they load instantly from disk
-            sleep_duration = 0.01 if not stream_url.startswith(("http://", "https://")) else 0.5
-            await asyncio.sleep(sleep_duration)
-            
-            state = self._player.get_state()
-            if state == get_vlc().State.Error:
-                logger.error(f"VLC error playing {video_id}")
+                self._player.stop()
+                
+                media = self._instance.media_new(stream_url)
+                media.add_option(
+                    ":http-user-agent=Mozilla/5.0 (X11; Linux x86_64) "
+                    "AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
+                )
+                self._player.set_media(media)
+                self._player.play()
+                
+                # Wait for VLC to confirm playback started via event, with timeout
+                try:
+                    await asyncio.wait_for(self._playback_ready.wait(), timeout=10.0)
+                except asyncio.TimeoutError:
+                    logger.error(f"Timeout waiting for playback to start: {video_id}")
+                    self.status.state = PlayerState.ERROR
+                    self.status.error_msg = "Timeout al iniciar reproducción"
+                    self._notify("error", self.status)
+                    return False
+                
+                if self._poll_task and not self._poll_task.done():
+                    self._poll_task.cancel()
+                self._poll_task = asyncio.create_task(self._poll_position())
+                
+                return True
+            except Exception as e:
+                logger.error(f"play_url error: {e}")
+                self.status.state = PlayerState.ERROR
+                self.status.error_msg = str(e)
+                self._notify("error", self.status)
                 return False
-            
-            if self._poll_task and not self._poll_task.done():
-                self._poll_task.cancel()
-            self._poll_task = asyncio.create_task(self._poll_position())
-            
-            return True
-        except Exception as e:
-            logger.error(f"play_url error: {e}")
-            return False
 
     async def pause(self) -> None:
-        logger.debug(f"pause() called, vlc_state={self._player.get_state()}, is_playing={self._player.is_playing()}")
-        self._player.set_pause(1)
-        # Immediately update state - don't wait for VLC event thread
-        self.status.state = PlayerState.PAUSED
-        self._notify("state_changed", self.status)
-        logger.debug("pause() completed, state set to PAUSED")
+        async with self._play_lock:
+            logger.debug(f"pause() called, vlc_state={self._player.get_state()}, is_playing={self._player.is_playing()}")
+            self._player.set_pause(1)
+            # Immediately update state - don't wait for VLC event thread
+            self.status.state = PlayerState.PAUSED
+            self._notify("state_changed", self.status)
+            logger.debug("pause() completed, state set to PAUSED")
 
     async def resume(self) -> None:
-        state = self._player.get_state()
-        logger.debug(f"resume() called, vlc_state={state}")
-        vlc_lib = get_vlc()
-        if state == vlc_lib.State.Paused:
-            self._player.set_pause(0)
-        elif state == vlc_lib.State.Ended or state == vlc_lib.State.Stopped:
-            self._player.play()
-        else:
-            # Try unpause regardless
-            self._player.set_pause(0)
-        # Immediately update state
-        self.status.state = PlayerState.PLAYING
-        self._notify("state_changed", self.status)
-        logger.debug("resume() completed, state set to PLAYING")
+        async with self._play_lock:
+            state = self._player.get_state()
+            logger.debug(f"resume() called, vlc_state={state}")
+            vlc_lib = get_vlc()
+            if state == vlc_lib.State.Paused:
+                self._player.set_pause(0)
+            elif state == vlc_lib.State.Ended or state == vlc_lib.State.Stopped:
+                self._player.play()
+            else:
+                # Try unpause regardless
+                self._player.set_pause(0)
+            # Immediately update state
+            self.status.state = PlayerState.PLAYING
+            self._notify("state_changed", self.status)
+            logger.debug("resume() completed, state set to PLAYING")
 
     async def stop(self) -> None:
-        self._player.stop()
-        self.status.state = PlayerState.IDLE
-        self.status.position_ms = 0
-        if self._poll_task:
-            self._poll_task.cancel()
-        self._notify("state_changed", self.status)
+        async with self._play_lock:
+            self._player.stop()
+            self.status.state = PlayerState.IDLE
+            self.status.position_ms = 0
+            self._playback_ready.clear()
+            if self._poll_task:
+                self._poll_task.cancel()
+            self._notify("state_changed", self.status)
 
     async def seek(self, position_ms: int) -> None:
-        if self._player.get_length() > 0:
-            self._player.set_time(max(0, position_ms))
+        async with self._play_lock:
+            if self._player.get_length() > 0:
+                self._player.set_time(max(0, position_ms))
 
     # ─── CONTROLES ────────────────────────────────────────────────────
 
@@ -258,6 +271,7 @@ class MusicPlayer:
             self._notify("position_changed", self.status)
             self.status.state = PlayerState.IDLE
             self._notify("state_changed", self.status)
+            self._playback_ready.clear()
             self._notify("track_ended", self.status)
         self._schedule(_handle)
 
@@ -266,12 +280,14 @@ class MusicPlayer:
             self.status.state = PlayerState.ERROR
             self.status.error_msg = "Error de reproducción"
             self._notify("error", self.status)
+            self._playback_ready.set()
         self._schedule(_handle)
 
     def _on_playing(self, event):
         def _handle():
             self.status.state = PlayerState.PLAYING
             self._notify("state_changed", self.status)
+            self._playback_ready.set()
         self._schedule(_handle)
 
     def _on_paused(self, event):

@@ -41,6 +41,8 @@ class PlayQueue:
 
     @property
     def next_item(self) -> QueueItem | None:
+        if self.repeat_mode == RepeatMode.ONE and self._queue:
+            return self._queue[self._index]
         next_i = self._index + 1
         if next_i < len(self._queue):
             return self._queue[next_i]
@@ -91,14 +93,31 @@ class PlayQueue:
                 self._index -= 1
 
     def move_item(self, from_index: int, to_index: int) -> None:
-        if 0 <= from_index < len(self._queue) and 0 <= to_index < len(self._queue):
-            item = self._queue.pop(from_index)
-            self._queue.insert(to_index, item)
-            if from_index == self._index:
-                self._index = to_index
+        if not (0 <= from_index < len(self._queue) and 0 <= to_index < len(self._queue)):
+            return
+        if from_index == to_index:
+            return
+
+        current = self.current
+        item = self._queue.pop(from_index)
+        self._queue.insert(to_index, item)
+
+        if current:
+            try:
+                self._index = next(
+                    i for i, queue_item in enumerate(self._queue)
+                    if queue_item is current or queue_item.video_id == current.video_id
+                )
+            except StopIteration:
+                self._index = min(self._index, len(self._queue) - 1)
+
+        if not self.shuffle_enabled:
+            self._original = self._queue.copy()
 
     def advance(self) -> QueueItem | None:
         if self.repeat_mode == RepeatMode.ONE:
+            # Repeat current track: return it without changing index
+            # Caller should handle re-playing the same item
             return self.current
         if self._index + 1 < len(self._queue):
             self._index += 1

@@ -11,6 +11,7 @@ from pyrolist.ui.widgets.song_card import SongCard
 from pyrolist.ui.widgets.album_card import AlbumCard
 from pyrolist.ui.widgets.artist_card import ArtistCard
 from pyrolist.ui.widgets.error_state import ErrorStateWidget
+from pyrolist.ui.widgets.empty_state import EmptyStateWidget
 from pyrolist.ui.design.fonts import AppFont
 from pyrolist.ui.design.icons import Icon
 from pyrolist.ui.design import tokens
@@ -119,9 +120,7 @@ class ArtistScreen(QWidget):
         self._clear_content()
 
         if not data:
-            err = QLabel("Artista no encontrado")
-            err.setStyleSheet(f"color: {tokens.CURRENT.text_secondary}; background: transparent;")
-            self.content_layout.addWidget(err)
+            self.content_layout.addWidget(EmptyStateWidget("Artista no encontrado", icon="person"))
             return
 
         name = data.get('name', 'Unknown')
@@ -291,12 +290,24 @@ class ArtistScreen(QWidget):
                 track_thumbnail_url = track_thumbnails[-1].get('url', '') if track_thumbnails else ''
 
                 if video_id:
+                    # Parse duration string to ms
+                    dur_ms = 0
+                    if duration:
+                        try:
+                            parts = str(duration).split(':')
+                            if len(parts) == 2:
+                                dur_ms = (int(parts[0]) * 60 + int(parts[1])) * 1000
+                            elif len(parts) == 3:
+                                dur_ms = (int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])) * 1000
+                        except (ValueError, IndexError):
+                            pass
+                    
                     card = SongCard(
                         title=title,
                         artist=artist_names,
                         duration=duration,
                         thumbnail_url=track_thumbnail_url,
-                        on_play=partial(self._handle_play, video_id, title, artist_names, track_thumbnail_url)
+                        on_play=partial(self._handle_play, video_id, title, artist_names, track_thumbnail_url, dur_ms)
                     )
                     card.download_requested.connect(self.download_requested.emit)
                     card.play_next_requested.connect(self.play_next_requested.emit)
@@ -400,27 +411,55 @@ class ArtistScreen(QWidget):
                 self.cover.setPixmap(mask)
                 self.cover.setStyleSheet("background: transparent;")
 
-    def _handle_play(self, video_id, title, artists, thumbnail_url):
+    def _handle_play(self, video_id, title, artists, thumbnail_url, duration_ms=0):
         if self.on_play_song:
-            self.on_play_song(video_id, title, artists, "", 0, thumbnail_url)
+            self.on_play_song(video_id, title, artists, "", duration_ms, thumbnail_url)
 
     def _play_first_song(self, data):
         songs = data.get('songs', {}).get('results', [])
         if songs and self.on_play_song:
             track = songs[0]
+            # Extract duration from track
+            dur_ms = 0
+            track_duration = track.get('duration') or track.get('duration_seconds')
+            if track_duration:
+                if isinstance(track_duration, (int, float)):
+                    dur_ms = int(track_duration) * 1000
+                elif isinstance(track_duration, str):
+                    try:
+                        parts = track_duration.split(':')
+                        if len(parts) == 2:
+                            dur_ms = (int(parts[0]) * 60 + int(parts[1])) * 1000
+                    except (ValueError, IndexError):
+                        pass
             self._handle_play(
                 track.get('videoId', ''),
                 track.get('title', ''),
                 data.get('name', ''),
-                (track.get('thumbnails') or [{}])[-1].get('url', '')
+                (track.get('thumbnails') or [{}])[-1].get('url', ''),
+                dur_ms
             )
 
     def _play_song(self, track, artist_name):
+        # Extract duration from track
+        dur_ms = 0
+        track_duration = track.get('duration') or track.get('duration_seconds')
+        if track_duration:
+            if isinstance(track_duration, (int, float)):
+                dur_ms = int(track_duration) * 1000
+            elif isinstance(track_duration, str):
+                try:
+                    parts = track_duration.split(':')
+                    if len(parts) == 2:
+                        dur_ms = (int(parts[0]) * 60 + int(parts[1])) * 1000
+                except (ValueError, IndexError):
+                    pass
         self._handle_play(
             track.get('videoId', ''),
             track.get('title', ''),
             artist_name,
-            (track.get('thumbnails') or [{}])[-1].get('url', '')
+            (track.get('thumbnails') or [{}])[-1].get('url', ''),
+            dur_ms
         )
 
     def changeEvent(self, event):

@@ -1,7 +1,8 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QScrollArea
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea
 from PySide6.QtCore import Qt, Signal
 from functools import partial
 from pyrolist.utils.time_utils import format_duration_short
+from pyrolist.ui.design.icons import Icon
 
 class QueuePanel(QWidget):
     artist_clicked = Signal(str)
@@ -12,6 +13,7 @@ class QueuePanel(QWidget):
     add_to_queue_requested = Signal(str, str, str, str)
     add_to_playlist_requested = Signal(str, str)
     delete_download_requested = Signal(str)
+    queue_move_requested = Signal(int, int)  # from_index, to_index
 
     def __init__(self, on_play_item=None):
         super().__init__()
@@ -32,10 +34,10 @@ class QueuePanel(QWidget):
 
         self._apply_style()
 
-        self.scroll = QScrollArea()
-        self.scroll.setWidgetResizable(True)
-        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.scroll.setStyleSheet("QScrollArea { background: transparent; border: none; } QScrollArea > QWidget > QWidget { background: transparent; }")
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll_area.setStyleSheet("QScrollArea { background: transparent; border: none; } QScrollArea > QWidget > QWidget { background: transparent; }")
         
         self.queue_list = QWidget()
         self.queue_list.setObjectName("queueList")
@@ -43,8 +45,8 @@ class QueuePanel(QWidget):
         self.queue_layout.setContentsMargins(0, 0, 0, 112)
         self.queue_layout.setSpacing(8)
         
-        self.scroll.setWidget(self.queue_list)
-        layout.addWidget(self.scroll)
+        self.scroll_area.setWidget(self.queue_list)
+        layout.addWidget(self.scroll_area)
 
     def set_queue(self, items, liked_ids=None):
         """Update the queue display. liked_ids is a set of video_ids that are liked."""
@@ -53,9 +55,13 @@ class QueuePanel(QWidget):
 
         while self.queue_layout.count():
             item = self.queue_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+            if item is None:
+                continue
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
 
+        total = len(items)
         for i, item in enumerate(items):
             from pyrolist.ui.widgets.song_card import SongCard
             duration_str = format_duration_short(item.duration_ms) if getattr(item, 'duration_ms', 0) else ""
@@ -73,7 +79,6 @@ class QueuePanel(QWidget):
                 album=getattr(item, 'album', ''),
             )
             
-            
             # Connect artist_clicked signal
             card.artist_clicked.connect(self.artist_clicked.emit)
             card.album_clicked.connect(self.album_clicked.emit)
@@ -87,23 +92,73 @@ class QueuePanel(QWidget):
             card.add_to_queue_requested.connect(lambda *a: self.add_to_queue_requested.emit(*a))
             card.add_to_playlist_requested.connect(lambda *a: self.add_to_playlist_requested.emit(*a))
             card.delete_download_requested.connect(lambda *a: self.delete_download_requested.emit(*a))
-                
-            self.queue_layout.addWidget(card)
+
+            row = QWidget()
+            row.setObjectName("queueRow")
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            row_layout.setSpacing(8)
+            row_layout.addWidget(card, stretch=1)
+
+            reorder = QVBoxLayout()
+            reorder.setContentsMargins(0, 4, 0, 4)
+            reorder.setSpacing(2)
+
+            btn_up = self._make_reorder_button("arrow_upward", "Subir en la cola")
+            btn_up.setEnabled(i > 0)
+            btn_up.clicked.connect(lambda checked=False, from_i=i: self.queue_move_requested.emit(from_i, from_i - 1))
+            reorder.addWidget(btn_up)
+
+            btn_down = self._make_reorder_button("arrow_downward", "Bajar en la cola")
+            btn_down.setEnabled(i < total - 1)
+            btn_down.clicked.connect(lambda checked=False, from_i=i: self.queue_move_requested.emit(from_i, from_i + 1))
+            reorder.addWidget(btn_down)
+
+            row_layout.addLayout(reorder)
+            self.queue_layout.addWidget(row)
             
         self.queue_layout.addStretch()
 
-    def _apply_style(self):
+    def _make_reorder_button(self, icon_name: str, accessible_name: str) -> QPushButton:
+        btn = QPushButton()
+        btn.setText(Icon.get(icon_name))
+        btn.setFont(Icon.font(16))
+        btn.setFixedSize(28, 28)
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn.setAccessibleName(accessible_name)
+        btn.setStyleSheet(self._reorder_button_style())
+        return btn
+
+    def _reorder_button_style(self) -> str:
         from pyrolist.ui.design import tokens
-        self.setStyleSheet(f"""
-            #queuePanel {{
+        return f"""
+            QPushButton {{
                 background: transparent;
+                color: {tokens.CURRENT.text_secondary};
+                border: none;
+                border-radius: 8px;
+                font-family: 'Material Symbols Rounded';
             }}
-            #queueList {{
+            QPushButton:hover:enabled {{
+                background: {tokens.CURRENT.accent_dim};
+                color: {tokens.CURRENT.accent};
+            }}
+            QPushButton:disabled {{
+                color: {tokens.CURRENT.text_disabled};
+            }}
+        """
+
+    def _apply_style(self):
+        self.setStyleSheet("""
+            #queuePanel {
                 background: transparent;
-            }}
+            }
+            #queueList {
+                background: transparent;
+            }
         """)
         if hasattr(self, "header_lbl") and self.header_lbl:
-            self.header_lbl.setStyleSheet(f" background: transparent;")
+            self.header_lbl.setStyleSheet("background: transparent;")
 
     def changeEvent(self, event):
         from PySide6.QtCore import QEvent

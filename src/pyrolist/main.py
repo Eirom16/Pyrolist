@@ -131,6 +131,12 @@ async def main_async(app: QApplication, settings: AppSettings, loop: qasync.QEve
     except Exception as e:
         logger.debug(f"Quit future interrupted during shutdown: {e}")
     finally:
+        # Graceful async shutdown
+        try:
+            await window.async_shutdown()
+        except Exception as e:
+            logger.error(f"Error during async shutdown: {e}")
+        
         from pyrolist.db.database import get_engine
         try:
             engine = get_engine()

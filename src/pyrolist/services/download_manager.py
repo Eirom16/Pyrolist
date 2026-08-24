@@ -102,6 +102,36 @@ class DownloadManager(QObject):
         self._save_incomplete_tasks()
         for worker in self._workers:
             worker.cancel()
+        # Note: workers are awaited in async_stop() to avoid blocking
+        self._workers.clear()
+
+    async def async_stop(self, timeout: float = 5.0) -> None:
+        """Gracefully stop all download workers and wait for them to finish."""
+        self._running = False
+        self._save_incomplete_tasks()
+        
+        # Cancel all pending tasks in queue
+        while not self._queue.empty():
+            try:
+                task = self._queue.get_nowait()
+                if not task._cancel_flag:
+                    task.cancel()
+                self._queue.task_done()
+            except asyncio.QueueEmpty:
+                break
+        
+        # Wait for workers to finish with timeout
+        if self._workers:
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*self._workers, return_exceptions=True),
+                    timeout=timeout
+                )
+            except asyncio.TimeoutError:
+                logger.warning("Download workers did not finish within timeout")
+            except Exception as e:
+                logger.error(f"Error waiting for download workers: {e}")
+        
         self._workers.clear()
 
     @property

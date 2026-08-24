@@ -8,6 +8,7 @@ import random
 from pyrolist.audio.queue import QueueItem
 from pyrolist.ui.widgets.song_card import SongCard
 from pyrolist.ui.widgets.error_state import ErrorStateWidget
+from pyrolist.ui.widgets.empty_state import EmptyStateWidget
 from pyrolist.ui.widgets.icon_button import IconButton
 from pyrolist.ui.design.icons import Icon
 from pyrolist.utils.image_cache import ImageCache
@@ -176,7 +177,7 @@ class AlbumScreen(QWidget):
         self.btn_dl = None
         
         if not data:
-            self.content_layout.addWidget(QLabel("Álbum no encontrado"))
+            self.content_layout.addWidget(EmptyStateWidget("Álbum no encontrado", icon="album"))
             return
             
         from pyrolist.ui.design import tokens
@@ -376,13 +377,25 @@ class AlbumScreen(QWidget):
             duration = track.get('duration', '')
             
             if video_id:
+                # Parse duration string to ms
+                dur_ms = 0
+                if duration:
+                    try:
+                        parts = str(duration).split(':')
+                        if len(parts) == 2:
+                            dur_ms = (int(parts[0]) * 60 + int(parts[1])) * 1000
+                        elif len(parts) == 3:
+                            dur_ms = (int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])) * 1000
+                    except (ValueError, IndexError):
+                        pass
+                
                 is_liked = video_id in getattr(self, "liked_video_ids", set())
                 card = SongCard(
                     title=title,
                     artist=track_artist_names,
                     duration=duration,
-                    thumbnail_url=thumbnail_url,  # Usually same as album
-                    on_play=partial(self._handle_play, video_id, title, track_artist_names),
+                    thumbnail_url=thumbnail_url,
+                    on_play=partial(self._handle_play, video_id, title, track_artist_names, dur_ms),
                     video_id=video_id,
                     is_liked=is_liked
                 )
@@ -442,20 +455,8 @@ class AlbumScreen(QWidget):
         return fallback
 
     def _duration_to_ms(self, value) -> int:
-        if value is None or value == "":
-            return 0
-        if isinstance(value, (int, float)):
-            return int(value * 1000)
-        text = str(value).strip()
-        try:
-            if ":" not in text:
-                return int(float(text) * 1000)
-            total_seconds = 0
-            for part in text.split(":"):
-                total_seconds = total_seconds * 60 + int(part)
-            return total_seconds * 1000
-        except (TypeError, ValueError):
-            return 0
+        from pyrolist.utils.time_utils import parse_duration_to_ms
+        return parse_duration_to_ms(value)
 
     def _track_duration_ms(self, track: dict) -> int:
         for key in ('duration_seconds', 'durationSeconds', 'lengthSeconds'):
@@ -503,7 +504,7 @@ class AlbumScreen(QWidget):
             )
         return items
 
-    def _handle_play(self, video_id, title, artists):
+    def _handle_play(self, video_id, title, artists, duration_ms=0):
         if self.on_play_song:
             queue_items = self._build_queue_items()
             queue_index = next(
@@ -523,7 +524,7 @@ class AlbumScreen(QWidget):
                     queue_index,
                 )
             else:
-                self.on_play_song(video_id, title, artists, "", 0, self._thumbnail_url)
+                self.on_play_song(video_id, title, artists, "", duration_ms, self._thumbnail_url)
 
     def _handle_play_entire(self, shuffle: bool) -> None:
         if not self.on_play_song:

@@ -7,6 +7,31 @@ def format_duration(ms: int) -> str:
     return f"{minutes}:{seconds:02d}"
 
 
+def parse_duration_to_ms(value) -> int:
+    """Convert a YouTube Music duration value to milliseconds.
+
+    Accepts:
+      - int/float seconds (e.g. 215 -> 215000)
+      - "MM:SS" / "HH:MM:SS" strings (e.g. "3:35" -> 215000)
+      - plain numeric strings (e.g. "215" -> 215000)
+    Returns 0 for missing or unparseable values.
+    """
+    if value is None or value == "":
+        return 0
+    if isinstance(value, (int, float)):
+        return int(value * 1000)
+    text = str(value).strip()
+    try:
+        if ":" not in text:
+            return int(float(text) * 1000)
+        total_seconds = 0
+        for part in text.split(":"):
+            total_seconds = total_seconds * 60 + int(part)
+        return total_seconds * 1000
+    except (TypeError, ValueError):
+        return 0
+
+
 def format_duration_short(ms: int) -> str:
     seconds = ms // 1000
     minutes, seconds = divmod(seconds, 60)

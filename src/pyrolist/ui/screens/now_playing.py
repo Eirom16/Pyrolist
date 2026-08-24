@@ -100,6 +100,7 @@ class NowPlayingScreen(QWidget):
     play_next_requested = Signal(str, str, str, str)
     add_to_queue_requested = Signal(str, str, str, str)
     artist_clicked = Signal(str)
+    album_clicked = Signal(str)
     like_requested = Signal(str, object)
     add_to_playlist_requested = Signal(str, str)
     delete_download_requested = Signal(str)
@@ -308,6 +309,12 @@ class NowPlayingScreen(QWidget):
         self.btn_repeat.clicked.connect(self._on_repeat)
         controls.addWidget(self.btn_repeat)
 
+        self.btn_more = self._make_btn("more_vert", 24, "#6B6B9B", 42)
+        self.btn_more.setObjectName("nowPlayingMoreBtn")
+        self.btn_more.setAccessibleName("Más opciones de la canción actual")
+        self.btn_more.clicked.connect(self._show_current_track_menu)
+        controls.addWidget(self.btn_more)
+
         left_layout.addLayout(controls)
         left_layout.addStretch()
 
@@ -442,6 +449,54 @@ class NowPlayingScreen(QWidget):
             main._persist_queue_playback_settings()
         if main and getattr(main, "mpris", None):
             main.mpris.update_loop_status()
+
+    def _show_current_track_menu(self):
+        asyncio.ensure_future(self._show_current_track_menu_async())
+
+    async def _show_current_track_menu_async(self):
+        item = self.queue.current
+        if not item or not getattr(item, "video_id", ""):
+            return
+
+        is_downloaded = False
+        try:
+            from pyrolist.db.repository import DownloadRepository
+            is_downloaded = await DownloadRepository().get_download(item.video_id) is not None
+        except Exception:
+            is_downloaded = False
+
+        from pyrolist.ui.widgets.song_context_menu import SongContextMenu
+        menu_parent = self.window()
+        menu = SongContextMenu(
+            parent=menu_parent,
+            is_downloaded=is_downloaded,
+            has_album=bool(getattr(item, "album", "")),
+        )
+        self._current_menu = menu
+
+        thumb_url = getattr(item, "thumbnail_url", "") or ""
+        menu.play_next.connect(lambda: self.play_next_requested.emit(item.video_id, item.title, item.artist, thumb_url))
+        menu.add_to_queue.connect(lambda: self.add_to_queue_requested.emit(item.video_id, item.title, item.artist, thumb_url))
+        menu.add_to_playlist.connect(lambda: self.add_to_playlist_requested.emit(item.video_id, item.title))
+        menu.go_to_artist.connect(lambda: self.artist_clicked.emit(item.artist))
+        menu.go_to_album.connect(lambda: self.album_clicked.emit(item.album))
+        menu.download.connect(lambda: self.download_requested.emit(item.video_id, item.title, item.artist, thumb_url))
+        menu.delete_download.connect(lambda: self.delete_download_requested.emit(item.video_id))
+        menu.copy_link.connect(lambda: self._copy_current_track_link(item.video_id))
+        setattr(menu, "_trigger_widget", self.btn_more)
+
+        pos = self.btn_more.rect().bottomLeft()
+        if menu_parent and hasattr(self.btn_more, "mapTo"):
+            pos = self.btn_more.mapTo(menu_parent, pos)
+        menu.popup_at(pos)
+
+    def _copy_current_track_link(self, video_id: str):
+        if not video_id:
+            return
+        from PySide6.QtWidgets import QApplication
+        from pyrolist.ui.widgets.toast import ToastNotification
+        QApplication.clipboard().setText(f"https://music.youtube.com/watch?v={video_id}")
+        ToastNotification.show(self.window(), "Enlace copiado", "success")
 
     def update_shuffle_repeat_state(self):
         """Sync button visuals with current queue state."""
@@ -718,25 +773,58 @@ class NowPlayingScreen(QWidget):
         # Force the layout to compute geometries and resize the scroll container immediately
         self.lyrics_container.updateGeometry()
 
+    def _thumbnail_candidates(self, url: str) -> list[str]:
+        """Return best-effort high-resolution artwork URLs before falling back.
+
+        YouTube Music often returns tiny thumbnails (w120/w226, hqdefault, etc.).
+        The large now-playing artwork makes that very visible, so try known higher
+        resolution variants first while preserving the original URL as fallback.
+        """
+        import re
+        candidates: list[str] = []
+
+        def add(candidate: str):
+            if candidate and candidate not in candidates:
+                candidates.append(candidate)
+
+        if not url:
+            return candidates
+
+        # YouTube video thumbnails.
+        video_match = re.search(r"/vi(?:_webp)?/([^/?]+)/", url)
+        video_id = video_match.group(1) if video_match else self.player.status.current_video_id
+        if video_id and ("ytimg.com" in url or "youtube" in url):
+            base = "https://i.ytimg.com/vi"
+            add(f"{base}/{video_id}/maxresdefault.jpg")
+            add(f"{base}/{video_id}/sddefault.jpg")
+            add(f"{base}/{video_id}/hqdefault.jpg")
+            add(f"{base}/{video_id}/mqdefault.jpg")
+
+        # Googleusercontent/YT Music album art size params.
+        add(re.sub(r"=w\d+-h\d+[^&?]*", "=w1200-h1200-l90-rj", url))
+        add(re.sub(r"=s\d+[^&?]*", "=s1200", url))
+
+        # Generic direct replacements seen in API responses.
+        high_res_url = url
+        for small, large in (("w120", "w1200"), ("h120", "h1200"), ("w226", "w1200"), ("h226", "h1200"), ("w544", "w1200"), ("h544", "h1200")):
+            high_res_url = high_res_url.replace(small, large)
+        add(high_res_url)
+        add(url)
+        return candidates
+
     async def _load_thumbnail(self, url: str):
         from loguru import logger
         logger.debug(f"NowPlaying._load_thumbnail called with url={url[:80]}")
-        # Request a higher-resolution thumbnail
-        high_res_url = url
-        if 'w120' in url:
-            high_res_url = url.replace('w120', 'w544').replace('h120', 'h544')
-        elif 'w226' in url:
-            high_res_url = url.replace('w226', 'w544').replace('h226', 'h544')
-        
-        path = await _image_cache.download(high_res_url)
         import shiboken6
-        if not shiboken6.isValid(self):
-            return
-        if not path:
-            logger.debug(f"NowPlaying: high_res download failed, trying original")
-            path = await _image_cache.download(url)
+
+        path = None
+        for candidate in self._thumbnail_candidates(url):
+            path = await _image_cache.download(candidate)
             if not shiboken6.isValid(self):
                 return
+            if path:
+                break
+
         if path:
             logger.debug(f"NowPlaying: image downloaded to {path}")
             try:
@@ -952,6 +1040,8 @@ class NowPlayingScreen(QWidget):
         
         self.btn_prev.setStyleSheet(f"QPushButton {{ color: {text_primary}; border: none; background: transparent; }}")
         self.btn_next.setStyleSheet(f"QPushButton {{ color: {text_primary}; border: none; background: transparent; }}")
+        if hasattr(self, "btn_more"):
+            self.btn_more.setStyleSheet(f"QPushButton {{ color: {text_secondary}; border: none; background: transparent; }}")
         
         self.tabs.setStyleSheet(f"""
             QTabWidget {{
