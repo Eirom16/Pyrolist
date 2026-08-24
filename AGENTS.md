@@ -19,7 +19,13 @@ shortcuts) y mantiene **wrappers finos** que delegan a los controllers. No es un
   - `DownloadController` — `_on_download_*`, `_delete_*`, `_play_local_playlist`
   - `QueueController` — play-next, add-to-queue, add-to-playlist (diálogo), like, queue-move
   - `NavigationController` — routing, offline state, auth/login, búsqueda, sidebar
+  - `SettingsController` — aplica cambios de settings en runtime: persiste settings,
+    (re)inicia `LastFmScrobbler`, volumen/equalizer, crossfade, sleep timer, sidebar
+    compacto y tema. Lo invoca MainWindow vía el wrapper `_on_settings_changed`.
   - `PlaybackSessionManager` — restore/save sesión, `_initialize`, `_check_updates`
+  - `SettingsController` — aplica cambios de settings en runtime: persiste settings,
+    (re)inicia `LastFmScrobbler`, volumen/equalizer, crossfade, sleep timer, sidebar
+    compacto y tema. Lo invoca MainWindow vía el wrapper `_on_settings_changed`.
 - **Patrón de acoplamiento**: cada controller recibe `main_window` (back-reference) y
   `run_async`. Los métodos que pantallas/señales invocan por nombre (`self._on_play_pause`,
   `self._navigate_to`, `self._on_download_error`, etc.) quedan como **wrappers finos en
@@ -61,13 +67,17 @@ Contribuye en otra área o refina lo existente.
   lo que son difíciles de testear aislados. Los tests actuales (`tests/test_queue.py`,
   `test_player.py`, `test_repository.py`, `test_time_utils.py`) cubren la lógica pura.
   Añadir tests de integración ligeros si se refactoriza el acoplamiento.
-- **SettingsController (opcional)** — `_on_settings_changed` (~70 líneas) aplica equalizer/
-  volumen/integradores y aún vive en MainWindow. Extraerlo es polish de bajo riesgo/beneficio.
 - **Anomalía conocida (`yt`)** — `MainWindow.yt` se REASIGNA en login/logout
   (`_on_auth_changed` crea un `YouTubeMusicClient` nuevo). Los controllers que leen
   `self.main_window.yt` (Navigation/Queue/Download) ya ven la referencia actualizada;
   pero cualquier controller que INYECTE `yt` en su constructor quedaría con el cliente
   viejo tras login. Mantén el acceso vía `self.main_window.yt` en nuevos controllers.
+- **Anomalía conocida (`scrobbler`)** — `SettingsController` reasigna `self.main_window.scrobbler`
+  (y `_lastfm_session_key`) cuando cambian los settings de Last.fm; `IntegrationsController`
+  recibió `scrobbler` inyectado en su constructor, así que podría quedar con la referencia
+  vieja tras un re-init. Lo mismo aplica a `mpris`/`discord` inyectados. No es bloqueante
+  (el scrobble se dispara desde el propio `IntegrationsController` leyendo `self.main_window`
+  en los callbacks), pero conviene homogeneizar el acceso vía `self.main_window`.
 - **Performance** — revisar ops bloqueantes (solo 1 `subprocess.run` en `theme_manager.py`),
   caching de imágenes/DB, polling del event loop.
 - **i18n** — cobertura de traducciones (es es el idioma por defecto).

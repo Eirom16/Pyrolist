@@ -30,6 +30,7 @@ from pyrolist.ui.controllers.navigation_controller import NavigationController
 from pyrolist.ui.controllers.download_controller import DownloadController
 from pyrolist.ui.controllers.queue_controller import QueueController
 from pyrolist.ui.controllers.session_manager import PlaybackSessionManager
+from pyrolist.ui.controllers.settings_controller import SettingsController
 
 
 class MainWindow(QMainWindow):
@@ -95,6 +96,8 @@ class MainWindow(QMainWindow):
         self.queue_controller = QueueController(self, self.queue, self.extractor, self._run_async)
 
         self.session_manager = PlaybackSessionManager(self, self._run_async)
+
+        self.settings_controller = SettingsController(self, self._run_async)
 
         self._setup_window()
         self._build_ui()
@@ -750,73 +753,7 @@ class MainWindow(QMainWindow):
         self.playback_controller._on_queue_move_requested(from_index, to_index)
 
     def _on_settings_changed(self, settings: AppSettings) -> None:
-        self.settings = settings
-        if hasattr(self, 'now_playing_screen'):
-            self.now_playing_screen.settings = settings
-            self.now_playing_screen.update_lyrics_style()
-        from pyrolist.config.paths import AppDirs
-        settings.save(AppDirs.settings_file)
-
-        # Update Last.fm scrobbler dynamically
-        if settings.integrations.lastfm_enabled and settings.integrations.lastfm_session_key:
-            if not getattr(self, 'scrobbler', None) or getattr(self, '_lastfm_session_key', None) != settings.integrations.lastfm_session_key:
-                try:
-                    self.scrobbler = LastFmScrobbler(
-                        settings.integrations.lastfm_api_key,
-                        settings.integrations.lastfm_api_secret,
-                        settings.integrations.lastfm_session_key,
-                    )
-                    self._lastfm_session_key = settings.integrations.lastfm_session_key
-                    logger.info("Dynamic Last.fm scrobbler initialized/updated")
-                except Exception as e:
-                    logger.error(f"Failed to initialize dynamic scrobbler: {e}")
-        else:
-            self.scrobbler = None
-            self._lastfm_session_key = None
-        
-        # Update player volume
-        if hasattr(self, 'player'):
-            self.player.set_volume(settings.player.volume)
-            
-        # Update player equalizer
-        if settings.equalizer.enabled:
-            self.player.apply_equalizer(
-                settings.equalizer.preamp,
-                settings.equalizer.bands,
-            )
-        else:
-            self.player.reset_equalizer()
-        
-        # Update crossfade settings dynamically
-        if hasattr(self, 'crossfade_manager'):
-            self.crossfade_manager.enabled = settings.player.crossfade_enabled
-            self.crossfade_manager.duration_sec = settings.player.crossfade_duration_sec
-
-        # Update sleep timer dynamically
-        if hasattr(self, 'sleep_timer'):
-            sleep_mins = getattr(settings.player, 'sleep_timer_minutes', 0)
-            if sleep_mins > 0:
-                logger.info(f"Setting sleep timer for {sleep_mins} minutes")
-                self._run_async(self.sleep_timer.start(sleep_mins * 60, self._on_sleep_timer_expired))
-                self.statusBar().showMessage(f"Temporizador de apagado activado: {sleep_mins} min", 3000)
-            else:
-                if self.sleep_timer.is_running:
-                    self.sleep_timer.cancel()
-                    self.statusBar().showMessage("Temporizador de apagado desactivado", 3000)
-
-        # Apply appearance changes in real-time
-        if hasattr(settings, 'appearance'):
-            # Compact sidebar toggle
-            if hasattr(self, 'sidebar'):
-                if settings.appearance.compact_sidebar and not self.sidebar._collapsed:
-                    self.sidebar.toggle_collapse()
-                elif not settings.appearance.compact_sidebar and self.sidebar._collapsed:
-                    self.sidebar.toggle_collapse()
-            
-            # Theme mode and accent color change — regenerate stylesheet dynamically
-            accent = getattr(settings.appearance, 'accent_color', '#A78BFA')
-            theme_mode = getattr(settings.appearance, 'theme_mode', 'dark')
-            self.theme_manager.apply(theme_mode, accent)
+        self.settings_controller.on_settings_changed(settings)
 
     def _on_sleep_timer_expired(self) -> None:
         logger.info("Sleep timer expired! Pausing music player...")
