@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QSlider, QVBoxLayout, QWidget
 
 from pyrolist.config.themes import EQ_BAND_LABELS, EQ_PRESETS
@@ -196,5 +196,11 @@ class EqualizerSettingsScreen(QWidget):
     def _emit_eq(self) -> None:
         self.settings.equalizer.preamp = self.preamp_slider.value() / 10.0
         self.settings.equalizer.bands = [slider.slider.value() / 10.0 for slider in self.band_sliders]
-        self.on_changed(self.settings)
+        # Debounce: apply_equalizer (VLC) + settings save are expensive, so only
+        # fire after the user stops moving sliders instead of on every tick.
+        if not hasattr(self, "_eq_apply_timer"):
+            self._eq_apply_timer = QTimer(self)
+            self._eq_apply_timer.setSingleShot(True)
+            self._eq_apply_timer.timeout.connect(lambda: self.on_changed(self.settings))
+        self._eq_apply_timer.start(200)
 

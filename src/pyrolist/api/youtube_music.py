@@ -470,13 +470,20 @@ class YouTubeMusicClient:
         if not client:
             return {'tracks': []}
 
+        # The watch playlist endpoint currently fails for every request (ytmusicapi
+        # KeyError 'endpoint'). Cache the failure so we don't spam ERROR logs or
+        # repeat the failed network round-trip on every track change.
+        if getattr(self, "_watch_disabled_until", 0) > time.time():
+            return {'tracks': []}
+
         def _get_watch():
             return client.get_watch_playlist(videoId=video_id, limit=limit)
 
         try:
             return await self._run(_get_watch)
         except Exception as e:
-            logger.error(f"get_watch_playlist error: {e}")
+            logger.debug(f"get_watch_playlist error (suppressing retries for 60s): {e}")
+            self._watch_disabled_until = time.time() + 60
             return {'tracks': []}
 
     async def get_history(self) -> list:

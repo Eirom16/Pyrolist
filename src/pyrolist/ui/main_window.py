@@ -675,8 +675,8 @@ class MainWindow(QMainWindow):
     def _save_playback_session(self) -> None:
         self.session_manager.save_playback_session()
 
-    def _check_updates(self) -> None:
-        self._run_async(self.session_manager.check_updates())
+    async def _check_updates(self) -> None:
+        await self.session_manager.check_updates()
 
     # --- NavigationController thin delegating wrappers ---
     # The real implementations live in NavigationController. These thin wrappers
