@@ -41,10 +41,10 @@ browser.json
 *.patch
 *.spec
 
-# Test artifacts
-test_*.py
+# Test artifacts (generated data/fixtures)
 test_*.json
 test_*.png
+# NOTE: test_*.py se versionan (ver commit que habilitó tests en CI).
 
 # Database
 *.sqlite
