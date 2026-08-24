@@ -153,7 +153,11 @@ class AboutScreen(QWidget):
         return card
 
     async def _manual_check(self) -> None:
-        from pyrolist.utils.updater import check_for_updates, CURRENT_VERSION
+        from pyrolist.utils.updater import (
+            check_for_updates,
+            CURRENT_VERSION,
+            is_dev_build,
+        )
         from pyrolist.ui.widgets.update_dialog import UpdateDialog
 
         self._check_btn.setEnabled(False)
@@ -163,6 +167,17 @@ class AboutScreen(QWidget):
 
         self._check_btn.setEnabled(True)
         self._check_btn.setText("Buscar actualizaciones")
+
+        if is_dev_build():
+            main_win = self.window()
+            show_notification = getattr(main_win, "show_notification", None)
+            msg = "Estás en una versión de desarrollo (siempre es la última)"
+            if callable(show_notification):
+                show_notification(msg, "info")
+            else:
+                from pyrolist.ui.widgets.toast import ToastNotification
+                ToastNotification.show(main_win, msg, kind="info")
+            return
 
         if release:
             dlg = UpdateDialog(release, parent=self.window())

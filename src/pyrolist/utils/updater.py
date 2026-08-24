@@ -8,6 +8,7 @@ y notifica al usuario con una barra de progreso.
 from __future__ import annotations
 
 import asyncio
+import os
 import platform
 import shutil
 import subprocess
@@ -32,6 +33,22 @@ GITHUB_HEADERS  = {
     "Accept": "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
 }
+
+
+def is_dev_build() -> bool:
+    """
+    Dev/commit builds are always the latest by definition, so the updater
+    must never report an available update for them.
+
+    A build is considered development when:
+      - PYROLIST_DEV env var is set, or
+      - the current version carries a commit/dev suffix (e.g. "2.1.4-4-g1842402"
+        produced by `git describe`), which only happens for source builds.
+    Frozen release builds report a plain "X.Y.Z" stamped from the git tag.
+    """
+    if os.environ.get("PYROLIST_DEV"):
+        return True
+    return "-" in CURRENT_VERSION
 
 
 @dataclass
@@ -84,8 +101,9 @@ def _detect_package_manager() -> str:
 
 
 def _parse_version(tag: str) -> tuple[int, ...]:
-    """Convierte 'v1.2.3' en (1, 2, 3) para comparación numérica."""
-    return tuple(int(x) for x in tag.lstrip("v").split("."))
+    """Convierte 'v1.2.3' (o 'v1.2.3-4-gabc' de git describe) en (1, 2, 3)."""
+    core = tag.lstrip("v").split("-")[0]
+    return tuple(int(x) for x in core.split("."))
 
 
 async def check_for_updates() -> ReleaseInfo | None:
@@ -94,6 +112,10 @@ async def check_for_updates() -> ReleaseInfo | None:
     Devuelve ReleaseInfo si hay una versión más nueva, None si no.
     No lanza excepciones — falla silenciosamente en caso de error de red.
     """
+    if is_dev_build():
+        logger.debug("Update check skipped: development/commit build")
+        return None
+
     try:
         async with httpx.AsyncClient(timeout=8.0) as client:
             r = await client.get(GITHUB_API_URL, headers=GITHUB_HEADERS)
